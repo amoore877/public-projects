@@ -33,6 +33,7 @@ Each entry is a decision made during planning, with what it rules out.
 | D23 | **Bubble Tea v2 / Lip Gloss v2** (`charm.land/...`), with `teatest/v2` for program-level tests. The table is drawn by hand rather than with `lipgloss/table`. | v2 is the current major version. A hand-drawn grid gives exact control over column dropping, truncation with `…`, and styling cells without styling the borders; view tests compare ANSI-stripped golden screens. |
 | D24 | **Hotkey input happens in a prompt that takes over the two lines below the table** (status + key hints); the table never moves. Multi-part input (add, condition) is a short chain of prompts; questions (remove? keep or end effects?) are single-key choices. The line editor is hand-written rather than Bubbles' `textinput`. | Keeps the screen layout fixed at 80×24 and every flow testable by sending keys. The editor needs only insert, cursor moves, delete, `ctrl+u/k/w` and paste, so it isn't worth a dependency. Rejected: modal forms over the table (hide the rows the DM is looking at). |
 | D25 | **`=N` in the damage or heal prompt sets HP directly** (R4); the add prompt takes `MAX` or `CURRENT/MAX`, and a group's initiative is one whole number to share or one value per member, comma-separated. | Covers "set HP" and "add with current HP" without more hotkeys. Bad input is refused inside the prompt, which stays open with the reason, rather than closing and losing what was typed. |
+| D26 | **Effect targets are picked on the table itself**: while the checklist is open the marker column shows `✓` / `·` on combatant rows, `↑↓`/`jk` move as usual, and `space` ticks the selected row and moves on. A new effect asks for its name, then its source (the selected combatant by default, or none, which needs an initiative), then its duration, then its targets. | The DM sees HP and conditions while choosing who is in the area, and the screen layout stays fixed (D24). The turn marker is hidden while picking; the title still names the turn holder. Rejected: a separate list overlay (hides the table). |
 
 ## Layout
 
@@ -291,7 +292,7 @@ The parser in `internal/command` only turns text into combat operations; the hot
 2. ✅ **Persistence + journal:** autosave, resume, Markdown log.
 3. ✅ **Read-only TUI:** table rendering, selection, next/previous turn.
 4. ✅ **Editing via hotkeys:** add/remove, damage/heal/temp HP, conditions, initiative, notes, log entries, end combat. Removing an effect's source asks keep-or-end here already, since removal needs it.
-5. **Effects:** effect rows, linked conditions, targets, end/dispel early.
+5. ✅ **Effects:** new effect (`e`), edit targets (`T`), end/dispel early (`x` on an effect row), on top of the effect rows and linked conditions drawn since milestone 3.
 6. **Command bar + help overlay.**
 7. **Polish:** narrow-terminal layout, error banners, README usage docs.
 

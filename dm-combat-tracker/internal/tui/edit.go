@@ -428,10 +428,6 @@ func (m *Model) promptRemove() overlay {
 		m.warn("Nothing selected")
 		return nil
 	}
-	if r.Effect != nil {
-		m.warn("Ending effects early isn't available yet")
-		return nil
-	}
 	id, name := r.ID(), r.Name()
 	return confirm("Remove "+name+" from combat?", func(m *Model) { m.remove(id, name, combat.AskAboutEffects) })
 }

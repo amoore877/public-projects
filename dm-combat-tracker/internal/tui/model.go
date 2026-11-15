@@ -117,7 +117,15 @@ func (m *Model) handleKey(key string) tea.Cmd {
 	case "a":
 		m.open(m.promptAdd())
 	case "x":
-		m.open(m.promptRemove())
+		if fx, ok := m.sess.Encounter().Effect(m.selected); ok {
+			m.open(m.promptEndEffect(fx))
+		} else {
+			m.open(m.promptRemove())
+		}
+	case "e":
+		m.open(m.promptNewEffect())
+	case "T":
+		m.open(m.promptTargets())
 	case "d", "h", "t":
 		m.open(m.promptHP(key))
 	case "c":
@@ -274,6 +282,11 @@ func (m *Model) render() string {
 	enc := m.sess.Encounter()
 	l := computeLayout(m.width)
 	rows := buildRows(enc)
+	if p, ok := m.overlay.(*targetPicker); ok {
+		for i := range rows {
+			rows[i].marker = p.marker(enc, rows[i].id)
+		}
+	}
 
 	var b strings.Builder
 	b.WriteString(fit(m.title(enc), m.width))
@@ -366,9 +379,12 @@ func (m *Model) statusLine(enc *combat.Encounter, rows []rowCells, end int) stri
 // hints lists the keys that apply, most useful first, dropping from the end
 // (but always keeping quit) until they fit the width.
 func (m *Model) hints(enc *combat.Encounter) string {
-	keys := []string{"n next", "p prev", "d/h dmg/heal", "c/C cond", "a add", "x remove", "t temp HP", "i init", "N note", "l log", "E end"}
+	keys := []string{"n next", "p prev", "d/h dmg/heal", "c/C cond", "e effect", "a add", "x remove", "T targets", "t temp HP", "i init", "N note", "l log", "E end"}
+	if r, ok := enc.Row(m.selected); ok && r.Effect != nil {
+		keys = []string{"n next", "p prev", "T targets", "x end early", "e effect", "i init", "N note", "l log", "E end"}
+	}
 	if enc.Status == combat.Setup {
-		keys = []string{"a add", "S start", "d/h dmg/heal", "c/C cond", "x remove", "i init", "N note", "l log", "t temp HP"}
+		keys = []string{"a add", "S start", "e effect", "d/h dmg/heal", "c/C cond", "x remove", "i init", "N note", "l log", "t temp HP"}
 	}
 	for len(keys) > 0 {
 		s := " " + strings.Join(append(keys[:len(keys):len(keys)], "q quit"), " · ")
