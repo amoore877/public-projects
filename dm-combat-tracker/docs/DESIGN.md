@@ -22,6 +22,10 @@ Each entry is a decision made during planning, with what it rules out.
 | D12 | **Durations count down only at the start of their anchor's turn.** | Gives one rule that doesn't depend on any game system. See [Durations](#durations). Rejected: setting start or end of turn for each item, and counting down at the end of the turn. |
 | D13 | **Ending combat archives the state file** as `dmct-state-<timestamp>.json`; the next combat starts with a new file. | Keeps the final state of a finished fight for reference. Rejected: resetting the file in place, asking each time. |
 | D14 | **The condition list is built in for v1** (the D&D 5e preset); custom names can always be typed. | No config files until ruleset presets ([Future](REQUIREMENTS.md#future)). Rejected: an optional YAML/JSON condition file in v1. |
+| D15 | **Durations don't tick on the opening turn** (`Start`). | Anything applied during Setup counts from its anchor's next turn, so a "1 round" condition set before combat isn't gone the instant the fight begins. |
+| D16 | **An effect that expires at the start of its own turn hands the turn straight on** to the next row. | The effect row has nothing left to remind the DM of. One `Next` covers both, and `Previous` restores the effect. |
+| D17 | **Removing the row whose turn it is clears turn history.** | `Previous` can't point back at a row that no longer exists. Removing other rows keeps history; a rewind that would land on a removed row is refused. |
+| D18 | **Group auto-fill needs a whole-number initiative**; a negative base fills downward (`-1 ×3` → `-1.1, -1.2, -1.3`). | Keeps decimals from spilling into the next whole number (`12.5 + 0.6`). The DM can still give separate initiatives. |
 
 ## Layout
 
@@ -53,7 +57,8 @@ type Encounter struct {
     Effects       []*Effect
     History       []TurnRecord  // for "previous turn" (see below)
     LogPath       string        // log file bound to this encounter
-    nextID        int
+    NextID        int           // ID counter (shared by combatants, effects, conditions)
+    NextSeq       int           // AddedSeq counter
 }
 
 type Combatant struct {
@@ -263,7 +268,7 @@ The parser in `internal/command` only turns text into combat operations; the hot
 
 ## Milestones
 
-1. **Domain core:** `internal/combat` model, ordering, turns, HP, conditions, events, with tests.
+1. ✅ **Domain core:** `internal/combat` model, ordering, turns, HP, conditions, effects, events, with tests.
 2. **Persistence + journal:** autosave, resume, Markdown log.
 3. **Read-only TUI:** table rendering, selection, next/previous turn.
 4. **Editing via hotkeys:** add/remove, damage/heal, conditions, notes, log entries.
