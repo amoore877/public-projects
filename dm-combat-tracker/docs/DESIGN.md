@@ -26,6 +26,9 @@ Each entry is a decision made during planning, with what it rules out.
 | D16 | **An effect that expires at the start of its own turn hands the turn straight on** to the next row. | The effect row has nothing left to remind the DM of. One `Next` covers both, and `Previous` restores the effect. |
 | D17 | **Removing the row whose turn it is clears turn history.** | `Previous` can't point back at a row that no longer exists. Removing other rows keeps history; a rewind that would land on a removed row is refused. |
 | D18 | **Group auto-fill needs a whole-number initiative**; a negative base fills downward (`-1 ×3` → `-1.1, -1.2, -1.3`). | Keeps decimals from spilling into the next whole number (`12.5 + 0.6`). The DM can still give separate initiatives. |
+| D19 | **An `internal/session` package is the app layer** (D11): it runs an operation, saves, logs, and archives on end. | The TUI and command bar call one `Apply(op)` and never touch files, so milestones 3–6 don't each re-wire persistence. Save and log failures come back as warnings; the change is never rolled back. |
+| D20 | **During Setup only manual notes are logged.** Adds, conditions and effects set up before the fight are summed up by the "Combat started" lineup. | Keeps prep noise out of the recap. Rejected: logging every setup action. |
+| D21 | **The log file is bound when it's first needed** (the first note or the start of combat), not when the app opens. | The default name uses the date the combat starts, and an encounter that never logs anything doesn't create a file. |
 
 ## Layout
 
@@ -36,7 +39,8 @@ dm-combat-tracker/
 ├── internal/combat/           domain model + operations (pure, no I/O)
 ├── internal/command/          ":" command-bar parser → combat operations
 ├── internal/journal/          Markdown log writer (consumes combat events)
-├── internal/store/            state file load / atomic save
+├── internal/session/          app layer: apply op → autosave → log → archive on end
+├── internal/store/            state file load / atomic save / archive
 ├── internal/tui/              Bubble Tea model, table view, keymap, overlays
 └── docs/
 ```
@@ -154,6 +158,9 @@ Each event carries the round, the turn-holder's name, and a timestamp (the clock
 - On startup, if the state file exists and `Status != Ended`, the app resumes. Otherwise it starts in Setup.
 - **End combat** (D13) saves the final state, then renames the file to `dmct-state-<YYYYMMDD-HHMMSS>.json` next to it. The next combat starts in Setup with a new state file.
 - The state stores `LogPath`, so a resumed encounter keeps writing to the same log even if the date has changed.
+- A state file that can't be parsed, or has a newer `schemaVersion`, is refused and left untouched for the DM to look at.
+- A state file found in `Ended` (a crash between ending and archiving) is archived on startup, and a new combat begins.
+- Archive names that collide (two fights ended in the same second) get a `-2`, `-3`, … suffix.
 
 ### CLI
 
@@ -187,6 +194,9 @@ Append-only. The file is opened with `O_APPEND|O_CREATE|O_WRONLY` and never read
 ```
 
 - Manual notes are marked with 📝 so they stand out when skimming for the recap.
+- Logged: combat started/ended, round headings, turn rewound, combatant added/removed, down/revived, conditions applied/removed/expired, effects started/retargeted/ended/expired, notes. Not logged: plain turn changes (the turn holder is on every line), HP arithmetic, initiative and side-note edits.
+- During Setup only notes are logged, stamped `[Setup]` (D20).
+- A resumed fight doesn't repeat its `# Combat` or `## Round` headings. Rewinding over a round boundary doesn't repeat the heading either; each entry's own `[R…]` stamp is the source of truth.
 - Several combats in one session add more `# Combat — …` sections to the same file.
 - Writing to the log is best-effort: if it fails, the TUI shows an error banner but combat state is never rolled back.
 
@@ -264,12 +274,13 @@ The parser in `internal/command` only turns text into combat operations; the hot
 - **`internal/command`:** parser tests, including name matching and ambiguity errors.
 - **`internal/journal`:** golden-file tests for Markdown output, using a fake clock.
 - **`internal/store`:** round-trip and atomic-write tests (no `.tmp` left behind; the previous file survives an interrupted write).
+- **`internal/session`:** resume after restart, archive on end, rejected operations save nothing, log failures don't block saves.
 - **`internal/tui`:** `teatest` smoke tests for the main flows.
 
 ## Milestones
 
 1. ✅ **Domain core:** `internal/combat` model, ordering, turns, HP, conditions, effects, events, with tests.
-2. **Persistence + journal:** autosave, resume, Markdown log.
+2. ✅ **Persistence + journal:** autosave, resume, Markdown log.
 3. **Read-only TUI:** table rendering, selection, next/previous turn.
 4. **Editing via hotkeys:** add/remove, damage/heal, conditions, notes, log entries.
 5. **Effects:** effect rows, linked conditions, targets, end/dispel early, removing a source.

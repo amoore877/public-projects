@@ -1,0 +1,29 @@
+# Combat — 2026-11-14 19:42
+
+- `19:42` **[Setup]** 📝 Ambush at the bridge
+
+## Round 1
+
+- `19:42` **[R1 · Thorin]** Combat started: Thorin (18), Goblin 1–4 (12.4–12.1), Mira (9)
+- `19:43` **[R1 · Thorin]** Goblin 2 dropped to 0 HP
+- `19:44` **[R1 · Goblin 1]** 📝 Goblin 1 tried to flee toward the bridge
+- `19:45` **[R1 · Mira]** Effect started: Spirit Guardians (Mira, 10 rounds) on Goblin 1, Goblin 3
+- `19:45` **[R1 · Mira]** Prone applied to Goblin 3
+- `19:45` **[R1 · Mira]** Frightened applied to Goblin 4 (1 round; DC 14 WIS save ends)
+- `19:45` **[R1 · Mira]** Spirit Guardians now also on Goblin 4
+- `19:45` **[R1 · Mira]** Spirit Guardians no longer on Goblin 1
+
+## Round 2
+
+- `19:47` **[R1 · Spirit Guardians]** Turn rewound to Spirit Guardians
+- `19:47` **[R2 · Thorin]** Goblin 2 is back above 0 HP
+- `19:47` **[R2 · Thorin]** Prone removed from Goblin 3
+- `19:47` **[R2 · Thorin]** Owlbear joined at initiative 11 (59/59 HP)
+- `19:47` **[R2 · Goblin 4]** Frightened expired on Goblin 4
+- `19:50` **[R2 · Goblin 4]** Goblin 1 removed from combat
+- `19:50` **[R2 · Goblin 4]** Effect ended early: Spirit Guardians (concentration broken)
+
+## Round 3
+
+- `19:50` **[R3 · Thorin]** Blessed expired on Thorin
+- `19:52` **[R3 · Thorin]** Combat ended after 3 rounds
