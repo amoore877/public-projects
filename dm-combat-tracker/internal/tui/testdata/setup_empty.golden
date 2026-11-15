@@ -4,4 +4,4 @@
 ├───┼────────┼──────────────┼──────┼─────────────┼────────────────┼────────────┤
 └───┴────────┴──────────────┴──────┴─────────────┴────────────────┴────────────┘
  No combatants yet                                                              
- a add · S start · e effect · d/h dmg/heal · c/C cond · x remove · q quit       
+ a add · S start · e effect · d/h dmg/heal · c/C cond · : cmd · ? help · q quit 

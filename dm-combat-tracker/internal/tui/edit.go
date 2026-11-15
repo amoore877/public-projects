@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/combat"
+	"github.com/amoore877/public-projects/dm-combat-tracker/internal/command"
 )
 
 // This file holds the editing hotkeys (milestone 4). Each one opens an
@@ -127,7 +128,7 @@ func (m *Model) promptAddCondition() overlay {
 		if text == "" {
 			return pick, errors.New("Type a condition name, or tab through the presets")
 		}
-		name = canonicalCondition(text)
+		name = command.CanonicalCondition(text)
 		dur.label = fmt.Sprintf("%s on %s · duration:", name, target)
 		return dur, nil
 	}
@@ -149,17 +150,6 @@ func suggestConditions(text string) []string {
 		}
 	}
 	return append(prefix, inner...)
-}
-
-// canonicalCondition uses the preset's spelling for a case-insensitive match
-// ("prone" → "Prone"); custom names are kept as typed.
-func canonicalCondition(s string) string {
-	for _, c := range combat.DefaultConditions {
-		if strings.EqualFold(c, s) {
-			return c
-		}
-	}
-	return s
 }
 
 func (m *Model) promptRemoveCondition() overlay {
@@ -323,7 +313,7 @@ func (m *Model) promptAdd() overlay {
 
 	hpStep := &inputPrompt{help: "max HP, or CURRENT/MAX"}
 	hpStep.submit = func(m *Model, text string) (overlay, error) {
-		cur, mx, err := parseHP(text)
+		cur, mx, err := command.ParseHP(text)
 		if err != nil {
 			return hpStep, err
 		}
@@ -335,7 +325,7 @@ func (m *Model) promptAdd() overlay {
 	initStep := &inputPrompt{}
 	initStep.submit = func(m *Model, text string) (overlay, error) {
 		var err error
-		init, inits, err = parseAddInitiative(text, count)
+		init, inits, err = command.ParseAddInitiative(text, count)
 		if err != nil {
 			return initStep, err
 		}
@@ -368,56 +358,6 @@ func (m *Model) promptAdd() overlay {
 		return initStep, nil
 	}
 	return nameStep
-}
-
-// parseAddInitiative reads one initiative, or for a group either one whole
-// number (auto-filled decimals) or one value per member.
-func parseAddInitiative(text string, count int) (combat.Initiative, []combat.Initiative, error) {
-	parts := strings.Split(text, ",")
-	if count == 0 || len(parts) == 1 {
-		v, err := combat.ParseInitiative(text)
-		if err != nil {
-			return 0, nil, err
-		}
-		if count > 0 {
-			if _, err := combat.GroupFill(v, count); err != nil {
-				return 0, nil, errors.New("A shared group initiative must be a whole number; or give one value per member, separated by commas")
-			}
-		}
-		return v, nil, nil
-	}
-	if len(parts) != count {
-		return 0, nil, fmt.Errorf("Need %d initiatives, got %d", count, len(parts))
-	}
-	out := make([]combat.Initiative, count)
-	for i, p := range parts {
-		v, err := combat.ParseInitiative(p)
-		if err != nil {
-			return 0, nil, err
-		}
-		out[i] = v
-	}
-	return out[0], out, nil
-}
-
-// parseHP reads "44" (full health) or "31/44".
-func parseHP(text string) (cur *int, maxHP int, err error) {
-	curS, maxS, split := strings.Cut(strings.TrimSpace(text), "/")
-	if !split {
-		maxS = curS
-	}
-	maxHP, err = strconv.Atoi(strings.TrimSpace(maxS))
-	if err != nil || maxHP < 1 {
-		return nil, 0, errors.New("Max HP must be a whole number of 1 or more")
-	}
-	if split {
-		n, err := strconv.Atoi(strings.TrimSpace(curS))
-		if err != nil || n < 0 || n > maxHP {
-			return nil, 0, fmt.Errorf("Current HP must be 0–%d", maxHP)
-		}
-		cur = &n
-	}
-	return cur, maxHP, nil
 }
 
 // --- removing and ending --------------------------------------------------
@@ -464,16 +404,20 @@ func (m *Model) promptEndCombat() overlay {
 	if enc.Status == combat.Active {
 		q = fmt.Sprintf("End combat after %s? The state file is archived.", plural(enc.Round, "round", "rounds"))
 	}
-	return confirm(q, func(m *Model) {
-		out, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return e.End() })
-		if err != nil {
-			m.fail(err)
-			return
-		}
-		m.selected, m.selIdx, m.offset = 0, 0, 0
-		m.syncSelection()
-		if m.msg == "" && out.ArchivedTo != "" {
-			m.info("Combat ended · archived as " + out.ArchivedTo)
-		}
-	})
+	return confirm(q, func(m *Model) { m.endCombat() })
+}
+
+// endCombat ends the fight; the session archives the state file and a new
+// combat begins in Setup (D13).
+func (m *Model) endCombat() {
+	out, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return e.End() })
+	if err != nil {
+		m.fail(err)
+		return
+	}
+	m.selected, m.selIdx, m.offset = 0, 0, 0
+	m.syncSelection()
+	if m.msg == "" && out.ArchivedTo != "" {
+		m.info("Combat ended · archived as " + out.ArchivedTo)
+	}
 }

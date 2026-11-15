@@ -34,6 +34,9 @@ Each entry is a decision made during planning, with what it rules out.
 | D24 | **Hotkey input happens in a prompt that takes over the two lines below the table** (status + key hints); the table never moves. Multi-part input (add, condition) is a short chain of prompts; questions (remove? keep or end effects?) are single-key choices. The line editor is hand-written rather than Bubbles' `textinput`. | Keeps the screen layout fixed at 80×24 and every flow testable by sending keys. The editor needs only insert, cursor moves, delete, `ctrl+u/k/w` and paste, so it isn't worth a dependency. Rejected: modal forms over the table (hide the rows the DM is looking at). |
 | D25 | **`=N` in the damage or heal prompt sets HP directly** (R4); the add prompt takes `MAX` or `CURRENT/MAX`, and a group's initiative is one whole number to share or one value per member, comma-separated. | Covers "set HP" and "add with current HP" without more hotkeys. Bad input is refused inside the prompt, which stays open with the reason, rather than closing and losing what was typed. |
 | D26 | **Effect targets are picked on the table itself**: while the checklist is open the marker column shows `✓` / `·` on combatant rows, `↑↓`/`jk` move as usual, and `space` ticks the selected row and moves on. A new effect asks for its name, then its source (the selected combatant by default, or none, which needs an initiative), then its duration, then its targets. | The DM sees HP and conditions while choosing who is in the area, and the screen layout stays fixed (D24). The turn marker is hidden while picking; the title still names the turn holder. Rejected: a separate list overlay (hides the table). |
+| D27 | **Command-bar names match in tiers**: an exact name (case and spaces ignored) wins; otherwise a name prefix (`band` → Bandit Captain) or a shortened base plus the number (`gob2`, `g2` → Goblin 2, never Goblin 20). More than one match at the winning tier is an error listing them. Where a target and a free-text part both follow the verb (`:cond goblin 2 hold person 3`), the longest leading run of words that resolves is the target. | Typing at the table needs to be short and forgiving, but never guess between two creatures. |
+| D28 | **A refused command keeps the bar open** with the reason and the text, whether the parser or the domain refused it; only commands that ran go into the `↑↓` history. Multi-target commands check every target before changing anything. `:rm` of an effect's source asks keep-or-end like `x`; `:endcombat` doesn't ask for confirmation (typing it is the confirmation). | A typo costs one edit, not a retype, and a list command can't half-apply. |
+| D29 | **Help is a scrollable screen drawn in place of the table**, built from the same key and command lists the code uses (a test checks every verb and hotkey is listed). Any key that isn't a scroll key closes it without acting. | One source of truth, so the help can't go stale. |
 
 ## Layout
 
@@ -263,12 +266,13 @@ Targets are matched case-insensitively against names, with spaces optional (`gob
 | `:add NAME [xN] INIT HP [pc\|npc]` | `:add Goblin x4 12 7` · `:add Thorin 18 44 pc` |
 | `:rm TARGET` | `:rm goblin 2` |
 | `:dmg TARGETS N` | `:dmg g1,g3 9` |
-| `:heal TARGET N` | `:heal thorin 8` |
-| `:temp TARGET N` | `:temp mira 5` |
+| `:heal TARGETS N` | `:heal thorin 8` |
+| `:hp TARGET N` | `:hp g2 3` (set HP directly) |
+| `:temp TARGETS N` | `:temp mira 5` |
 | `:cond TARGETS NAME [ROUNDS] [-- NOTE]` | `:cond g3 prone` · `:cond thorin blessed 10` |
 | `:uncond TARGET NAME` | `:uncond g3 prone` |
-| `:fx NAME [ROUNDS] [from SOURCE] on TARGETS` | `:fx Spirit Guardians 10 from mira on g1,g3` |
-| `:fxadd` / `:fxrm FX TARGETS` | `:fxrm spirit g1` |
+| `:fx NAME [ROUNDS] [from SOURCE] [at INIT] [on TARGETS]` | `:fx Spirit Guardians 10 from mira on g1,g3` · `:fx Lair rumble at 20` |
+| `:fxadd FX TARGETS` / `:fxrm FX TARGETS` | `:fxrm spirit g1` |
 | `:end FX [-- REASON]` | `:end spirit -- concentration broken` |
 | `:init TARGET VALUE` | `:init g2 12.35` |
 | `:note TARGET TEXT` | `:note g1 fleeing` |
@@ -293,7 +297,7 @@ The parser in `internal/command` only turns text into combat operations; the hot
 3. ✅ **Read-only TUI:** table rendering, selection, next/previous turn.
 4. ✅ **Editing via hotkeys:** add/remove, damage/heal/temp HP, conditions, initiative, notes, log entries, end combat. Removing an effect's source asks keep-or-end here already, since removal needs it.
 5. ✅ **Effects:** new effect (`e`), edit targets (`T`), end/dispel early (`x` on an effect row), on top of the effect rows and linked conditions drawn since milestone 3.
-6. **Command bar + help overlay.**
+6. ✅ **Command bar + help overlay.**
 7. **Polish:** narrow-terminal layout, error banners, README usage docs.
 
 ## Open questions

@@ -118,6 +118,10 @@ type inputPrompt struct {
 	// the hint line; otherwise the returned overlay (or nil) comes next.
 	submit func(m *Model, text string) (overlay, error)
 
+	// history, if set, is browsed with up/down (the command bar).
+	history *[]string
+	histIdx int
+
 	err     string
 	tabBase *string // text before the first tab of a cycle
 	tabIdx  int
@@ -134,6 +138,22 @@ func (p *inputPrompt) update(m *Model, k tea.KeyPressMsg) overlay {
 			return p
 		}
 		return next
+	case "up", "down":
+		if p.history == nil || len(*p.history) == 0 {
+			return p
+		}
+		h := *p.history
+		if k.String() == "up" {
+			p.histIdx = max(0, p.histIdx-1)
+		} else {
+			p.histIdx = min(len(h), p.histIdx+1)
+		}
+		text := ""
+		if p.histIdx < len(h) {
+			text = h[p.histIdx]
+		}
+		p.ed, p.tabBase, p.err = newLineEdit(text), nil, ""
+		return p
 	case "tab", "shift+tab":
 		if p.suggest == nil {
 			return p

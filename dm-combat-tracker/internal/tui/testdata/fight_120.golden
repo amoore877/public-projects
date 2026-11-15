@@ -11,4 +11,4 @@
 │   │ 9      │ ◆ Spirit Guardians        │ FX   │             │ 10 rds · 2 targets               │ 3d8 radiant         │
 └───┴────────┴───────────────────────────┴──────┴─────────────┴──────────────────────────────────┴─────────────────────┘
  ! Tied initiative: enter a decimal (e.g. 15.2 / 15.1) to set the order                                                 
- n next · p prev · d/h dmg/heal · c/C cond · e effect · a add · x remove · T targets · t temp HP · i init · q quit      
+ n next · p prev · d/h dmg/heal · c/C cond · e effect · a add · x remove · T targets · : cmd · ? help · q quit          

@@ -11,4 +11,4 @@
 │   │ 9      │ ◆ Spirit … │ FX   │             │ 10 rds · 2 t… │
 └───┴────────┴────────────┴──────┴─────────────┴───────────────┘
  ! Tied initiative: enter a decimal (e.g. 15.2 / 15.1) to set t…
- n next · p prev · d/h dmg/heal · c/C cond · e effect · q quit  
+ n next · p prev · d/h dmg/heal · : cmd · ? help · q quit       

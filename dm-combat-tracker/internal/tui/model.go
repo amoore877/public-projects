@@ -45,8 +45,11 @@ type Model struct {
 	offset   int          // first visible row when the table scrolls
 	msg      string
 	level    msgLevel
-	overlay  overlay // the open prompt, if any; it gets every key
-	chain    overlay // set by an action to open another prompt when the current one closes
+	overlay  overlay  // the open prompt, if any; it gets every key
+	chain    overlay  // set by an action to open another prompt when the current one closes
+	history  []string // command-bar lines, oldest first
+	help     bool     // the help screen is showing
+	helpOff  int      // its scroll position
 }
 
 // New returns a model for s. resumedFrom, if non-empty, is shown as a notice
@@ -72,6 +75,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.syncSelection()
 	case tea.KeyPressMsg:
+		if m.help {
+			m.updateHelp(msg)
+			return m, nil
+		}
 		if m.overlay != nil {
 			m.overlay = m.overlay.update(m, msg)
 			if m.chain != nil {
@@ -140,6 +147,10 @@ func (m *Model) handleKey(key string) tea.Cmd {
 		m.open(m.promptLog())
 	case "E":
 		m.open(m.promptEndCombat())
+	case ":":
+		m.open(m.promptCommand())
+	case "?":
+		m.help, m.helpOff = true, 0
 	}
 	return nil
 }
@@ -279,6 +290,9 @@ func (m *Model) View() tea.View {
 
 // render draws the whole screen as a string.
 func (m *Model) render() string {
+	if m.help {
+		return m.renderHelp()
+	}
 	enc := m.sess.Encounter()
 	l := computeLayout(m.width)
 	rows := buildRows(enc)
@@ -377,7 +391,7 @@ func (m *Model) statusLine(enc *combat.Encounter, rows []rowCells, end int) stri
 }
 
 // hints lists the keys that apply, most useful first, dropping from the end
-// (but always keeping quit) until they fit the width.
+// (but always keeping the command bar, help and quit) until they fit the width.
 func (m *Model) hints(enc *combat.Encounter) string {
 	keys := []string{"n next", "p prev", "d/h dmg/heal", "c/C cond", "e effect", "a add", "x remove", "T targets", "t temp HP", "i init", "N note", "l log", "E end"}
 	if r, ok := enc.Row(m.selected); ok && r.Effect != nil {
@@ -386,12 +400,12 @@ func (m *Model) hints(enc *combat.Encounter) string {
 	if enc.Status == combat.Setup {
 		keys = []string{"a add", "S start", "e effect", "d/h dmg/heal", "c/C cond", "x remove", "i init", "N note", "l log", "t temp HP"}
 	}
-	for len(keys) > 0 {
-		s := " " + strings.Join(append(keys[:len(keys):len(keys)], "q quit"), " · ")
-		if ansi.StringWidth(s) <= m.width {
+	keys = append([]string{}, keys...)
+	for {
+		s := " " + strings.Join(append(keys[:len(keys):len(keys)], ": cmd", "? help", "q quit"), " · ")
+		if ansi.StringWidth(s) <= m.width || len(keys) == 0 {
 			return s
 		}
 		keys = keys[:len(keys)-1]
 	}
-	return " q quit"
 }

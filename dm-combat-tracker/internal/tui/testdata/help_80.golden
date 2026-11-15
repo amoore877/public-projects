@@ -1,0 +1,24 @@
+ Help                                                                           
+ Keys act on the selected row; in a prompt, tab completes and esc cancels       
+   n / space  next turn                                                         
+   p          previous turn (restores durations, not other edits)               
+   ↑↓ / j k   move the selection                                                
+   g / G      first / last row                                                  
+   a          add a combatant, or a group: Goblin x4                            
+   x          remove the combatant / end the effect early                       
+   d / h      damage / heal (=N sets HP)                                        
+   t          set temp HP                                                       
+   c / C      add / remove a condition                                          
+   e          new effect (source: the selected combatant)                       
+   T          change an effect's targets                                        
+   i          edit initiative                                                   
+   N          edit the side note                                                
+   l          write a log entry                                                 
+   :          command bar (↑↓ history, tab completes)                           
+   S / E      start / end combat                                                
+   ?          this help                                                         
+   q          quit (everything is already saved)                                
+                                                                                
+ Commands names match loosely (goblin 2, gob2, g2); TARGETS is a comma list     
+   :add NAME [xN] INIT HP [pc|npc]                                              
+ ↑↓/jk scroll · lines 1–22 of 53 · any other key closes                         
