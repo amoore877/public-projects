@@ -11,4 +11,4 @@
 │   │ 9      │ ◆ Spirit Gu… │ FX   │             │ 10 rds · 2 ta… │ 3d8 radia… │
 └───┴────────┴──────────────┴──────┴─────────────┴────────────────┴────────────┘
  ! Tied initiative: enter a decimal (e.g. 15.2 / 15.1) to set the order         
- n/space next · p previous · ↑↓/jk select · q quit                              
+ n next · p prev · d/h dmg/heal · c/C cond · a add · x remove · q quit          

@@ -31,6 +31,8 @@ Each entry is a decision made during planning, with what it rules out.
 | D21 | **The log file is bound when it's first needed** (the first note or the start of combat), not when the app opens. | The default name uses the date the combat starts, and an encounter that never logs anything doesn't create a file. |
 | D22 | **Next / previous turn moves the selection to the new turn holder**; otherwise selection moves only with `↑↓`/`jk`. | The creature whose turn it is is usually the one the DM acts on next. The DM can still move away to act on another row. If the selected row disappears, selection lands on the row now in its place. |
 | D23 | **Bubble Tea v2 / Lip Gloss v2** (`charm.land/...`), with `teatest/v2` for program-level tests. The table is drawn by hand rather than with `lipgloss/table`. | v2 is the current major version. A hand-drawn grid gives exact control over column dropping, truncation with `…`, and styling cells without styling the borders; view tests compare ANSI-stripped golden screens. |
+| D24 | **Hotkey input happens in a prompt that takes over the two lines below the table** (status + key hints); the table never moves. Multi-part input (add, condition) is a short chain of prompts; questions (remove? keep or end effects?) are single-key choices. The line editor is hand-written rather than Bubbles' `textinput`. | Keeps the screen layout fixed at 80×24 and every flow testable by sending keys. The editor needs only insert, cursor moves, delete, `ctrl+u/k/w` and paste, so it isn't worth a dependency. Rejected: modal forms over the table (hide the rows the DM is looking at). |
+| D25 | **`=N` in the damage or heal prompt sets HP directly** (R4); the add prompt takes `MAX` or `CURRENT/MAX`, and a group's initiative is one whole number to share or one value per member, comma-separated. | Covers "set HP" and "add with current HP" without more hotkeys. Bad input is refused inside the prompt, which stays open with the reason, rather than closing and losing what was typed. |
 
 ## Layout
 
@@ -224,7 +226,8 @@ Append-only. The file is opened with `O_APPEND|O_CREATE|O_WRONLY` and never read
 - `▶` marks the current turn; a cursor highlight marks the **selected** row (which hotkeys act on), and the two can differ.
 - `◆` marks effect rows and effect-linked conditions; `▼` = bloodied; `+5` = temp HP; `DOWN` rows are dimmed.
 - At narrow widths the Note column is dropped first, then the Kind column.
-- Below the table, a status line shows the latest warning or error (a failed autosave, "no earlier turn"), else a tied-initiative warning, else the scroll position; the bottom line lists the keys that apply.
+- While a prompt is open (D24) it replaces the status line, and its hint line shows completions, input help, or why the input was refused.
+- Below the table, a status line shows the latest warning or error (a failed autosave, "no earlier turn"), else a tied-initiative warning, else the scroll position; the bottom line lists the keys that apply, dropping the least-used ones to fit the width (the full list is the `?` overlay).
 - When there are more rows than fit, the table scrolls to keep the selection visible.
 
 ### Hotkeys (act on the selected row)
@@ -235,7 +238,7 @@ Append-only. The file is opened with `O_APPEND|O_CREATE|O_WRONLY` and never read
 | `p` | Previous turn |
 | `↑↓` / `j k` | Move selection |
 | `g` / `G` | Select the first / last row |
-| `d` / `h` | Damage / heal (prompts for amount) |
+| `d` / `h` | Damage / heal (prompts for amount; `=N` sets HP) |
 | `t` | Set temp HP |
 | `c` / `C` | Add condition (preset picker + custom) / remove condition |
 | `e` | New effect (source defaults to the selected combatant; pick targets from a checklist) |
@@ -247,7 +250,7 @@ Append-only. The file is opened with `O_APPEND|O_CREATE|O_WRONLY` and never read
 | `l` | Write a log entry |
 | `:` | Command bar |
 | `?` | Help overlay |
-| `S` / `E` | Start combat (from Setup) / end combat |
+| `S` / `E` | Start combat (from Setup) / end combat (with confirmation) |
 | `q` | Quit (state is already saved) |
 
 ### Command bar (D9)
@@ -287,8 +290,8 @@ The parser in `internal/command` only turns text into combat operations; the hot
 1. ✅ **Domain core:** `internal/combat` model, ordering, turns, HP, conditions, effects, events, with tests.
 2. ✅ **Persistence + journal:** autosave, resume, Markdown log.
 3. ✅ **Read-only TUI:** table rendering, selection, next/previous turn.
-4. **Editing via hotkeys:** add/remove, damage/heal, conditions, notes, log entries.
-5. **Effects:** effect rows, linked conditions, targets, end/dispel early, removing a source.
+4. ✅ **Editing via hotkeys:** add/remove, damage/heal/temp HP, conditions, initiative, notes, log entries, end combat. Removing an effect's source asks keep-or-end here already, since removal needs it.
+5. **Effects:** effect rows, linked conditions, targets, end/dispel early.
 6. **Command bar + help overlay.**
 7. **Polish:** narrow-terminal layout, error banners, README usage docs.
 

@@ -144,6 +144,18 @@ func key(k string) tea.KeyPressMsg {
 		return tea.KeyPressMsg{Code: tea.KeyUp}
 	case "down":
 		return tea.KeyPressMsg{Code: tea.KeyDown}
+	case "enter":
+		return tea.KeyPressMsg{Code: tea.KeyEnter}
+	case "esc":
+		return tea.KeyPressMsg{Code: tea.KeyEscape}
+	case "tab":
+		return tea.KeyPressMsg{Code: tea.KeyTab}
+	case "backspace":
+		return tea.KeyPressMsg{Code: tea.KeyBackspace}
+	case "left":
+		return tea.KeyPressMsg{Code: tea.KeyLeft}
+	case "ctrl+u":
+		return tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl}
 	}
 	r := []rune(k)[0]
 	return tea.KeyPressMsg{Code: r, Text: k}
@@ -378,6 +390,9 @@ func TestProgram(t *testing.T) {
 	// check the outcome on the final model and the state file, not the bytes.
 	tm.Send(key("S"))
 	tm.Send(key("n"))
+	for _, k := range []string{"d", "3", "enter"} { // Goblin now holds the turn and the selection
+		tm.Send(key(k))
+	}
 	tm.Send(key("q"))
 	fm := tm.FinalModel(t, teatest.WithFinalTimeout(2*time.Second)).(*Model)
 	if fm.Selected() != idOf(t, s, "Goblin") {
@@ -390,5 +405,8 @@ func TestProgram(t *testing.T) {
 	}
 	if enc.Status != combat.Active || enc.Round != 1 || enc.Current != idOf(t, s, "Goblin") {
 		t.Errorf("saved state: status %v round %d current %d", enc.Status, enc.Round, enc.Current)
+	}
+	if g, _ := enc.Combatant(idOf(t, s, "Goblin")); g == nil || g.HP != 4 {
+		t.Errorf("saved goblin: %+v", g)
 	}
 }
