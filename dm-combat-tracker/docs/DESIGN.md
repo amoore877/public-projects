@@ -29,6 +29,8 @@ Each entry is a decision made during planning, with what it rules out.
 | D19 | **An `internal/session` package is the app layer** (D11): it runs an operation, saves, logs, and archives on end. | The TUI and command bar call one `Apply(op)` and never touch files, so milestones 3–6 don't each re-wire persistence. Save and log failures come back as warnings; the change is never rolled back. |
 | D20 | **During Setup only manual notes are logged.** Adds, conditions and effects set up before the fight are summed up by the "Combat started" lineup. | Keeps prep noise out of the recap. Rejected: logging every setup action. |
 | D21 | **The log file is bound when it's first needed** (the first note or the start of combat), not when the app opens. | The default name uses the date the combat starts, and an encounter that never logs anything doesn't create a file. |
+| D22 | **Next / previous turn moves the selection to the new turn holder**; otherwise selection moves only with `↑↓`/`jk`. | The creature whose turn it is is usually the one the DM acts on next. The DM can still move away to act on another row. If the selected row disappears, selection lands on the row now in its place. |
+| D23 | **Bubble Tea v2 / Lip Gloss v2** (`charm.land/...`), with `teatest/v2` for program-level tests. The table is drawn by hand rather than with `lipgloss/table`. | v2 is the current major version. A hand-drawn grid gives exact control over column dropping, truncation with `…`, and styling cells without styling the borders; view tests compare ANSI-stripped golden screens. |
 
 ## Layout
 
@@ -222,6 +224,8 @@ Append-only. The file is opened with `O_APPEND|O_CREATE|O_WRONLY` and never read
 - `▶` marks the current turn; a cursor highlight marks the **selected** row (which hotkeys act on), and the two can differ.
 - `◆` marks effect rows and effect-linked conditions; `▼` = bloodied; `+5` = temp HP; `DOWN` rows are dimmed.
 - At narrow widths the Note column is dropped first, then the Kind column.
+- Below the table, a status line shows the latest warning or error (a failed autosave, "no earlier turn"), else a tied-initiative warning, else the scroll position; the bottom line lists the keys that apply.
+- When there are more rows than fit, the table scrolls to keep the selection visible.
 
 ### Hotkeys (act on the selected row)
 
@@ -230,6 +234,7 @@ Append-only. The file is opened with `O_APPEND|O_CREATE|O_WRONLY` and never read
 | `n` / `space` | Next turn |
 | `p` | Previous turn |
 | `↑↓` / `j k` | Move selection |
+| `g` / `G` | Select the first / last row |
 | `d` / `h` | Damage / heal (prompts for amount) |
 | `t` | Set temp HP |
 | `c` / `C` | Add condition (preset picker + custom) / remove condition |
@@ -281,7 +286,7 @@ The parser in `internal/command` only turns text into combat operations; the hot
 
 1. ✅ **Domain core:** `internal/combat` model, ordering, turns, HP, conditions, effects, events, with tests.
 2. ✅ **Persistence + journal:** autosave, resume, Markdown log.
-3. **Read-only TUI:** table rendering, selection, next/previous turn.
+3. ✅ **Read-only TUI:** table rendering, selection, next/previous turn.
 4. **Editing via hotkeys:** add/remove, damage/heal, conditions, notes, log entries.
 5. **Effects:** effect rows, linked conditions, targets, end/dispel early, removing a source.
 6. **Command bar + help overlay.**
