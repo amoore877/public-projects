@@ -24,8 +24,12 @@ const (
 
 // chrome is the number of screen lines that aren't table rows: the title,
 // the table's top border, header and separator, its bottom border, the
-// status line and the key hints.
+// status line and the key hints. The error banner, when shown, adds one.
 const chrome = 7
+
+// minHeight is the shortest terminal that shows at least one table row
+// with the banner up.
+const minHeight = chrome + 2
 
 type msgLevel int
 
@@ -50,6 +54,13 @@ type Model struct {
 	history  []string // command-bar lines, oldest first
 	help     bool     // the help screen is showing
 	helpOff  int      // its scroll position
+	quitting bool     // set by the quit confirmation; Update then quits
+
+	// Sticky problems shown in the error banner until a later change
+	// succeeds where they failed.
+	saveErr error // the latest autosave failed
+	logErr  error // the latest log write failed
+	logLost int   // changes whose log entries were lost since logging last worked
 }
 
 // New returns a model for s. resumedFrom, if non-empty, is shown as a notice
@@ -75,6 +86,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.syncSelection()
 	case tea.KeyPressMsg:
+		if m.tooSmall() {
+			// Nothing on screen to act on: only quitting works.
+			if k := msg.String(); k == "q" || k == "ctrl+c" {
+				return m, tea.Quit
+			}
+			return m, nil
+		}
 		if m.help {
 			m.updateHelp(msg)
 			return m, nil
@@ -83,6 +101,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.overlay = m.overlay.update(m, msg)
 			if m.chain != nil {
 				m.overlay, m.chain = m.chain, nil
+			}
+			if m.quitting {
+				return m, tea.Quit
 			}
 			return m, nil
 		}
@@ -106,6 +127,10 @@ func (m *Model) open(o overlay) {
 func (m *Model) handleKey(key string) tea.Cmd {
 	switch key {
 	case "q", "ctrl+c":
+		if m.saveErr != nil {
+			m.open(confirm("Autosave is failing: quit anyway? Changes since it failed are lost.", func(m *Model) { m.quitting = true }))
+			return nil
+		}
 		return tea.Quit
 	case "up", "k":
 		m.move(-1)
@@ -182,17 +207,81 @@ func (m *Model) run(op session.Op) (session.Outcome, error) {
 	if err != nil {
 		return out, err
 	}
-	var problems []string
-	if out.SaveErr != nil {
-		problems = append(problems, "Autosave failed: "+out.SaveErr.Error())
-	}
-	if out.LogErr != nil {
-		problems = append(problems, "Log write failed: "+out.LogErr.Error())
-	}
-	if len(problems) > 0 {
-		m.msg, m.level = strings.Join(problems, " · "), levelError
-	}
+	m.track(out)
+	m.syncSelection() // the banner coming or going changes how many rows fit
 	return out, nil
+}
+
+// track updates the error banner from an operation's outcome. A problem
+// stays up until a later change saves (or logs) successfully, and its
+// recovery is reported once in the status line.
+func (m *Model) track(out session.Outcome) {
+	if len(out.Events) == 0 {
+		return // nothing was saved or logged
+	}
+	switch {
+	case out.SaveErr != nil:
+		m.saveErr = out.SaveErr
+	case m.saveErr != nil:
+		m.saveErr = nil
+		m.info("Autosave is working again; the state file is up to date")
+	}
+	switch {
+	case out.LogErr != nil:
+		m.logErr = out.LogErr
+		m.logLost++
+	case out.Logged && m.logErr != nil:
+		m.warn(fmt.Sprintf("The log is writing again; %s before this weren't logged", plural(m.logLost, "change", "changes")))
+		m.logErr, m.logLost = nil, 0
+	}
+}
+
+// banner is the error banner's text, or "" when nothing is failing. The
+// summary comes first and the raw error last, since narrow terminals cut
+// the end off.
+func (m *Model) banner() string {
+	switch {
+	case m.saveErr != nil && m.logErr != nil:
+		return " ✖ Autosave and log failing: changes aren't on disk or in the log (retrying): " + m.saveErr.Error()
+	case m.saveErr != nil:
+		return " ✖ Autosave failing: changes aren't on disk (retrying): " + m.saveErr.Error()
+	case m.logErr != nil:
+		return fmt.Sprintf(" ✖ Log failing: %s not logged (retrying): %s", plural(m.logLost, "change", "changes"), m.logErr.Error())
+	}
+	return ""
+}
+
+func (m *Model) bannerLines() int {
+	if m.banner() != "" {
+		return 1
+	}
+	return 0
+}
+
+// tooSmall reports whether the terminal can't fit the table.
+func (m *Model) tooSmall() bool { return m.width < minWidth || m.height < minHeight }
+
+func (m *Model) renderTooSmall() string {
+	lines := []string{
+		" Terminal too small",
+		fmt.Sprintf(" Need %d×%d, have %d×%d.", minWidth, minHeight, m.width, m.height),
+		" Make the window bigger; q quits (state is saved).",
+	}
+	if m.saveErr != nil {
+		lines[2] = " Make the window bigger: autosave is failing."
+	}
+	out := make([]string, m.height)
+	for i := range out {
+		s := ""
+		if i < len(lines) {
+			s = lines[i]
+		}
+		out[i] = fit(s, m.width)
+	}
+	if b := m.banner(); b != "" && m.height > len(lines) {
+		out[len(lines)] = styleBanner.Render(fit(b, m.width))
+	}
+	return strings.Join(out, "\n")
 }
 
 func (m *Model) info(s string) { m.msg, m.level = s, levelInfo }
@@ -263,7 +352,7 @@ func (m *Model) syncSelection() {
 	m.offset = max(0, min(m.offset, len(order)-visible))
 }
 
-func (m *Model) visibleRows() int { return max(1, m.height-chrome) }
+func (m *Model) visibleRows() int { return max(1, m.height-chrome-m.bannerLines()) }
 
 // Styles. Kept simple; colours degrade to the terminal's profile.
 var (
@@ -279,6 +368,7 @@ var (
 	styleWarn     = lipgloss.NewStyle().Foreground(lipgloss.Yellow)
 	styleError    = lipgloss.NewStyle().Foreground(lipgloss.Red).Bold(true)
 	styleCursor   = lipgloss.NewStyle().Reverse(true)
+	styleBanner   = lipgloss.NewStyle().Foreground(lipgloss.BrightWhite).Background(lipgloss.Red).Bold(true)
 )
 
 func (m *Model) View() tea.View {
@@ -290,6 +380,9 @@ func (m *Model) View() tea.View {
 
 // render draws the whole screen as a string.
 func (m *Model) render() string {
+	if m.tooSmall() {
+		return m.renderTooSmall()
+	}
 	if m.help {
 		return m.renderHelp()
 	}
@@ -305,6 +398,9 @@ func (m *Model) render() string {
 	var b strings.Builder
 	b.WriteString(fit(m.title(enc), m.width))
 	b.WriteString("\n")
+	if text := m.banner(); text != "" {
+		b.WriteString(styleBanner.Render(fit(text, m.width)) + "\n")
+	}
 	b.WriteString(l.border("┌", "┬", "┐") + "\n")
 	b.WriteString(l.line(func(c column) string { return headers[c] }, func(_ column, s string) string { return styleHeader.Render(s) }) + "\n")
 	b.WriteString(l.border("├", "┼", "┤") + "\n")
@@ -325,7 +421,7 @@ func (m *Model) render() string {
 		b.WriteString(style.Render(fit(text, m.width)))
 		return b.String()
 	}
-	b.WriteString(m.statusLine(enc, rows, end) + "\n")
+	b.WriteString(m.statusLine(enc, l, rows, end) + "\n")
 	b.WriteString(styleHint.Render(fit(m.hints(enc), m.width)))
 	return b.String()
 }
@@ -369,8 +465,9 @@ func (m *Model) cellStyle(rc rowCells) func(column, string) string {
 	}
 }
 
-// statusLine shows the latest message, else a tie warning, else a scroll hint.
-func (m *Model) statusLine(enc *combat.Encounter, rows []rowCells, end int) string {
+// statusLine shows the latest message, else the selected row's details when
+// the table cuts them off, else a tie warning, else a scroll hint.
+func (m *Model) statusLine(enc *combat.Encounter, l layout, rows []rowCells, end int) string {
 	text, style := m.msg, styleHint
 	switch m.level {
 	case levelWarn:
@@ -380,6 +477,9 @@ func (m *Model) statusLine(enc *combat.Encounter, rows []rowCells, end int) stri
 	}
 	if text == "" && len(rows) == 0 {
 		text = "No combatants yet"
+	}
+	if text == "" {
+		text = m.selectedDetail(l, rows)
 	}
 	if text == "" && len(enc.Ties()) > 0 {
 		text, style = "! Tied initiative: enter a decimal (e.g. 15.2 / 15.1) to set the order", styleWarn
@@ -408,4 +508,26 @@ func (m *Model) hints(enc *combat.Encounter) string {
 		}
 		keys = keys[:len(keys)-1]
 	}
+}
+
+// selectedDetail spells out the selected row's name, conditions and note
+// when the table truncates or hides any of them (narrow terminals), or "".
+func (m *Model) selectedDetail(l layout, rows []rowCells) string {
+	for _, rc := range rows {
+		if rc.id != m.selected {
+			continue
+		}
+		if !l.cut(colName, rc.name) && !l.cut(colConds, rc.conds) && !l.cut(colNote, rc.note) {
+			return ""
+		}
+		parts := []string{rc.name}
+		if rc.conds != "" {
+			parts = append(parts, rc.conds)
+		}
+		if rc.note != "" {
+			parts = append(parts, "Note: "+rc.note)
+		}
+		return strings.Join(parts, " · ")
+	}
+	return ""
 }

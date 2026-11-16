@@ -221,6 +221,21 @@ func TestLogFailureDoesNotBlockState(t *testing.T) {
 	if s.Encounter().LogPath != cfg.LogPath {
 		t.Fatalf("LogPath = %q, want the --log path", s.Encounter().LogPath)
 	}
+	if out.Logged {
+		t.Error("Logged should be false when the write failed")
+	}
+
+	// Once the directory exists, the next change opens the log and writes.
+	if err := os.Mkdir("no-such-dir", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out, err = s.Apply(func(e *combat.Encounter) ([]combat.Event, error) { return e.LogNote("back") })
+	if err != nil || out.LogErr != nil || !out.Logged {
+		t.Fatalf("after recovery: err %v, log err %v, logged %v", err, out.LogErr, out.Logged)
+	}
+	if !strings.Contains(readFile(t, cfg.LogPath), "back") {
+		t.Error("note missing from the log after recovery")
+	}
 }
 
 func TestOpenRejectsCorruptState(t *testing.T) {

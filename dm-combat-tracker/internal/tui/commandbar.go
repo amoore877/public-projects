@@ -104,7 +104,7 @@ var keyHelp = [][2]string{
 	{":", "command bar (↑↓ history, tab completes)"},
 	{"S / E", "start / end combat"},
 	{"?", "this help"},
-	{"q", "quit (everything is already saved)"},
+	{"q", "quit (state is autosaved; asks first if saving fails)"},
 }
 
 // helpLines is the help screen's content.

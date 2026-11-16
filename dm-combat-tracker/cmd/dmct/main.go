@@ -40,7 +40,7 @@ func run(args []string) error {
 
 	s, resumed, err := session.Open(session.Config{StatePath: *statePath, LogPath: *logPath})
 	if err != nil {
-		return err
+		return fmt.Errorf("%w\nThe state file was left as it is. Fix or move it, or run with --state OTHER.json to start a new fight.", err)
 	}
 	defer s.Close()
 

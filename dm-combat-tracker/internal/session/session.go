@@ -5,7 +5,6 @@
 package session
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/combat"
@@ -68,6 +67,7 @@ type Outcome struct {
 	Events     []combat.Event
 	SaveErr    error  // the state file couldn't be written
 	LogErr     error  // the log couldn't be written (best-effort)
+	Logged     bool   // log entries were written (false in Setup, where only notes are logged)
 	ArchivedTo string // set when combat ended and the state file was archived
 }
 
@@ -101,7 +101,7 @@ func (s *Session) Apply(op Op) (Outcome, error) {
 	}
 
 	out.SaveErr = store.Save(s.cfg.StatePath, s.enc)
-	out.LogErr = s.writeLog(evs, logAt)
+	out.Logged, out.LogErr = s.writeLog(evs, logAt)
 
 	if ended {
 		s.closeLog()
@@ -127,22 +127,22 @@ func (s *Session) bindLog() {
 
 // writeLog appends evs to the encounter's log. at is where the log stood
 // before the operation, used if the writer has to be (re)opened, e.g. on the
-// first change after a restart.
-func (s *Session) writeLog(evs []combat.Event, at journal.Resume) error {
+// first change after a restart. It reports whether entries were written.
+func (s *Session) writeLog(evs []combat.Event, at journal.Resume) (bool, error) {
 	if s.enc.LogPath == "" {
-		return nil // nothing in Setup is logged except notes, which bind the log
+		return false, nil // nothing in Setup is logged except notes, which bind the log
 	}
 	if s.log == nil {
 		w, err := journal.Open(s.enc.LogPath, at)
 		if err != nil {
-			return err
+			return false, err
 		}
 		s.log = w
 	}
 	if err := s.log.Write(evs); err != nil {
-		return fmt.Errorf("%w (combat state is saved; only the log entry was lost)", err)
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 func (s *Session) closeLog() {

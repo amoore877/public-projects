@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -142,76 +143,98 @@ func (rc rowCells) get(c column) string {
 }
 
 // layout picks the visible columns and their content widths for a terminal
-// width. Narrow terminals drop Note first, then Kind.
+// width. Narrow terminals drop Note first, then Kind, then narrow the
+// remaining columns; below minWidth nothing fits and the TUI shows a
+// "too small" screen instead of the table.
 type layout struct {
 	cols   []column
 	widths map[column]int
 }
 
-const (
-	minName  = 10
-	minConds = 12
-	minNote  = 8
+// tier is one way of laying out the table, tried widest first.
+type tier struct {
+	cols  []column
+	fixed map[column]int // columns with a set width
+	mins  map[column]int // flexible columns' minimum widths
+}
+
+var (
+	fullFixed  = map[column]int{colMarker: 1, colInit: 6, colKind: 4, colHP: 11}
+	fullMins   = map[column]int{colName: 10, colConds: 12, colNote: 8}
+	tightFixed = map[column]int{colMarker: 1, colInit: 5, colHP: 9}
+	tightMins  = map[column]int{colName: 6, colConds: 6}
+
+	tiers = []tier{
+		{[]column{colMarker, colInit, colName, colKind, colHP, colConds, colNote}, fullFixed, fullMins},
+		{[]column{colMarker, colInit, colName, colKind, colHP, colConds}, fullFixed, fullMins},
+		{[]column{colMarker, colInit, colName, colHP, colConds}, fullFixed, fullMins},
+		{[]column{colMarker, colInit, colName, colHP, colConds}, tightFixed, tightMins},
+	}
 )
 
+// need is the narrowest width the tier fits in.
+func (t tier) need() int {
+	n := 1 + 3*len(t.cols) // the left edge "│" plus " … │" around each cell
+	for _, c := range t.cols {
+		n += t.fixed[c] + t.mins[c]
+	}
+	return n
+}
+
+// minWidth is the narrowest terminal the table can be drawn in.
+var minWidth = tiers[len(tiers)-1].need()
+
 func computeLayout(total int) layout {
-	fixed := map[column]int{colMarker: 1, colInit: 6, colKind: 4, colHP: 11}
-	try := func(cols []column) (layout, bool) {
-		// Each column takes its width plus " │" padding; the left edge is "│ ".
-		overhead := 1 + 3*len(cols)
-		used := overhead
-		var flex []column
-		for _, c := range cols {
-			if w, ok := fixed[c]; ok {
-				used += w
-			} else {
-				flex = append(flex, c)
-			}
+	t := tiers[len(tiers)-1]
+	for _, cand := range tiers {
+		if cand.need() <= total {
+			t = cand
+			break
 		}
-		mins := map[column]int{colName: minName, colConds: minConds, colNote: minNote}
-		need := used
-		for _, c := range flex {
-			need += mins[c]
-		}
-		if need > total {
-			return layout{}, false
-		}
-		widths := map[column]int{}
-		for c, w := range fixed {
+	}
+	widths := map[column]int{}
+	var flex []column
+	for _, c := range t.cols {
+		if w, ok := t.fixed[c]; ok {
 			widths[c] = w
+		} else {
+			widths[c] = t.mins[c]
+			flex = append(flex, c)
 		}
-		// Share the spare width: Conditions gets the most, then Name, then Note.
-		spare := total - need
-		share := map[column]int{colName: 3, colConds: 4, colNote: 2}
-		parts := 0
-		for _, c := range flex {
-			parts += share[c]
+	}
+	// Share the spare width: Conditions gets the most, then Name, then Note.
+	spare := max(0, total-t.need())
+	share := map[column]int{colName: 3, colConds: 4, colNote: 2}
+	parts := 0
+	for _, c := range flex {
+		parts += share[c]
+	}
+	given := 0
+	for i, c := range flex {
+		extra := spare * share[c] / parts
+		if i == len(flex)-1 {
+			extra = spare - given
 		}
-		given := 0
-		for i, c := range flex {
-			extra := spare * share[c] / parts
-			if i == len(flex)-1 {
-				extra = spare - given
-			}
-			given += extra
-			widths[c] = mins[c] + extra
+		given += extra
+		widths[c] += extra
+	}
+	return layout{cols: t.cols, widths: widths}
+}
+
+// has reports whether the layout shows column c.
+func (l layout) has(c column) bool {
+	for _, lc := range l.cols {
+		if lc == c {
+			return true
 		}
-		return layout{cols: cols, widths: widths}, true
 	}
-	full := []column{colMarker, colInit, colName, colKind, colHP, colConds, colNote}
-	if l, ok := try(full); ok {
-		return l
-	}
-	noNote := []column{colMarker, colInit, colName, colKind, colHP, colConds}
-	if l, ok := try(noNote); ok {
-		return l
-	}
-	minimal := []column{colMarker, colInit, colName, colHP, colConds}
-	if l, ok := try(minimal); ok {
-		return l
-	}
-	// Too narrow for anything sensible: squeeze the flexible columns.
-	return layout{cols: minimal, widths: map[column]int{colMarker: 1, colInit: 6, colName: minName, colHP: 11, colConds: minConds}}
+	return false
+}
+
+// cut reports whether text doesn't show in full in column c: the column is
+// dropped or too narrow.
+func (l layout) cut(c column, text string) bool {
+	return text != "" && (!l.has(c) || ansi.StringWidth(text) > l.widths[c])
 }
 
 // fit pads or truncates s to exactly w cells.
@@ -220,6 +243,21 @@ func fit(s string, w int) string {
 		s = ansi.Truncate(s, w, "…")
 	}
 	return s + strings.Repeat(" ", w-ansi.StringWidth(s))
+}
+
+// trailingNumber matches a group member's number, as in "Goblin 12".
+var trailingNumber = regexp.MustCompile(` \d+$`)
+
+// fitName is fit for the Name column: when a name like "Goblin 12" doesn't
+// fit, it shortens the base and keeps the number ("Go… 12"), so group
+// members stay distinguishable in narrow terminals.
+func fitName(s string, w int) string {
+	num := trailingNumber.FindString(s)
+	base := strings.TrimSuffix(s, num)
+	if ansi.StringWidth(s) <= w || num == "" || w-len(num) < 3 {
+		return fit(s, w)
+	}
+	return fit(ansi.Truncate(base, w-len(num), "…")+num, w)
 }
 
 func (l layout) border(left, mid, right string) string {
@@ -241,7 +279,12 @@ func (l layout) line(text func(column) string, style func(column, string) string
 	var b strings.Builder
 	b.WriteString("│")
 	for _, c := range l.cols {
-		cell := " " + fit(text(c), l.widths[c]) + " "
+		var cell string
+		if c == colName {
+			cell = " " + fitName(text(c), l.widths[c]) + " "
+		} else {
+			cell = " " + fit(text(c), l.widths[c]) + " "
+		}
 		if style != nil {
 			cell = style(c, cell)
 		}

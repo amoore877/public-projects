@@ -37,6 +37,8 @@ Each entry is a decision made during planning, with what it rules out.
 | D27 | **Command-bar names match in tiers**: an exact name (case and spaces ignored) wins; otherwise a name prefix (`band` → Bandit Captain) or a shortened base plus the number (`gob2`, `g2` → Goblin 2, never Goblin 20). More than one match at the winning tier is an error listing them. Where a target and a free-text part both follow the verb (`:cond goblin 2 hold person 3`), the longest leading run of words that resolves is the target. | Typing at the table needs to be short and forgiving, but never guess between two creatures. |
 | D28 | **A refused command keeps the bar open** with the reason and the text, whether the parser or the domain refused it; only commands that ran go into the `↑↓` history. Multi-target commands check every target before changing anything. `:rm` of an effect's source asks keep-or-end like `x`; `:endcombat` doesn't ask for confirmation (typing it is the confirmation). | A typo costs one edit, not a retype, and a list command can't half-apply. |
 | D29 | **Help is a scrollable screen drawn in place of the table**, built from the same key and command lists the code uses (a test checks every verb and hotkey is listed). Any key that isn't a scroll key closes it without acting. | One source of truth, so the help can't go stale. |
+| D30 | **Narrow terminals degrade in tiers**: drop Note, then Kind, then narrow Init, HP, Name and Conditions; below 43×9 a "terminal too small" screen replaces the table and only `q`/`ctrl+c` work. Truncated names keep a trailing group number (`Gob… 2`), and when the selected row's name, conditions or note are cut off, the status line spells them out. | The DM can still tell goblins apart and read what's hidden by selecting the row. Keys are ignored on the too-small screen so nothing changes unseen. Rejected: wrapping rows onto two lines (breaks the fixed layout, D24). |
+| D31 | **Save and log failures show a sticky red banner** under the title, which takes one table row. It stays up through prompts and other messages until a later change writes successfully; a recovered log reports how many changes it missed. While autosave is failing, `q` asks before quitting. | A transient status message was easy to miss and was cleared by the next prompt. The summary comes before the raw error, since narrow terminals cut the end off. |
 
 ## Layout
 
@@ -229,10 +231,12 @@ Append-only. The file is opened with `O_APPEND|O_CREATE|O_WRONLY` and never read
 
 - `▶` marks the current turn; a cursor highlight marks the **selected** row (which hotkeys act on), and the two can differ.
 - `◆` marks effect rows and effect-linked conditions; `▼` = bloodied; `+5` = temp HP; `DOWN` rows are dimmed.
-- At narrow widths the Note column is dropped first, then the Kind column.
+- At narrow widths the Note column is dropped first, then the Kind column, then the rest narrow; below 43×9 the screen asks for a bigger window (D30).
 - While a prompt is open (D24) it replaces the status line, and its hint line shows completions, input help, or why the input was refused.
 - Below the table, a status line shows the latest warning or error (a failed autosave, "no earlier turn"), else a tied-initiative warning, else the scroll position; the bottom line lists the keys that apply, dropping the least-used ones to fit the width (the full list is the `?` overlay).
 - When there are more rows than fit, the table scrolls to keep the selection visible.
+- Below the title, a red banner shows while autosave or the log is failing (D31).
+- At narrow widths names keep their group number (`Gob… 2`), and the status line spells out the selected row's cut-off name, conditions and note (D30).
 
 ### Hotkeys (act on the selected row)
 
@@ -298,7 +302,7 @@ The parser in `internal/command` only turns text into combat operations; the hot
 4. ✅ **Editing via hotkeys:** add/remove, damage/heal/temp HP, conditions, initiative, notes, log entries, end combat. Removing an effect's source asks keep-or-end here already, since removal needs it.
 5. ✅ **Effects:** new effect (`e`), edit targets (`T`), end/dispel early (`x` on an effect row), on top of the effect rows and linked conditions drawn since milestone 3.
 6. ✅ **Command bar + help overlay.**
-7. **Polish:** narrow-terminal layout, error banners, README usage docs.
+7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
 ## Open questions
 

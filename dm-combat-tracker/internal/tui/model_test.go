@@ -362,7 +362,7 @@ func TestResumeNotice(t *testing.T) {
 	}
 }
 
-func TestSaveFailureIsShown(t *testing.T) {
+func TestSaveFailureBanner(t *testing.T) {
 	s := newSession(t, add("Thorin", combat.PC, "18", 44), add("Goblin", combat.NPC, "12", 7), start)
 	// Make the state file's directory unwritable so autosave fails.
 	dir, _ := os.Getwd()
@@ -372,11 +372,161 @@ func TestSaveFailureIsShown(t *testing.T) {
 	t.Cleanup(func() { os.Chmod(dir, 0o755) })
 	m := New(s, "")
 	press(m, "n")
-	if m.level != levelError || !strings.Contains(m.msg, "Autosave failed") {
-		t.Errorf("level %v msg %q", m.level, m.msg)
-	}
 	if s.Encounter().Current != idOf(t, s, "Goblin") {
 		t.Error("the turn should still advance when saving fails")
+	}
+	if !strings.Contains(screen(m), "✖ Autosave failing") {
+		t.Fatalf("no banner:\n%s", screen(m))
+	}
+	// The banner stays up while prompts open and other messages come and go.
+	press(m, "d")
+	if !strings.Contains(screen(m), "✖ Autosave failing") {
+		t.Errorf("banner gone while a prompt is open:\n%s", screen(m))
+	}
+	press(m, "esc", "x", "y") // refused: x on a combatant asks first; y removes
+	if !strings.Contains(screen(m), "✖ Autosave failing") {
+		t.Errorf("banner gone after another change:\n%s", screen(m))
+	}
+
+	// Quitting asks first; n stays.
+	if cmd := m.handleKey("q"); cmd != nil {
+		t.Fatal("q quit without asking while autosave is failing")
+	}
+	if _, ok := m.overlay.(*choicePrompt); !ok {
+		t.Fatalf("q opened %T, want a confirmation", m.overlay)
+	}
+	if _, cmd := m.Update(key("n")); cmd != nil {
+		t.Fatal("n at the quit confirmation quit")
+	}
+
+	// Once the directory is writable again the next change saves and the
+	// banner clears.
+	os.Chmod(dir, 0o755)
+	press(m, "n")
+	if strings.Contains(screen(m), "Autosave failing") || !strings.Contains(m.msg, "working again") {
+		t.Errorf("after recovery, msg %q:\n%s", m.msg, screen(m))
+	}
+	if cmd := m.handleKey("q"); cmd == nil {
+		t.Error("q should quit at once when saving works")
+	}
+}
+
+func TestQuitConfirmationQuits(t *testing.T) {
+	s := newSession(t, add("Thorin", combat.PC, "18", 44), start)
+	m := New(s, "")
+	m.saveErr = os.ErrPermission
+	press(m, "q")
+	if _, cmd := m.Update(key("y")); cmd == nil {
+		t.Error("y at the quit confirmation should quit")
+	}
+}
+
+func TestLogFailureBanner(t *testing.T) {
+	t.Chdir(t.TempDir())
+	s, _, err := session.Open(session.Config{Clock: fixedClock, LogPath: filepath.Join("logs", "fight.md")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	m := New(s, "")
+	for _, op := range []session.Op{add("Thorin", combat.PC, "18", 44), add("Goblin", combat.NPC, "12", 7)} {
+		m.apply(op)
+	}
+	if m.banner() != "" {
+		t.Fatalf("banner in Setup: %q", m.banner())
+	}
+	press(m, "S", "n") // starting binds the log; logs/ doesn't exist
+	if b := m.banner(); !strings.Contains(b, "✖ Log failing") || !strings.Contains(b, "2 changes not logged") {
+		t.Fatalf("banner %q", b)
+	}
+	if strings.Contains(m.banner(), "Autosave") {
+		t.Error("autosave worked; only the log should be in the banner")
+	}
+	wd, _ := os.Getwd()
+	t.Chdir(goldenDir)
+	golden(t, "banner_80.golden", screen(m))
+	t.Chdir(wd)
+	if err := os.Mkdir("logs", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	press(m, "n")
+	if m.banner() != "" || !strings.Contains(m.msg, "2 changes before this weren't logged") {
+		t.Errorf("after recovery: banner %q, msg %q", m.banner(), m.msg)
+	}
+}
+
+func TestTooSmall(t *testing.T) {
+	for _, size := range [][2]int{{minWidth - 1, 24}, {80, minHeight - 1}} {
+		m := sized(New(newSession(t, fight()...), ""), size[0], size[1])
+		got := screen(m)
+		if !strings.Contains(got, "Terminal too small") {
+			t.Errorf("%v: no notice:\n%s", size, got)
+		}
+		lines := strings.Split(got, "\n")
+		if len(lines) != size[1] {
+			t.Errorf("%v: %d lines", size, len(lines))
+		}
+		for i, line := range lines {
+			if w := ansi.StringWidth(line); w != size[0] {
+				t.Errorf("%v: line %d is %d wide", size, i, w)
+			}
+		}
+		before := m.sess.Encounter().Current
+		press(m, "n", "d")
+		if m.overlay != nil || m.sess.Encounter().Current != before {
+			t.Errorf("%v: keys acted on a screen that isn't showing", size)
+		}
+		if _, cmd := m.Update(key("q")); cmd == nil {
+			t.Errorf("%v: q should still quit", size)
+		}
+	}
+}
+
+func TestNarrowestLayout(t *testing.T) {
+	for w := minWidth; w <= 56; w++ {
+		m := sized(New(newSession(t, fight()...), ""), w, minHeight)
+		for i, line := range strings.Split(screen(m), "\n") {
+			if lw := ansi.StringWidth(line); lw != w {
+				t.Errorf("width %d: line %d is %d wide: %q", w, i, lw, line)
+			}
+		}
+	}
+	m := sized(New(newSession(t, fight()...), ""), minWidth, 24)
+	t.Chdir(goldenDir)
+	golden(t, "fight_43.golden", screen(m))
+}
+
+func TestFitName(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		w    int
+		want string
+	}{
+		{"Goblin 1", 10, "Goblin 1"},
+		{"Goblin 1", 6, "Gob… 1"},
+		{"Goblin 12", 6, "Go… 12"},
+		{"Bandit Captain", 10, "Bandit Ca…"},
+		{"◆ Spirit Guardians", 6, "◆ Spi…"},
+		{"Orc 123456", 6, "Orc 1…"}, // the number alone wouldn't leave room for a name
+	} {
+		if got := strings.TrimRight(fitName(tc.name, tc.w), " "); got != tc.want {
+			t.Errorf("fitName(%q, %d) = %q, want %q", tc.name, tc.w, got, tc.want)
+		}
+	}
+}
+
+func TestSelectedDetail(t *testing.T) {
+	m := sized(New(newSession(t, fight()...), ""), 64, 24)
+	selectRow(t, m, "Goblin 1") // its note is in the dropped Note column
+	if got := m.selectedDetail(computeLayout(64), buildRows(m.sess.Encounter())); got != "Goblin 1 · ◆ Spirit Guardians · Note: fleeing" {
+		t.Errorf("detail %q", got)
+	}
+	if !strings.Contains(screen(m), "Note: fleeing") {
+		t.Errorf("detail not on screen:\n%s", screen(m))
+	}
+	selectRow(t, m, "Thorin") // everything fits
+	if got := m.selectedDetail(computeLayout(64), buildRows(m.sess.Encounter())); got != "" {
+		t.Errorf("detail %q for a row that fits", got)
 	}
 }
 

@@ -17,7 +17,7 @@
    :          command bar (↑↓ history, tab completes)                           
    S / E      start / end combat                                                
    ?          this help                                                         
-   q          quit (everything is already saved)                                
+   q          quit (state is autosaved; asks first if saving fails)             
                                                                                 
  Commands names match loosely (goblin 2, gob2, g2); TARGETS is a comma list     
    :add NAME [xN] INIT HP [pc|npc]                                              

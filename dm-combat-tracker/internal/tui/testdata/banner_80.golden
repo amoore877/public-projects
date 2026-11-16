@@ -1,0 +1,10 @@
+ Round 1 ─ Turn: Goblin                                                         
+ ✖ Log failing: 2 changes not logged (retrying): open log: open logs/fight.md: …
+┌───┬────────┬──────────────┬──────┬─────────────┬────────────────┬────────────┐
+│   │ Init   │ Name         │ Kind │ HP          │ Conditions     │ Note       │
+├───┼────────┼──────────────┼──────┼─────────────┼────────────────┼────────────┤
+│   │ 18     │ Thorin       │ PC   │ 44/44       │                │            │
+│ ▶ │ 12     │ Goblin       │ NPC  │ 7/7         │                │            │
+└───┴────────┴──────────────┴──────┴─────────────┴────────────────┴────────────┘
+                                                                                
+ n next · p prev · d/h dmg/heal · c/C cond · e effect · : cmd · ? help · q quit 
