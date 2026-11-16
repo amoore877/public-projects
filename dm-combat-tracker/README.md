@@ -82,7 +82,7 @@ A group shares the initiative you give it, with decimals filled in to keep its m
 
 ### HP
 
-`d` takes damage from temp HP first, then HP, down to 0. `h` heals up to max HP. In either prompt, `=N` sets HP to exactly N. `t` sets temp HP, replacing what's there (temp HP doesn't stack). When adding, HP can be `MAX` or `CURRENT/MAX`.
+`d` takes damage from temp HP first, then HP, down to 0. `h` heals up to max HP. In either prompt, `=N` sets HP to exactly N. `t` sets temp HP, replacing what's there (temp HP doesn't stack). When adding, HP can be `MAX` or `CURRENT/MAX`, with `+N` on the end for temp HP (`31/44+5`).
 
 A creature at half HP or less is marked `▼`, and one at 0 shows `DOWN` and is dimmed. Downed creatures stay in the order until you remove them (`x`), so PCs still get their turns for death saves.
 
@@ -98,7 +98,7 @@ A duration counts down **at the start of its owner's turn** and expires at 0, wi
 
 `e` starts an effect such as Spirit Guardians or Wall of Fire. You give it a name, a source (the selected combatant, or none for lair and environment effects, which then need their own initiative), a duration, and its targets, ticked off on the table itself with `space`.
 
-The effect gets its own `◆` row, right after its source's turn, as a reminder to apply it. Each target shows it as a linked `◆` condition. The effect's duration counts down at the start of its own row's turn.
+The effect gets its own `◆` row, right after its source's turn, as a reminder to apply it. Each target shows it as a linked `◆` condition. Its duration counts down at the start of its **source's** turn, so a spell cast on Mira's turn for 10 rounds ends as her 10th turn after that begins. An effect with no source counts down on its own row's turn.
 
 - `T` on the effect row changes its targets as creatures move in or out.
 - `x` on the effect row ends it early (dispelled, concentration broken), with an optional reason for the log.
@@ -110,7 +110,7 @@ The effect gets its own `◆` row, right after its source's turn, as a reminder 
 
 | Command | Example | Does |
 |---|---|---|
-| `:add NAME [xN] INIT HP [pc\|npc]` | `:add Goblin x4 12 7` | Add a combatant or a numbered group |
+| `:add NAME [xN] INIT HP [pc\|npc] [-- NOTE]` | `:add Goblin x4 12 7` · `:add Thorin 18 31/44+5 pc -- cursed` | Add a combatant or a numbered group |
 | `:rm TARGET` | `:rm goblin 2` | Remove a combatant |
 | `:dmg TARGETS N` | `:dmg g1,g3 9` | Damage |
 | `:heal TARGETS N` | `:heal thorin 8` | Heal |

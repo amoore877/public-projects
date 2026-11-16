@@ -113,7 +113,10 @@ func condSummary(c *Combatant) string {
 
 func itoa(n int) string { return Initiative(int64(n) * 1000).String() }
 
-func TestEffectCountdownAndSelfExpiry(t *testing.T) {
+// A sourced effect counts down at the start of its caster's turns, not on its
+// own row's turn: cast on Mira's turn for 2 rounds, it lasts until the start
+// of her turn two rounds later.
+func TestSourcedEffectCountsDownOnCastersTurn(t *testing.T) {
 	e := newEnc()
 	m := add(t, e, "Mira", "9", 27)
 	g := add(t, e, "Gob", "5", 7)
@@ -126,18 +129,46 @@ func TestEffectCountdownAndSelfExpiry(t *testing.T) {
 		t.Fatalf("order = %s", got)
 	}
 
-	must(t)(e.Next()) // SG: 2→1
+	must(t)(e.Next()) // SG's own row: a reminder only, no countdown
 	fx, _ := e.Effect(fxID)
-	if currentName(e) != "SG" || *fx.Remaining != 1 {
+	if currentName(e) != "SG" || *fx.Remaining != 2 {
 		t.Fatalf("current=%s remaining=%d", currentName(e), *fx.Remaining)
 	}
+	must(t)(e.Next())                                              // Gob
+	wantKinds(t, must(t)(e.Next()), "RoundStarted", "TurnStarted") // Mira r2: 2→1
+	if *fx.Remaining != 1 {
+		t.Fatalf("remaining=%d after Mira's second turn began", *fx.Remaining)
+	}
+	must(t)(e.Next()) // SG
 	must(t)(e.Next()) // Gob
-	must(t)(e.Next()) // Mira r2
-	evs := must(t)(e.Next())
-	// SG expires at the start of its own turn and the turn moves on to Gob.
-	wantKinds(t, evs, "EffectExpired", "TurnStarted")
-	if currentName(e) != "Gob" || len(e.Effects) != 0 || len(e.LinkedEffects(g)) != 0 {
-		t.Errorf("current=%s effects=%d", currentName(e), len(e.Effects))
+	// Mira r3: SG expires as her turn starts, and its row is gone.
+	wantKinds(t, must(t)(e.Next()), "RoundStarted", "EffectExpired", "TurnStarted")
+	if currentName(e) != "Mira" || e.Round != 3 || len(e.Effects) != 0 || len(e.LinkedEffects(g)) != 0 || orderNames(e) != "Mira,Gob" {
+		t.Errorf("current=%s round=%d effects=%d", currentName(e), e.Round, len(e.Effects))
+	}
+	// Stepping back restores it, still on Gob and right after Mira.
+	must(t)(e.Previous())
+	fx, ok := e.Effect(fxID)
+	if !ok || *fx.Remaining != 1 || currentName(e) != "Gob" || orderNames(e) != "Mira,SG,Gob" || len(e.LinkedEffects(g)) != 1 {
+		t.Errorf("after rewind: %+v, current=%s, order=%s", fx, currentName(e), orderNames(e))
+	}
+}
+
+// Once its caster has left (and the effect was kept), an effect counts down
+// on its own row's turn, like a lair effect.
+func TestKeptEffectCountsDownOnItsOwnTurn(t *testing.T) {
+	e := newEnc()
+	m := add(t, e, "Mira", "9", 27)
+	add(t, e, "Gob", "5", 7)
+	fxID, _, _ := e.AddEffect(EffectSpec{Name: "SG", SourceID: m, Rounds: rounds(2)})
+	must(t)(e.Start())
+	must(t)(e.Next()) // SG
+	must(t)(e.Next()) // Gob
+	must(t)(e.Remove(m, KeepEffects))
+	must(t)(e.Next()) // SG r2: 2→1, on its own row now
+	fx, _ := e.Effect(fxID)
+	if currentName(e) != "SG" || *fx.Remaining != 1 || fx.SourceID != 0 {
+		t.Fatalf("current=%s effect=%+v", currentName(e), fx)
 	}
 }
 
@@ -168,8 +199,8 @@ func TestPreviousReversesDurations(t *testing.T) {
 	e.AddCondition(a, "Z", rounds(1), "")
 	fxID, _, _ := e.AddEffect(EffectSpec{Name: "FX", SourceID: b, Rounds: rounds(5), Targets: []RowID{a}})
 
-	must(t)(e.Next()) // B
-	must(t)(e.Next()) // FX 5→4
+	must(t)(e.Next()) // B: FX 5→4 (B is its source)
+	must(t)(e.Next()) // FX
 	must(t)(e.Next()) // A r2: X,Z expire, Y 3→2
 	ca, _ := e.Combatant(a)
 	if got := condSummary(ca); got != "Keep,Y(2)" {
@@ -189,14 +220,14 @@ func TestPreviousReversesDurations(t *testing.T) {
 		t.Errorf("round=%d hp=%d", e.Round, ca.HP)
 	}
 
-	must(t)(e.Previous()) // back to B, FX 4→5
+	must(t)(e.Previous()) // back to B; FX was counted down when B's turn began
 	fx, _ := e.Effect(fxID)
-	if *fx.Remaining != 5 || currentName(e) != "B" {
+	if *fx.Remaining != 4 || currentName(e) != "B" {
 		t.Errorf("fx remaining=%d current=%s", *fx.Remaining, currentName(e))
 	}
-	must(t)(e.Previous())
-	if currentName(e) != "A" {
-		t.Errorf("current=%s", currentName(e))
+	must(t)(e.Previous()) // back to A, FX 4→5
+	if *fx.Remaining != 5 || currentName(e) != "A" {
+		t.Errorf("fx remaining=%d current=%s", *fx.Remaining, currentName(e))
 	}
 	_, err := e.Previous()
 	wantErr(t, err, ErrNothingToUndo)

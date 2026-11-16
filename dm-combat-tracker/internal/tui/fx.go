@@ -20,11 +20,12 @@ type targetPicker struct {
 	enc     func() *combat.Encounter
 	title   string
 	checked map[combat.RowID]bool
+	back    combat.RowID // the selection to put back if the picker is cancelled
 	done    func(m *Model, targets []combat.RowID) overlay
 }
 
 func newTargetPicker(m *Model, title string, initial []combat.RowID, done func(*Model, []combat.RowID) overlay) *targetPicker {
-	p := &targetPicker{enc: m.sess.Encounter, title: title, checked: map[combat.RowID]bool{}, done: done}
+	p := &targetPicker{enc: m.sess.Encounter, title: title, checked: map[combat.RowID]bool{}, back: m.selected, done: done}
 	for _, id := range initial {
 		p.checked[id] = true
 	}
@@ -34,6 +35,8 @@ func newTargetPicker(m *Model, title string, initial []combat.RowID, done func(*
 func (p *targetPicker) update(m *Model, k tea.KeyPressMsg) overlay {
 	switch k.String() {
 	case "esc", "ctrl+c":
+		m.selected = p.back
+		m.syncSelection()
 		return nil
 	case "up", "k":
 		m.move(-1)

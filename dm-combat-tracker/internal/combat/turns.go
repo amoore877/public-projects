@@ -73,7 +73,8 @@ func (e *Encounter) Next() ([]Event, error) {
 }
 
 // advance moves Current to the row after order[idx] and starts its turn.
-// If that row is an effect that expires on its own turn, the turn moves on.
+// If that row is an unsourced effect that expires on its own turn, the turn
+// moves on.
 func (e *Encounter) advance(order []Row, idx int, rec *TurnRecord) []Event {
 	var evs []Event
 	for {
@@ -100,7 +101,9 @@ func (e *Encounter) advance(order []Row, idx int, rec *TurnRecord) []Event {
 	}
 }
 
-// tick counts down everything anchored to row id, recording into rec.
+// tick counts down everything anchored to row id, recording into rec: a
+// combatant's own conditions and the effects it is the source of, or, for an
+// effect row, the effect itself if it has no source (D12).
 func (e *Encounter) tick(id RowID, rec *TurnRecord) []Event {
 	var evs []Event
 	if c, ok := e.Combatant(id); ok {
@@ -122,22 +125,34 @@ func (e *Encounter) tick(id RowID, rec *TurnRecord) []Event {
 			kept = append(kept, cond)
 		}
 		c.Conditions = kept
+		for _, fx := range e.EffectsFrom(id) {
+			evs = append(evs, e.tickEffect(fx, rec)...)
+		}
 		return evs
 	}
-	if fx, ok := e.Effect(id); ok && fx.Remaining != nil {
-		if *fx.Remaining <= 1 {
-			saved := *fx
-			saved.Remaining = copyIntPtr(fx.Remaining)
-			saved.Targets = append([]RowID(nil), fx.Targets...)
-			rec.ExpiredEffects = append(rec.ExpiredEffects, saved)
-			evs = append(evs, EffectExpired{EventMeta: e.meta(), ID: fx.ID, Name: fx.Name})
-			e.dropEffect(fx.ID)
-			return evs
-		}
-		*fx.Remaining--
-		rec.Ticked = append(rec.Ticked, fx.ID)
+	if fx, ok := e.Effect(id); ok && fx.SourceID == 0 {
+		evs = e.tickEffect(fx, rec)
 	}
 	return evs
+}
+
+// tickEffect counts an effect down by one round, removing it at zero.
+func (e *Encounter) tickEffect(fx *Effect, rec *TurnRecord) []Event {
+	if fx.Remaining == nil {
+		return nil
+	}
+	if *fx.Remaining <= 1 {
+		saved := *fx
+		saved.Remaining = copyIntPtr(fx.Remaining)
+		saved.Targets = append([]RowID(nil), fx.Targets...)
+		rec.ExpiredEffects = append(rec.ExpiredEffects, saved)
+		ev := EffectExpired{EventMeta: e.meta(), ID: fx.ID, Name: fx.Name}
+		e.dropEffect(fx.ID)
+		return []Event{ev}
+	}
+	*fx.Remaining--
+	rec.Ticked = append(rec.Ticked, fx.ID)
+	return nil
 }
 
 // Previous rewinds the latest Next: pointer, round, and its duration changes.

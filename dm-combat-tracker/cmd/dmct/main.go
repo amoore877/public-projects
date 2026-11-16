@@ -15,9 +15,10 @@ import (
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
-		if !errors.Is(err, flag.ErrHelp) {
-			fmt.Fprintln(os.Stderr, "dmct:", err)
+		if errors.Is(err, flag.ErrHelp) {
+			return // usage was printed; asking for help isn't a failure
 		}
+		fmt.Fprintln(os.Stderr, "dmct:", err)
 		os.Exit(1)
 	}
 }

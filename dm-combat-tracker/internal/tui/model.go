@@ -208,6 +208,15 @@ func (m *Model) run(op session.Op) (session.Outcome, error) {
 		return out, err
 	}
 	m.track(out)
+	if m.msg == "" && out.Logged {
+		// A manual note changes nothing on screen, so say where it went
+		// (the same for the l key and :log).
+		for _, ev := range out.Events {
+			if _, ok := ev.(combat.NoteLogged); ok {
+				m.info("Logged to " + m.sess.Encounter().LogPath)
+			}
+		}
+	}
 	m.syncSelection() // the banner coming or going changes how many rows fit
 	return out, nil
 }

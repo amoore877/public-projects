@@ -59,6 +59,16 @@ func TestCommandBar(t *testing.T) {
 	}
 }
 
+func TestLogCommandConfirms(t *testing.T) {
+	m := New(newSession(t, fight()...), "")
+	press(m, ":")
+	typeText(m, "log Thorin shoves the goblin")
+	press(m, "enter")
+	if m.overlay != nil || m.msg != "Logged to dmct-log-2026-11-14.md" {
+		t.Errorf(":log should confirm like the l key: overlay %T, msg %q", m.overlay, m.msg)
+	}
+}
+
 func TestCommandBarRemoveAndEnd(t *testing.T) {
 	s := newSession(t, fight()...)
 	m := New(s, "")
@@ -126,7 +136,6 @@ func TestHelp(t *testing.T) {
 			t.Errorf("line %d is %d wide: %q", i, w, line)
 		}
 	}
-	t.Chdir(goldenDir)
 	golden(t, "help_80.golden", got)
 
 	press(m, "G")

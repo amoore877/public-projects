@@ -54,7 +54,6 @@ func TestNewEffectFromSource(t *testing.T) {
 	if !strings.Contains(got, "pick targets: Goblin 1, Goblin 3") || !strings.Contains(got, "│ ✓ │ 12.3") {
 		t.Fatalf("ticked rows should show:\n%s", got)
 	}
-	t.Chdir(goldenDir)
 	golden(t, "fx_picker.golden", got)
 	press(m, "enter")
 

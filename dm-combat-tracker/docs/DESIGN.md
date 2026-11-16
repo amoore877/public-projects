@@ -19,11 +19,11 @@ Each entry is a decision made during planning, with what it rules out.
 | D9 | **Hotkeys plus a `:` command bar.** | Hotkeys for common actions on the selected row; the command bar for exact or bulk input. Rejected: modal-forms-only, command-only. |
 | D10 | **DM-only view in v1.** | A player view is in [Future](REQUIREMENTS.md#future). Nothing in the domain model rules it out. |
 | D11 | **Domain operations return events**; the app layer sends them to both the journal and autosave. | Keeps the domain package pure (no I/O) and fully unit-testable; the log is just one consumer of events. |
-| D12 | **Durations count down only at the start of their anchor's turn.** | Gives one rule that doesn't depend on any game system. See [Durations](#durations). Rejected: setting start or end of turn for each item, and counting down at the end of the turn. |
+| D12 | **Durations count down only at the start of their anchor's turn**; an effect's anchor is its source (found through `SourceID`), or its own row when it has none. | Gives one rule that doesn't depend on any game system, and "N rounds" cast on the caster's turn lasts N full rounds. See [Durations](#durations). Rejected: setting start or end of turn for each item; counting down at the end of the turn; counting a sourced effect down on its own row's turn (the row comes right after the caster, so the first count fell in the round it was cast and a 1-round effect ended at once); nudging the effect's initiative to just above the caster's (a fake value, which the ordering rules exist to avoid). |
 | D13 | **Ending combat archives the state file** as `dmct-state-<timestamp>.json`; the next combat starts with a new file. | Keeps the final state of a finished fight for reference. Rejected: resetting the file in place, asking each time. |
 | D14 | **The condition list is built in for v1** (the D&D 5e preset); custom names can always be typed. | No config files until ruleset presets ([Future](REQUIREMENTS.md#future)). Rejected: an optional YAML/JSON condition file in v1. |
 | D15 | **Durations don't tick on the opening turn** (`Start`). | Anything applied during Setup counts from its anchor's next turn, so a "1 round" condition set before combat isn't gone the instant the fight begins. |
-| D16 | **An effect that expires at the start of its own turn hands the turn straight on** to the next row. | The effect row has nothing left to remind the DM of. One `Next` covers both, and `Previous` restores the effect. |
+| D16 | **An unsourced effect that expires at the start of its own turn hands the turn straight on** to the next row. | The effect row has nothing left to remind the DM of. One `Next` covers both, and `Previous` restores the effect. (A sourced effect expires as its caster's turn starts, so its row is simply gone.) |
 | D17 | **Removing the row whose turn it is clears turn history.** | `Previous` can't point back at a row that no longer exists. Removing other rows keeps history; a rewind that would land on a removed row is refused. |
 | D18 | **Group auto-fill needs a whole-number initiative**; a negative base fills downward (`-1 ×3` → `-1.1, -1.2, -1.3`). | Keeps decimals from spilling into the next whole number (`12.5 + 0.6`). The DM can still give separate initiatives. |
 | D19 | **An `internal/session` package is the app layer** (D11): it runs an operation, saves, logs, and archives on end. | The TUI and command bar call one `Apply(op)` and never touch files, so milestones 3–6 don't each re-wire persistence. Save and log failures come back as warnings; the change is never rolled back. |
@@ -32,7 +32,7 @@ Each entry is a decision made during planning, with what it rules out.
 | D22 | **Next / previous turn moves the selection to the new turn holder**; otherwise selection moves only with `↑↓`/`jk`. | The creature whose turn it is is usually the one the DM acts on next. The DM can still move away to act on another row. If the selected row disappears, selection lands on the row now in its place. |
 | D23 | **Bubble Tea v2 / Lip Gloss v2** (`charm.land/...`), with `teatest/v2` for program-level tests. The table is drawn by hand rather than with `lipgloss/table`. | v2 is the current major version. A hand-drawn grid gives exact control over column dropping, truncation with `…`, and styling cells without styling the borders; view tests compare ANSI-stripped golden screens. |
 | D24 | **Hotkey input happens in a prompt that takes over the two lines below the table** (status + key hints); the table never moves. Multi-part input (add, condition) is a short chain of prompts; questions (remove? keep or end effects?) are single-key choices. The line editor is hand-written rather than Bubbles' `textinput`. | Keeps the screen layout fixed at 80×24 and every flow testable by sending keys. The editor needs only insert, cursor moves, delete, `ctrl+u/k/w` and paste, so it isn't worth a dependency. Rejected: modal forms over the table (hide the rows the DM is looking at). |
-| D25 | **`=N` in the damage or heal prompt sets HP directly** (R4); the add prompt takes `MAX` or `CURRENT/MAX`, and a group's initiative is one whole number to share or one value per member, comma-separated. | Covers "set HP" and "add with current HP" without more hotkeys. Bad input is refused inside the prompt, which stays open with the reason, rather than closing and losing what was typed. |
+| D25 | **`=N` in the damage or heal prompt sets HP directly** (R4); the add prompt takes `MAX` or `CURRENT/MAX`, each with an optional `+TEMP` (R3; `:add` also takes `-- NOTE`, the hotkey flow leaves the note to `N`), and a group's initiative is one whole number to share or one value per member, comma-separated. | Covers "set HP" and "add with current HP" without more hotkeys. Bad input is refused inside the prompt, which stays open with the reason, rather than closing and losing what was typed. |
 | D26 | **Effect targets are picked on the table itself**: while the checklist is open the marker column shows `✓` / `·` on combatant rows, `↑↓`/`jk` move as usual, and `space` ticks the selected row and moves on. A new effect asks for its name, then its source (the selected combatant by default, or none, which needs an initiative), then its duration, then its targets. | The DM sees HP and conditions while choosing who is in the area, and the screen layout stays fixed (D24). The turn marker is hidden while picking; the title still names the turn holder. Rejected: a separate list overlay (hides the table). |
 | D27 | **Command-bar names match in tiers**: an exact name (case and spaces ignored) wins; otherwise a name prefix (`band` → Bandit Captain) or a shortened base plus the number (`gob2`, `g2` → Goblin 2, never Goblin 20). More than one match at the winning tier is an error listing them. Where a target and a free-text part both follow the verb (`:cond goblin 2 hold person 3`), the longest leading run of words that resolves is the target. | Typing at the table needs to be short and forgiving, but never guess between two creatures. |
 | D28 | **A refused command keeps the bar open** with the reason and the text, whether the parser or the domain refused it; only commands that ran go into the `↑↓` history. Multi-target commands check every target before changing anything. `:rm` of an effect's source asks keep-or-end like `x`; `:endcombat` doesn't ask for confirmation (typing it is the confirmation). | A typo costs one edit, not a retype, and a list command can't half-apply. |
@@ -135,9 +135,9 @@ If two **combatants** have exactly the same initiative, the UI shows a warning m
 <a id="durations"></a>A duration is a count of rounds tied to an **anchor**:
 
 - a combatant's own condition → that combatant
-- an effect (and so all its linked conditions) → the effect's row
+- an effect (and so all its linked conditions) → its source; with no source (lair and environment effects, or a source that left and whose effects were kept) → the effect's own row
 
-At the **start of the anchor's turn**, `Remaining` drops by 1; at 0 the item expires. So a "1 round" condition on a creature lasts until the start of that creature's next turn, and a 10-round effect lasts until the start of its row's 10th following turn. It's simple and predictable for any system. If a DM needs "until end of turn", they can remove the item by hand.
+At the **start of the anchor's turn**, `Remaining` drops by 1; at 0 the item expires. So a "1 round" condition on a creature lasts until the start of that creature's next turn, and a 10-round effect cast on Mira's turn lasts until the start of her 10th following turn. The effect's own row still comes up right after its source as a reminder, without counting down. It's simple and predictable for any system. If a DM needs "until end of turn", they can remove the item by hand.
 
 ### Removing combatants
 
@@ -267,7 +267,7 @@ Targets are matched case-insensitively against names, with spaces optional (`gob
 
 | Command | Example |
 |---|---|
-| `:add NAME [xN] INIT HP [pc\|npc]` | `:add Goblin x4 12 7` · `:add Thorin 18 44 pc` |
+| `:add NAME [xN] INIT HP [pc\|npc] [-- NOTE]` | `:add Goblin x4 12 7` · `:add Thorin 18 31/44+5 pc -- cursed` |
 | `:rm TARGET` | `:rm goblin 2` |
 | `:dmg TARGETS N` | `:dmg g1,g3 9` |
 | `:heal TARGETS N` | `:heal thorin 8` |
@@ -293,6 +293,12 @@ The parser in `internal/command` only turns text into combat operations; the hot
 - **`internal/store`:** round-trip and atomic-write tests (no `.tmp` left behind; the previous file survives an interrupted write).
 - **`internal/session`:** resume after restart, archive on end, rejected operations save nothing, log failures don't block saves.
 - **`internal/tui`:** `teatest` smoke tests for the main flows.
+- **`cmd/dmct` (end to end):** the built binary runs in a pseudo-terminal (`creack/pty`) and a terminal emulator (`charmbracelet/x/vt`) turns its output back into the screen, so each test types a story from the requirements and checks what the DM would see plus the state, archive and log files left behind: a full fight, quit and resume, step-by-step rewind (and where it is refused), removing an effect's source, ties and expiry, help and terminal sizes, a failing autosave, and refusals at startup. Unix only; both libraries are test-only dependencies.
+
+```bash
+go test ./...                 # unit + end-to-end
+go test -cover ./...          # target: 90% or more in every package
+```
 
 ## Milestones
 

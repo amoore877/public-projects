@@ -190,7 +190,7 @@ func TestEffectExpiresAndSourceLeaves(t *testing.T) {
 	f.do(evs, err)
 	_, evs, err = f.enc.AddEffect(combat.EffectSpec{Name: "Hunger of Hadar", SourceID: f.id("Mira")})
 	f.do(evs, err)
-	f.nextTo("Mira") // Bless expires on its own turn; round 2
+	f.nextTo("Mira") // round 2: Bless expires as its caster's turn begins
 	f.do(f.enc.Remove(f.id("Mira"), combat.EndEffects))
 	f.do(f.enc.End())
 

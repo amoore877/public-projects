@@ -262,9 +262,7 @@ func (m *Model) promptLog() overlay {
 		if strings.TrimSpace(text) == "" {
 			return p, errors.New("Type something to log, or esc to cancel")
 		}
-		if m.apply(func(e *combat.Encounter) ([]combat.Event, error) { return e.LogNote(text) }) && m.msg == "" {
-			m.info("Logged to " + m.sess.Encounter().LogPath)
-		}
+		m.apply(func(e *combat.Encounter) ([]combat.Event, error) { return e.LogNote(text) })
 		return nil, nil
 	}
 	return p
@@ -283,12 +281,13 @@ func (m *Model) promptAdd() overlay {
 		inits []combat.Initiative
 		maxHP int
 		hp    *int
+		temp  int
 		who   string // "Goblin ×4", for the step labels
 	)
 
 	finish := func(m *Model, kind combat.Kind) overlay {
 		var added []combat.RowID
-		spec := combat.CombatantSpec{Name: name, Kind: kind, Initiative: init, MaxHP: maxHP, HP: hp}
+		spec := combat.CombatantSpec{Name: name, Kind: kind, Initiative: init, MaxHP: maxHP, HP: hp, TempHP: temp}
 		ok := m.apply(func(e *combat.Encounter) ([]combat.Event, error) {
 			if count == 0 {
 				id, evs, err := e.Add(spec)
@@ -311,13 +310,13 @@ func (m *Model) promptAdd() overlay {
 		{key: "p", label: "PC", run: func(m *Model) overlay { return finish(m, combat.PC) }},
 	}}
 
-	hpStep := &inputPrompt{help: "max HP, or CURRENT/MAX"}
+	hpStep := &inputPrompt{help: "max HP, or CURRENT/MAX; +N adds temp HP"}
 	hpStep.submit = func(m *Model, text string) (overlay, error) {
-		cur, mx, err := command.ParseHP(text)
+		cur, mx, tmp, err := command.ParseHP(text)
 		if err != nil {
 			return hpStep, err
 		}
-		maxHP, hp = mx, cur
+		maxHP, hp, temp = mx, cur, tmp
 		kind.question = "Add " + who + " · kind?"
 		return kind, nil
 	}

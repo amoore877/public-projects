@@ -171,9 +171,9 @@ func screen(m *Model) string { return ansi.Strip(m.render()) }
 
 func golden(t *testing.T, name, got string) {
 	t.Helper()
-	path := filepath.Join("testdata", name)
+	path := filepath.Join(goldenDir, "testdata", name)
 	if updating() {
-		if err := os.MkdirAll("testdata", 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
@@ -191,6 +191,8 @@ func golden(t *testing.T, name, got string) {
 }
 
 // goldenDir remembers the package dir, since newSession changes directory.
+// Golden files are read from there by absolute path, so a test never has
+// to change back (and so never autosaves into the source tree).
 var goldenDir, _ = os.Getwd()
 
 func sized(m *Model, w, h int) *Model {
@@ -216,7 +218,6 @@ func TestRenderFight(t *testing.T) {
 					t.Errorf("line %d is %d wide, want %d: %q", i, w, tc.w, line)
 				}
 			}
-			t.Chdir(goldenDir)
 			golden(t, tc.name, got)
 		})
 	}
@@ -225,7 +226,6 @@ func TestRenderFight(t *testing.T) {
 func TestRenderSetupEmpty(t *testing.T) {
 	m := New(newSession(t), "")
 	got := screen(m)
-	t.Chdir(goldenDir)
 	golden(t, "setup_empty.golden", got)
 }
 
@@ -443,7 +443,6 @@ func TestLogFailureBanner(t *testing.T) {
 		t.Error("autosave worked; only the log should be in the banner")
 	}
 	wd, _ := os.Getwd()
-	t.Chdir(goldenDir)
 	golden(t, "banner_80.golden", screen(m))
 	t.Chdir(wd)
 	if err := os.Mkdir("logs", 0o755); err != nil {
@@ -492,7 +491,6 @@ func TestNarrowestLayout(t *testing.T) {
 		}
 	}
 	m := sized(New(newSession(t, fight()...), ""), minWidth, 24)
-	t.Chdir(goldenDir)
 	golden(t, "fight_43.golden", screen(m))
 }
 

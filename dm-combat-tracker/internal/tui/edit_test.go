@@ -435,7 +435,6 @@ func TestRenderPrompt(t *testing.T) {
 			t.Errorf("line %d is %d wide: %q", i, w, line)
 		}
 	}
-	t.Chdir(goldenDir)
 	golden(t, "prompt_damage.golden", got)
 }
 

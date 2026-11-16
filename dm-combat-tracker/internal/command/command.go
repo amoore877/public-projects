@@ -47,7 +47,7 @@ type Spec struct {
 
 // Specs lists every command in the order the help overlay shows them.
 var Specs = []Spec{
-	{":add NAME [xN] INIT HP [pc|npc]", ":add Goblin x4 12 7", "add a combatant or numbered group; HP is MAX or CUR/MAX"},
+	{":add NAME [xN] INIT HP [pc|npc] [-- NOTE]", ":add Goblin x4 12 7", "add a combatant or numbered group; HP is MAX or CUR/MAX, +N for temp HP"},
 	{":rm TARGET", ":rm goblin 2", "remove a combatant"},
 	{":dmg TARGETS N", ":dmg g1,g3 9", "damage (temp HP first)"},
 	{":heal TARGETS N", ":heal thorin 8", "heal, up to max HP"},
@@ -103,7 +103,7 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 			return Command{Kind: EndCombat, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.End() }}, nil
 		}
 	case "add":
-		return parseAdd(words)
+		return parseAdd(rest)
 	case "rm":
 		id, err := resolve(enc, rest, combatantRow)
 		if err != nil {
@@ -363,8 +363,10 @@ func parseFXTargets(enc *combat.Encounter, verb string, words []string) (Command
 // groupToken matches a group size such as "x4" or "×4".
 var groupToken = regexp.MustCompile(`^[xX×](\d+)$`)
 
-func parseAdd(words []string) (Command, error) {
-	usage := errors.New("usage: :add NAME [xN] INIT HP [pc|npc]")
+func parseAdd(rest string) (Command, error) {
+	usage := errors.New("usage: :add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
+	head, note, _ := strings.Cut(rest, "--")
+	words := strings.Fields(head)
 	kind := combat.NPC
 	if n := len(words); n > 0 {
 		switch strings.ToLower(words[n-1]) {
@@ -391,7 +393,7 @@ func parseAdd(words []string) (Command, error) {
 	}
 	name := strings.Join(nameWords, " ")
 
-	cur, maxHP, err := ParseHP(hpText)
+	cur, maxHP, temp, err := ParseHP(hpText)
 	if err != nil {
 		return Command{}, err
 	}
@@ -399,7 +401,7 @@ func parseAdd(words []string) (Command, error) {
 	if err != nil {
 		return Command{}, err
 	}
-	spec := combat.CombatantSpec{Name: name, Kind: kind, Initiative: init, MaxHP: maxHP, HP: cur}
+	spec := combat.CombatantSpec{Name: name, Kind: kind, Initiative: init, MaxHP: maxHP, HP: cur, TempHP: temp, Note: strings.TrimSpace(note)}
 	created := new(combat.RowID)
 	return Command{Created: created, Op: func(e *combat.Encounter) ([]combat.Event, error) {
 		if count == 0 {
@@ -446,22 +448,30 @@ func ParseAddInitiative(text string, count int) (combat.Initiative, []combat.Ini
 	return out[0], out, nil
 }
 
-// ParseHP reads "44" (full health) or "31/44".
-func ParseHP(text string) (cur *int, maxHP int, err error) {
-	curS, maxS, split := strings.Cut(strings.TrimSpace(text), "/")
+// ParseHP reads "44" (full health) or "31/44", either with an optional
+// "+5" of temp HP on the end (R3).
+func ParseHP(text string) (cur *int, maxHP, temp int, err error) {
+	text, tempS, hasTemp := strings.Cut(strings.TrimSpace(text), "+")
+	if hasTemp {
+		temp, err = strconv.Atoi(strings.TrimSpace(tempS))
+		if err != nil || temp < 0 {
+			return nil, 0, 0, errors.New("temp HP must be a whole number of 0 or more")
+		}
+	}
+	curS, maxS, split := strings.Cut(text, "/")
 	if !split {
 		maxS = curS
 	}
 	maxHP, err = strconv.Atoi(strings.TrimSpace(maxS))
 	if err != nil || maxHP < 1 {
-		return nil, 0, errors.New("max HP must be a whole number of 1 or more")
+		return nil, 0, 0, errors.New("max HP must be a whole number of 1 or more")
 	}
 	if split {
 		n, err := strconv.Atoi(strings.TrimSpace(curS))
 		if err != nil || n < 0 || n > maxHP {
-			return nil, 0, fmt.Errorf("current HP must be 0–%d", maxHP)
+			return nil, 0, 0, fmt.Errorf("current HP must be 0–%d", maxHP)
 		}
 		cur = &n
 	}
-	return cur, maxHP, nil
+	return cur, maxHP, temp, nil
 }
