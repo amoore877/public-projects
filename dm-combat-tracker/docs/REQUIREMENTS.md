@@ -117,6 +117,91 @@ Area effects show up as **their own row in the table and as linked conditions on
 ## Future
 
 - Player-facing view (masked HP descriptors, second terminal or file output).
-- Ruleset preset files (condition lists for other systems).
+- Rulesets: make the tracker correct for systems other than D&D 5e, starting with D&D 3.5. See [Rulesets](#rulesets).
 - Encounter templates: preload a prepared set of NPCs before combat starts.
 - General undo stack.
+
+### Rulesets
+
+R8 says the core isn't tied to one game system. That holds for turn order, effects and the log, but a review against D&D 3.5 found places where v1 quietly assumes 5e. This section lists those gaps and the sub-features that close them. The build order is in [DESIGN.md](DESIGN.md#planned-rulesets).
+
+A **ruleset** is a per-encounter choice that sets the HP rules, the health states, the duration anchoring and the condition list. It still rolls no dice and automates no rules (R8).
+
+#### Gaps found (3.5 against v1)
+
+| # | Area | v1 behavior | What 3.5 needs | Blocks 3.5? |
+|---|---|---|---|---|
+| G1 | Negative HP | Damage, set-HP and the add form clamp or refuse below 0. | HP runs to -10: -1 to -9 is dying, -10 is dead. | **Yes** |
+| G2 | Healing from below 0 | A creature that should be at -7 sits at 0, so healing 5 gives 5. | Healing 5 at -7 gives -2. | **Yes** (follows from G1) |
+| G3 | Health states | One "down" state at HP ≤ 0. | Three: disabled at exactly 0 (still acts), dying below 0, dead at -10. | **Yes** |
+| G4 | Nonlethal damage | No field; it can only go in the note. | A separate running total, compared with current HP. | No, but awkward |
+| G5 | Max HP changes | Max HP can't be edited after a combatant is added. | Con damage, negative levels and rage change max HP mid-fight. (5e needs it too, less often.) | No |
+| G6 | Temp HP | Setting temp HP replaces the old value. | Temp HP from different sources stacks. | No (the DM can add it up) |
+| G7 | Duration anchor after an initiative change | A sourced effect counts down on its caster's turn, wherever the caster now is in the order. | Delay and Ready move the caster for good, but the effect still ends on the count it began on. Durations drift by part of a round. | No |
+| G8 | Conditions from another creature | A condition counts down on its bearer's turn, so a "1 round" daze expires as the bearer's turn starts, before it costs them anything. Affects 5e as well. | The duration is counted on the originator's turn. Today's workaround is a sourced effect with one target. | No |
+| G9 | Condition list | The picker offers only the 5e list. Custom names can be typed. | Shaken, Sickened, Nauseated, Dazed, Fatigued, Staggered and so on. | No |
+
+Checked and found to need **no change**:
+
+- **A caster dying or leaving.** Nothing ends automatically when a creature drops, in either edition. Removing the row asks keep-or-end (R5), and kept effects count down on their own row, which is the 3.5 rule (a spell outlives its caster, on the count it was cast).
+- **Concentration.** Ending it is a manual dispel in both editions.
+- **Round-based countdown.** Counting down at the start of the caster's turn is the same as 3.5's "ends just before the initiative count it began on", apart from G7.
+- **Initiative.** Decimal tie-breaks and mid-combat edits already cover 3.5 ties, Delay and Ready.
+
+#### RS1. Choosing a ruleset
+
+- The ruleset is chosen during Setup (a start-up flag and a command) and saved in the state file. Built in: `5e` (the default, identical to v1) and `3.5e`.
+- The header shows the ruleset. A state file saved before rulesets existed loads as `5e`.
+- It can't be changed once combat has started, since HP already recorded would change meaning.
+
+#### RS2. HP below zero (G1, G2)
+
+- The ruleset sets an **HP floor**: 0 for 5e, none for 3.5e.
+- Damage, heal and set-HP work on the real value, so healing from -7 counts up from -7. The add form accepts a negative current HP when the ruleset allows it.
+- The HP column shows negative values as they are (`-4 / 22`).
+
+#### RS3. Health states (G3)
+
+- The ruleset defines named states by HP threshold, replacing the single "down" flag:
+  - `5e`: **down** at 0.
+  - `3.5e`: **disabled** at exactly 0, **dying** from -1 to -9, **dead** at -10 or lower.
+- Each state has its own look in the table, and each move between states is logged ("Goblin 2 is dying"). Stable is a condition the DM adds by hand (RS8).
+- "Bloodied" stays a display-only state in every ruleset.
+- No automation: the app doesn't take the 1 HP a round from a dying creature or roll to stabilize. When a dying creature's turn starts, the status line reminds the DM.
+
+#### RS4. Nonlethal damage (G4)
+
+- A per-combatant **nonlethal** total, in rulesets that use it (`3.5e`), shown beside HP when above 0.
+- Hotkey and command to add nonlethal damage. Healing lowers the nonlethal total by the amount healed as well as raising HP.
+- Derived states, shown and logged like RS3: **staggered** when nonlethal equals current HP, **unconscious** when it is higher.
+
+#### RS5. Editing max HP (G5)
+
+- Set max HP at any time, in every ruleset. If the new max is below current HP, current HP comes down to it.
+- Raising max HP doesn't raise current HP; the DM heals if the rule says so.
+- Logged ("Orc 1 max HP 30 → 24").
+
+#### RS6. Adding to temp HP (G6)
+
+- The temp HP prompt and command accept `+N` to add to the current value, alongside `N` to replace it. Available in every ruleset; nothing decides for the DM which sources stack.
+
+#### RS7. Duration anchors (G7, G8)
+
+- **Fixed-count effects (G7).** In `3.5e`, a sourced effect counts down at the initiative count it was started on, even if its source later moves. In `5e` it keeps following its source, as in v1.
+- **Conditions with a source (G8).** In every ruleset, a condition can name the creature that caused it; it then counts down on that creature's turn (or count, per the rule above) instead of the bearer's. With no source named it behaves as in v1.
+- If a condition's source leaves combat, the condition stays and counts down on the source's last initiative count, the same as a kept effect.
+
+#### RS8. Condition lists (G9)
+
+- Each ruleset has its own preset list for the picker. `3.5e`: Blinded, Confused, Cowering, Dazed, Dazzled, Deafened, Energy Drained, Entangled, Exhausted, Fascinated, Fatigued, Flat-Footed, Frightened, Grappling, Helpless, Invisible, Nauseated, Panicked, Paralyzed, Petrified, Pinned, Prone, Shaken, Sickened, Stable, Stunned, Turned, Unconscious, plus Concentrating.
+- States that come from HP (disabled, dying, dead, staggered) are not in the list; RS3 and RS4 show them.
+- Custom names are still always allowed.
+
+#### RS9. Ruleset files
+
+- A ruleset can be loaded from a file, so other systems (Pathfinder, 4e, home rules) need no code change. The file sets the name, HP floor, health-state thresholds, whether nonlethal is tracked, the effect anchoring rule, and the condition list.
+- The two built-in rulesets are expressed in the same form, and a bad file is refused at start-up with the reason.
+
+#### Still out of scope
+
+Dice, the dying creature's HP loss and stabilization rolls, 5e death saves, massive-damage rules, and concentration checks. These stay with the DM under R8.
