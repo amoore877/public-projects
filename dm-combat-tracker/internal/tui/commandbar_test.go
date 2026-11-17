@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/combat"
 )
 
@@ -158,5 +160,62 @@ func TestHelp(t *testing.T) {
 		if !found {
 			t.Errorf("key %q is missing from the help", k)
 		}
+	}
+}
+
+// The ruleset is chosen in Setup, shown in the title, and sets which
+// conditions the picker offers (RS1, RS8).
+func TestRuleset(t *testing.T) {
+	s := newSession(t, add("Orc", combat.NPC, "12", 20))
+	m := New(s, "")
+	if !strings.Contains(screen(m), "5e \n") {
+		t.Fatalf("the title should show the default ruleset:\n%s", screen(m))
+	}
+	runCmd(m, "ruleset 3.5e")
+	if got := strings.SplitN(screen(m), "\n", 2)[0]; m.overlay != nil || !strings.HasSuffix(got, " 3.5e ") {
+		t.Fatalf("title %q", got)
+	}
+	if saved(t).Ruleset != "3.5e" {
+		t.Error("the choice should be saved")
+	}
+
+	press(m, "c")
+	typeText(m, "sh")
+	if got := screen(m); !strings.Contains(got, "Shaken") {
+		t.Errorf("3.5e presets should be suggested:\n%s", got)
+	}
+	press(m, "ctrl+u")
+	typeText(m, "pois")
+	if got := screen(m); strings.Contains(got, "Poisoned") {
+		t.Errorf("5e-only presets shouldn't be suggested:\n%s", got)
+	}
+	press(m, "ctrl+u")
+	typeText(m, "SICKENED")
+	press(m, "enter", "enter", "enter")
+	if c := combatant(t, s, "Orc"); len(c.Conditions) != 1 || c.Conditions[0].Name != "Sickened" {
+		t.Errorf("conditions %+v", c.Conditions)
+	}
+
+	// Fixed once combat starts; the bar stays open with the reason.
+	runCmd(m, "start")
+	runCmd(m, "ruleset 5e")
+	if got := screen(m); m.overlay == nil || !strings.Contains(got, "can't change mid-fight") {
+		t.Errorf("mid-fight change:\n%s", got)
+	}
+	press(m, "esc")
+	if got := strings.SplitN(screen(m), "\n", 2)[0]; !strings.HasSuffix(got, " 3.5e ") {
+		t.Errorf("title %q", got)
+	}
+}
+
+// A title too long for the terminal keeps the turn holder and drops the
+// ruleset label.
+func TestTitleDropsRulesetWhenNarrow(t *testing.T) {
+	s := newSession(t, add("Archmage Vellindra the Unbound", combat.NPC, "20", 99), start)
+	m := New(s, "")
+	m.Update(tea.WindowSizeMsg{Width: 48, Height: 24})
+	got := strings.SplitN(screen(m), "\n", 2)[0]
+	if !strings.Contains(got, "Vellindra the Unbound") || strings.Contains(got, "5e") || len([]rune(got)) != 48 {
+		t.Errorf("title %q", got)
 	}
 }

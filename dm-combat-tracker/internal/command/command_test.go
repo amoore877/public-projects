@@ -1,6 +1,7 @@
 package command
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -277,5 +278,37 @@ func TestEveryVerbIsDocumented(t *testing.T) {
 		if !strings.Contains(all, ":"+v+" ") {
 			t.Errorf(":%s is missing from Specs", v)
 		}
+	}
+}
+
+func TestRulesetCommand(t *testing.T) {
+	e := combat.New(clock)
+	parseErr(t, e, ":ruleset", "usage: :ruleset 5e|3.5e (now 5e)")
+	parseErr(t, e, ":ruleset 4e", "usage: :ruleset 5e|3.5e (now 5e)")
+	run(t, e, ":ruleset 3.5")
+	if e.Ruleset != "3.5e" {
+		t.Fatalf("ruleset %q", e.Ruleset)
+	}
+
+	// :cond uses the chosen ruleset's spelling.
+	if _, _, err := e.Add(combat.CombatantSpec{Name: "Orc", Initiative: mustInit("12"), MaxHP: 20}); err != nil {
+		t.Fatal(err)
+	}
+	run(t, e, ":cond orc flat-footed 1")
+	orc := e.Combatants[0]
+	if _, ok := orc.FindCondition("Flat-Footed"); !ok || orc.Conditions[0].Name != "Flat-Footed" {
+		t.Errorf("conditions: %+v", orc.Conditions[0])
+	}
+
+	// Refused once combat has started.
+	if _, err := e.Start(); err != nil {
+		t.Fatal(err)
+	}
+	cmd, err := Parse(e, ":ruleset 5e")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cmd.Op(e); !errors.Is(err, combat.ErrNotSetup) || e.Ruleset != "3.5e" {
+		t.Errorf("mid-fight: %v, ruleset %q", err, e.Ruleset)
 	}
 }

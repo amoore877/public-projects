@@ -122,25 +122,25 @@ func (m *Model) promptAddCondition() overlay {
 		return note, nil
 	}
 
-	pick := &inputPrompt{label: "Condition on " + target + ":", suggest: suggestConditions}
+	pick := &inputPrompt{label: "Condition on " + target + ":", suggest: m.suggestConditions}
 	pick.submit = func(m *Model, text string) (overlay, error) {
 		text = strings.TrimSpace(text)
 		if text == "" {
 			return pick, errors.New("Type a condition name, or tab through the presets")
 		}
-		name = command.CanonicalCondition(text)
+		name = m.sess.Encounter().Rules().CanonicalCondition(text)
 		dur.label = fmt.Sprintf("%s on %s · duration:", name, target)
 		return dur, nil
 	}
 	return pick
 }
 
-// suggestConditions lists the presets that start with text (all of them for
-// an empty text), then any that contain it.
-func suggestConditions(text string) []string {
+// suggestConditions lists the ruleset's presets that start with text (all of
+// them for an empty text), then any that contain it.
+func (m *Model) suggestConditions(text string) []string {
 	text = strings.ToLower(strings.TrimSpace(text))
 	var prefix, inner []string
-	for _, c := range combat.DefaultConditions {
+	for _, c := range m.sess.Encounter().Rules().Conditions {
 		lc := strings.ToLower(c)
 		switch {
 		case strings.HasPrefix(lc, text):

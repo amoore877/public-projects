@@ -21,7 +21,7 @@ Each entry is a decision made during planning, with what it rules out.
 | D11 | **Domain operations return events**; the app layer sends them to both the journal and autosave. | Keeps the domain package pure (no I/O) and fully unit-testable; the log is just one consumer of events. |
 | D12 | **Durations count down only at the start of their anchor's turn**; an effect's anchor is its source (found through `SourceID`), or its own row when it has none. | Gives one rule that doesn't depend on any game system, and "N rounds" cast on the caster's turn lasts N full rounds. See [Durations](#durations). Rejected: setting start or end of turn for each item; counting down at the end of the turn; counting a sourced effect down on its own row's turn (the row comes right after the caster, so the first count fell in the round it was cast and a 1-round effect ended at once); nudging the effect's initiative to just above the caster's (a fake value, which the ordering rules exist to avoid). |
 | D13 | **Ending combat archives the state file** as `dmct-state-<timestamp>.json`; the next combat starts with a new file. | Keeps the final state of a finished fight for reference. Rejected: resetting the file in place, asking each time. |
-| D14 | **The condition list is built in for v1** (the D&D 5e preset); custom names can always be typed. | No config files until ruleset presets ([Future](REQUIREMENTS.md#future)). Rejected: an optional YAML/JSON condition file in v1. |
+| D14 | **The condition list is built in** (the D&D 5e preset in v1, now one list per built-in [ruleset](#rulesets)); custom names can always be typed. | No config files until ruleset presets ([Future](REQUIREMENTS.md#future)). Rejected: an optional YAML/JSON condition file in v1. |
 | D15 | **Durations don't tick on the opening turn** (`Start`). | Anything applied during Setup counts from its anchor's next turn, so a "1 round" condition set before combat isn't gone the instant the fight begins. |
 | D16 | **An unsourced effect that expires at the start of its own turn hands the turn straight on** to the next row. | The effect row has nothing left to remind the DM of. One `Next` covers both, and `Previous` restores the effect. (A sourced effect expires as its caster's turn starts, so its row is simply gone.) |
 | D17 | **Removing the row whose turn it is clears turn history.** | `Previous` can't point back at a row that no longer exists. Removing other rows keeps history; a rewind that would land on a removed row is refused. |
@@ -65,6 +65,7 @@ type Initiative int64 // thousandths: 15.3 → 15300
 type Encounter struct {
     SchemaVersion int
     Status        Status        // Setup | Active | Ended
+    Ruleset       string        // "5e" | "3.5e"; see Rulesets
     Round         int           // 0 during Setup
     Current       RowID         // whose turn; zero during Setup
     Combatants    []*Combatant
@@ -163,12 +164,12 @@ Each event carries the round, the turn-holder's name, and a timestamp (the clock
 
 ## Persistence (`internal/store`)
 
-- JSON, indented, with `schemaVersion` so the format can change later.
+- JSON, indented, with `schemaVersion` so the format can change later. Version 2 added `ruleset`; a version 1 file loads as `5e` and is written back as version 2.
 - After every operation that changes state: marshal → write `<path>.tmp` → `fsync` → `rename` onto `<path>`.
 - On startup, if the state file exists and `Status != Ended`, the app resumes. Otherwise it starts in Setup.
 - **End combat** (D13) saves the final state, then renames the file to `dmct-state-<YYYYMMDD-HHMMSS>.json` next to it. The next combat starts in Setup with a new state file.
 - The state stores `LogPath`, so a resumed encounter keeps writing to the same log even if the date has changed.
-- A state file that can't be parsed, or has a newer `schemaVersion`, is refused and left untouched for the DM to look at.
+- A state file that can't be parsed, has a newer `schemaVersion`, or names a ruleset this build doesn't know, is refused and left untouched for the DM to look at.
 - A state file found in `Ended` (a crash between ending and archiving) is archived on startup, and a new combat begins.
 - Archive names that collide (two fights ended in the same second) get a `-2`, `-3`, … suffix.
 
@@ -310,11 +311,22 @@ go test -cover ./...          # target: 90% or more in every package
 6. ✅ **Command bar + help overlay.**
 7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
-## Planned: rulesets
+## Rulesets
 
-Not started. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G9, sub-features RS1–RS9). v1 hard-codes the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and `DefaultConditions`.
+In progress: milestone 8 is built, 9–12 are planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G9, sub-features RS1–RS9). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset; the other two are still 5e-only.
+
+### Built so far (milestone 8)
+
+- `combat.Ruleset` has a `Name` and a `Conditions` list, with two built-ins, `5e` and `3.5e`. `LookupRuleset` ignores case and the trailing "e".
+- `Encounter.Ruleset` holds the **name**; `Encounter.Rules()` resolves it. `SetRuleset` is refused outside Setup and emits `RulesetChanged`, which isn't logged (nothing in Setup is, apart from notes).
+- The state file's `schemaVersion` went to 2. Load fills in `5e` for a file without the field and refuses a name it doesn't know.
+- `--ruleset` applies to a new fight or one still in Setup. Against a fight in progress with a different ruleset, start-up is refused with `session.ErrRulesetInUse`, and the message doesn't tell the DM to fix the state file. With no flag, a new fight takes the ruleset of the fight that just ended.
+- The title line shows the ruleset on the right, and drops it when the turn holder's name needs the room.
+- The condition picker and `:cond` take their presets and spelling from `Rules()`.
 
 ### Model sketch
+
+The remaining fields, for milestones 9–11:
 
 ```go
 type Ruleset struct {
@@ -333,7 +345,6 @@ type HealthState struct {
 }
 ```
 
-- `Encounter` gains `Ruleset` (saved in the state file; absent means `5e`).
 - `Combatant` gains `Nonlethal int`. `Down()` becomes `State() *HealthState`; the `Downed`/`Revived` events become one `HealthStateChanged{From, To}`.
 - `Condition` gains an optional `SourceID`. `Effect` gains `AnchorInit`, the count it ticks on when the ruleset has `FixedAnchor`.
 - `tick` changes from "everything anchored to this row" to "everything anchored to this row *or this initiative count*". A fixed-count anchor with no row at that count needs a tick as the turn order passes it; see open question 1.
@@ -344,7 +355,7 @@ Each step keeps `5e` behavior identical to v1, checked by the existing unit, gol
 
 | Milestone | Sub-features | Notes |
 |---|---|---|
-| 8. Ruleset core | RS1, RS8 | Adds the `Ruleset` type with the two built-ins, the Setup flag and command, the header label, and per-ruleset condition lists. No behavior change yet beyond the picker. |
+| 8. ✅ Ruleset core | RS1, RS8 | Adds the `Ruleset` type with the two built-ins, the Setup flag and command, the header label, and per-ruleset condition lists. No behavior change yet beyond the picker. |
 | 9. HP model | RS2, RS3 | Floor and health states, the event change, table styling, log wording. This is the part that makes 3.5 usable (G1–G3). |
 | 10. HP extras | RS4, RS5, RS6 | Nonlethal, max HP edit, `+N` temp HP. Independent of each other; can be split. |
 | 11. Duration anchors | RS7 | Condition sources and fixed-count effects, including `Previous` rewinding both. The riskiest step: it touches `tick`, `TurnRecord` and removal. |
@@ -358,5 +369,5 @@ The end-combat, duration, and condition-list questions were settled as D13, D12,
 
 1. **Fixed-count ticking (RS7).** When a 3.5 caster delays, their effect should still tick at the old count, where there may be no row. Options: tick as `advance` passes that count, or pin the effect's own row to the old count and tick on the row (the row exists already and keeps its own `Initiative`). The second looks simpler and reuses the unsourced-effect path.
 2. **Correcting an initiative versus Delay/Ready.** With a fixed anchor, fixing a mistyped initiative shouldn't leave the caster's effects behind on the wrong count. Either the edit asks "move effects too?", or there are two commands.
-3. **State-file format.** Whether to store the whole ruleset in the state file or only its name. Storing all of it keeps an archived fight readable after a ruleset file changes.
+3. **State-file format.** Whether to store the whole ruleset in the state file or only its name. Milestone 8 stores the name, which is enough while every ruleset is built in. Storing all of it keeps an archived fight readable after a ruleset file changes, so this has to be settled by milestone 12.
 4. **HP floor in 3.5.** No floor at all, or stop at -10 since anything lower is equally dead.

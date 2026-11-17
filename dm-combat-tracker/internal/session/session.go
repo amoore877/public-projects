@@ -5,6 +5,8 @@
 package session
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/combat"
@@ -19,8 +21,13 @@ const DefaultStatePath = "dmct-state.json"
 type Config struct {
 	StatePath string       // defaults to DefaultStatePath
 	LogPath   string       // "" means dmct-log-YYYY-MM-DD.md for the day each combat starts
+	Ruleset   string       // "" keeps the state file's ruleset, or the default for a new fight
 	Clock     combat.Clock // nil means time.Now
 }
+
+// ErrRulesetInUse means Config.Ruleset differs from the ruleset of a fight
+// that is already under way; the state file itself is fine.
+var ErrRulesetInUse = errors.New("the ruleset can't change mid-fight")
 
 // Session owns the current encounter and its files.
 type Session struct {
@@ -31,7 +38,9 @@ type Session struct {
 
 // Open resumes the encounter in the state file, or starts a new one in Setup.
 // A state file left in Ended (a crash between ending and archiving) is
-// archived first, then a new encounter begins.
+// archived first, then a new encounter begins with the same ruleset.
+// cfg.Ruleset applies to a fight still in Setup; it is refused if it differs
+// from the ruleset of a fight in progress (RS1).
 func Open(cfg Config) (s *Session, resumed bool, err error) {
 	if cfg.StatePath == "" {
 		cfg.StatePath = DefaultStatePath
@@ -43,15 +52,34 @@ func Open(cfg Config) (s *Session, resumed bool, err error) {
 	if err != nil {
 		return nil, false, err
 	}
+	if cfg.Ruleset != "" {
+		r, ok := combat.LookupRuleset(cfg.Ruleset)
+		if !ok {
+			return nil, false, fmt.Errorf("unknown ruleset %q", cfg.Ruleset)
+		}
+		if enc != nil && enc.Status == combat.Active && enc.Rules().Name != r.Name {
+			return nil, false, fmt.Errorf("%w: %s holds a %s fight in progress", ErrRulesetInUse, cfg.StatePath, enc.Rules().Name)
+		}
+	}
+	ruleset := cfg.Ruleset
 	if enc != nil && enc.Status == combat.Ended {
 		if _, err := store.Archive(cfg.StatePath, cfg.Clock()); err != nil {
 			return nil, false, err
+		}
+		if ruleset == "" {
+			ruleset = enc.Ruleset
 		}
 		enc = nil
 	}
 	resumed = enc != nil
 	if enc == nil {
 		enc = combat.New(cfg.Clock)
+	}
+	if ruleset != "" {
+		// Checked above; not saved until the first change, like the rest of Setup.
+		if _, err := enc.SetRuleset(ruleset); err != nil {
+			return nil, false, err
+		}
 	}
 	return &Session{cfg: cfg, enc: enc}, resumed, nil
 }
@@ -108,7 +136,10 @@ func (s *Session) Apply(op Op) (Outcome, error) {
 		if out.SaveErr == nil {
 			out.ArchivedTo, out.SaveErr = store.Archive(s.cfg.StatePath, s.cfg.Clock())
 		}
-		s.enc = combat.New(s.cfg.Clock)
+		// The next fight keeps this one's ruleset.
+		next := combat.New(s.cfg.Clock)
+		_, _ = next.SetRuleset(s.enc.Ruleset)
+		s.enc = next
 	}
 	return out, nil
 }

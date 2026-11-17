@@ -306,8 +306,6 @@ func errText(err error) string {
 		text = "No combatants to start with"
 	case errors.Is(err, combat.ErrNotActive):
 		text = "Combat hasn't started; press S to start"
-	case errors.Is(err, combat.ErrNotSetup):
-		text = "Combat has already started"
 	case errors.Is(err, combat.ErrInvalid):
 		text = strings.TrimPrefix(text, combat.ErrInvalid.Error()+": ")
 	}
@@ -405,7 +403,7 @@ func (m *Model) render() string {
 	}
 
 	var b strings.Builder
-	b.WriteString(fit(m.title(enc), m.width))
+	b.WriteString(m.title(enc))
 	b.WriteString("\n")
 	if text := m.banner(); text != "" {
 		b.WriteString(styleBanner.Render(fit(text, m.width)) + "\n")
@@ -435,17 +433,23 @@ func (m *Model) render() string {
 	return b.String()
 }
 
+// title is the top line: the round and turn on the left and the ruleset on
+// the right (RS1). The ruleset gives way when the line is too narrow for both.
 func (m *Model) title(enc *combat.Encounter) string {
-	switch enc.Status {
-	case combat.Setup:
-		return " Setup ─ press S to start combat"
-	default:
+	left, style := " Setup ─ press S to start combat", lipgloss.NewStyle()
+	if enc.Status != combat.Setup {
 		holder := "—"
 		if r, ok := enc.Row(enc.Current); ok {
 			holder = r.Name()
 		}
-		return styleTitle.Render(fmt.Sprintf(" Round %d ─ Turn: %s", enc.Round, holder))
+		left, style = fmt.Sprintf(" Round %d ─ Turn: %s", enc.Round, holder), styleTitle
 	}
+	label := enc.Rules().Name + " "
+	room := m.width - ansi.StringWidth(label)
+	if ansi.StringWidth(left)+2 > room {
+		return style.Render(fit(left, m.width))
+	}
+	return style.Render(fit(left, room)) + styleHint.Render(label)
 }
 
 func (m *Model) cellStyle(rc rowCells) func(column, string) string {

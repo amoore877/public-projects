@@ -123,7 +123,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 
 ### Rulesets
 
-R8 says the core isn't tied to one game system. That holds for turn order, effects and the log, but a review against D&D 3.5 found places where v1 quietly assumes 5e. This section lists those gaps and the sub-features that close them. The build order is in [DESIGN.md](DESIGN.md#planned-rulesets).
+R8 says the core isn't tied to one game system. That holds for turn order, effects and the log, but a review against D&D 3.5 found places where v1 quietly assumes 5e. This section lists those gaps and the sub-features that close them. The build order is in [DESIGN.md](DESIGN.md#rulesets). RS1 and RS8 are built; the rest are planned.
 
 A **ruleset** is a per-encounter choice that sets the HP rules, the health states, the duration anchoring and the condition list. It still rolls no dice and automates no rules (R8).
 
@@ -153,6 +153,7 @@ Checked and found to need **no change**:
 - The ruleset is chosen during Setup (a start-up flag and a command) and saved in the state file. Built in: `5e` (the default, identical to v1) and `3.5e`.
 - The header shows the ruleset. A state file saved before rulesets existed loads as `5e`.
 - It can't be changed once combat has started, since HP already recorded would change meaning.
+- A new fight keeps the ruleset of the fight that ended before it, unless the start-up flag says otherwise.
 
 #### RS2. HP below zero (G1, G2)
 

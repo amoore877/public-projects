@@ -36,7 +36,12 @@ type (
 		Rounds int
 	}
 	RoundStarted struct{ EventMeta }
-	TurnStarted  struct {
+	// RulesetChanged only happens during Setup (RS1).
+	RulesetChanged struct {
+		EventMeta
+		From, To string
+	}
+	TurnStarted struct {
 		EventMeta
 		ID   RowID
 		Name string

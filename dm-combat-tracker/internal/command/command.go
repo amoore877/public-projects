@@ -62,11 +62,12 @@ var Specs = []Spec{
 	{":init TARGET VALUE", ":init g2 12.35", "set initiative"},
 	{":note TARGET TEXT", ":note g1 fleeing", "set the side note (blank clears)"},
 	{":log TEXT", ":log Thorin shoves the goblin", "write a log entry"},
+	{":ruleset NAME", ":ruleset 3.5e", "choose the game ruleset (5e or 3.5e); only before combat starts"},
 	{":next  :prev  :start  :endcombat", "", "turn controls"},
 }
 
 // Verbs lists the command names, for completion.
-var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "note", "log", "next", "prev", "start", "endcombat"}
+var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "note", "log", "ruleset", "next", "prev", "start", "endcombat"}
 
 var aliases = map[string]string{
 	"remove": "rm", "damage": "dmg", "condition": "cond", "effect": "fx",
@@ -160,6 +161,11 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 			return Command{}, errors.New("usage: :log TEXT")
 		}
 		return Command{Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.LogNote(rest) }}, nil
+	case "ruleset":
+		if _, ok := combat.LookupRuleset(rest); !ok {
+			return Command{}, fmt.Errorf("usage: :ruleset %s (now %s)", strings.Join(combat.RulesetNames(), "|"), enc.Rules().Name)
+		}
+		return Command{Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.SetRuleset(rest) }}, nil
 	}
 	return Command{}, fmt.Errorf("unknown command :%s (press ? for the list)", verb)
 }
@@ -229,22 +235,12 @@ func parseCond(enc *combat.Encounter, rest string) (Command, error) {
 			rounds, nameWords = &n, nameWords[:len(nameWords)-1]
 		}
 	}
-	name := CanonicalCondition(strings.Join(nameWords, " "))
+	name := enc.Rules().CanonicalCondition(strings.Join(nameWords, " "))
 	op := each(ids, func(e *combat.Encounter, id combat.RowID) ([]combat.Event, error) {
 		_, evs, err := e.AddCondition(id, name, rounds, note)
 		return evs, err
 	})
 	return Command{Focus: ids[0], Op: op}, nil
-}
-
-// CanonicalCondition uses the preset's spelling for a case-insensitive match.
-func CanonicalCondition(s string) string {
-	for _, c := range combat.DefaultConditions {
-		if strings.EqualFold(c, s) {
-			return c
-		}
-	}
-	return s
 }
 
 func parseUncond(enc *combat.Encounter, words []string) (Command, error) {

@@ -37,6 +37,15 @@ func Load(path string, clock combat.Clock) (*combat.Encounter, error) {
 		return nil, fmt.Errorf("state %s: schema version %d is newer than this build supports (%d)",
 			path, enc.SchemaVersion, combat.SchemaVersion)
 	}
+	if enc.Ruleset == "" {
+		enc.Ruleset = combat.DefaultRuleset // saved before rulesets existed (RS1)
+	}
+	if r, ok := combat.LookupRuleset(enc.Ruleset); ok {
+		enc.Ruleset = r.Name
+	} else {
+		return nil, fmt.Errorf("state %s: unknown ruleset %q", path, enc.Ruleset)
+	}
+	enc.SchemaVersion = combat.SchemaVersion
 	switch enc.Status {
 	case combat.Setup, combat.Active, combat.Ended:
 	default:

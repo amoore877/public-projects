@@ -7,7 +7,7 @@ It tracks initiative order, whose turn it is, hit points, conditions, area effec
 It's built with D&D in mind but isn't tied to any one ruleset: it doesn't roll dice or apply rules.
 
 ```
- Round 1 ─ Turn: Thorin
+ Round 1 ─ Turn: Thorin                                                      5e
 ┌───┬────────┬──────────────┬──────┬─────────────┬────────────────┬────────────┐
 │   │ Init   │ Name         │ Kind │ HP          │ Conditions     │ Note       │
 ├───┼────────┼──────────────┼──────┼─────────────┼────────────────┼────────────┤
@@ -46,13 +46,14 @@ dmct
 ```
 
 ```
-dmct [--state FILE] [--log FILE]
+dmct [--state FILE] [--log FILE] [--ruleset NAME]
 ```
 
 | Flag | Default | What it is |
 |---|---|---|
 | `--state` | `./dmct-state.json` | The fight's state, saved after every change |
 | `--log` | `./dmct-log-YYYY-MM-DD.md` | The Markdown combat log, dated the day combat starts |
+| `--ruleset` | `5e` | The game ruleset, `5e` or `3.5e`, for a fight that hasn't started. See [Rulesets](#rulesets) |
 
 Run it in the folder you keep your campaign notes in, so the log lands next to them.
 
@@ -74,6 +75,12 @@ If the state file can't be read (it's corrupt, or from a newer version of `dmct`
 
 You can quit with `q` at any point; everything is already saved.
 
+### Rulesets
+
+The title line shows the fight's ruleset. Choose it before combat starts, with `--ruleset 3.5e` or `:ruleset 3.5e`; it's saved with the fight and can't change once combat has started. The next fight keeps the last one's ruleset.
+
+For now the ruleset only sets which conditions the picker offers: the D&D 5e list, or the D&D 3.5 list (Shaken, Sickened, Nauseated, Dazed, Fatigued and so on). HP still follows the 5e rules in both (it stops at 0), so 3.5's negative HP and dying aren't tracked yet; see the [plan](docs/DESIGN.md#rulesets).
+
 ### Initiative and ties
 
 Initiative is typed in by hand, as a decimal. Ties are settled by decimals: three creatures tied at 15 can be `15.3`, `15.2` and `15.1`. Exact ties between combatants are marked with `!` and a warning until you change one (`i`).
@@ -88,7 +95,7 @@ A creature at half HP or less is marked `▼`, and one at 0 shows `DOWN` and is 
 
 ### Conditions and durations
 
-`c` adds a condition: pick from the D&D 5e list (tab completes) or type your own, then give an optional duration in rounds and an optional note (`DC 14 CON save ends`). `C` removes one.
+`c` adds a condition: pick from the ruleset's list (tab completes) or type your own, then give an optional duration in rounds and an optional note (`DC 14 CON save ends`). `C` removes one.
 
 A duration counts down **at the start of its owner's turn** and expires at 0, with a log entry. So a 1-round condition on a goblin lasts until the start of that goblin's next turn. Anything set up before combat starts counts from its owner's first turn after the opening one. For "until the end of its turn", remove it by hand.
 
@@ -124,6 +131,7 @@ The effect gets its own `◆` row, right after its source's turn, as a reminder 
 | `:init TARGET VALUE` | `:init g2 12.35` | Set initiative |
 | `:note TARGET TEXT` | `:note g1 fleeing` | Set the side note (blank clears it) |
 | `:log TEXT` | `:log Thorin shoves the goblin off the bridge` | Write a log entry |
+| `:ruleset NAME` | `:ruleset 3.5e` | Choose the ruleset (before combat starts) |
 | `:next` `:prev` `:start` `:endcombat` | | Turn controls |
 
 A command with a mistake stays open with the reason, so you only need to fix the typo. A command on several targets checks all of them before changing anything.

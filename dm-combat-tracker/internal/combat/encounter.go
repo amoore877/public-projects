@@ -11,7 +11,8 @@ import (
 )
 
 // SchemaVersion is the current encounter serialization version.
-const SchemaVersion = 1
+// Version 2 added Ruleset; version 1 files load as the default ruleset.
+const SchemaVersion = 2
 
 // historyCap bounds how many turn advances Previous can rewind.
 const historyCap = 50
@@ -56,6 +57,7 @@ var (
 type Encounter struct {
 	SchemaVersion int          `json:"schemaVersion"`
 	Status        Status       `json:"status"`
+	Ruleset       string       `json:"ruleset"`
 	Round         int          `json:"round"`
 	Current       RowID        `json:"current"`
 	Combatants    []*Combatant `json:"combatants"`
@@ -148,7 +150,7 @@ func (r Row) seq() int {
 
 // New returns an empty encounter in Setup. A nil clock means time.Now.
 func New(clock Clock) *Encounter {
-	e := &Encounter{SchemaVersion: SchemaVersion, Status: Setup}
+	e := &Encounter{SchemaVersion: SchemaVersion, Status: Setup, Ruleset: DefaultRuleset}
 	e.SetClock(clock)
 	return e
 }

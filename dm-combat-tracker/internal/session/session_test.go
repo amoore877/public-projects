@@ -251,3 +251,70 @@ func TestOpenRejectsCorruptState(t *testing.T) {
 		t.Fatal("corrupt state file was modified")
 	}
 }
+
+func TestRulesetConfig(t *testing.T) {
+	_, cfg := setup(t)
+	cfg.Ruleset = "3.5"
+	s, _ := open(t, cfg)
+	if got := s.Encounter().Ruleset; got != "3.5e" {
+		t.Fatalf("new fight: ruleset %q", got)
+	}
+	apply(t, s, addOp("Orc", 12, 20))
+	s.Close()
+
+	// Still in Setup, so a restart may change it, or leave it alone.
+	cfg.Ruleset = ""
+	s, resumed := open(t, cfg)
+	if !resumed || s.Encounter().Ruleset != "3.5e" {
+		t.Fatalf("no flag should keep the saved ruleset, got %q", s.Encounter().Ruleset)
+	}
+	s.Close()
+	cfg.Ruleset = "5e"
+	s, _ = open(t, cfg)
+	if s.Encounter().Ruleset != "5e" {
+		t.Fatalf("a fight in Setup should take the flag, got %q", s.Encounter().Ruleset)
+	}
+	apply(t, s, start)
+	s.Close()
+
+	// In progress: a different ruleset is refused, the same one is fine.
+	cfg.Ruleset = "3.5e"
+	if _, _, err := Open(cfg); !errors.Is(err, ErrRulesetInUse) || !strings.Contains(err.Error(), "holds a 5e fight in progress") {
+		t.Fatalf("mid-fight change: %v", err)
+	}
+	cfg.Ruleset = "5e"
+	s, _ = open(t, cfg)
+	s.Close()
+
+	cfg.Ruleset = "4e"
+	if _, _, err := Open(cfg); err == nil || !strings.Contains(err.Error(), `unknown ruleset "4e"`) {
+		t.Fatalf("unknown ruleset: %v", err)
+	}
+}
+
+// The fight after an ended one keeps its ruleset, whether combat ended in
+// this run or the ended state file was found at start-up.
+func TestRulesetCarriesToNextFight(t *testing.T) {
+	_, cfg := setup(t)
+	cfg.Ruleset = "3.5e"
+	s, _ := open(t, cfg)
+	apply(t, s, addOp("Orc", 12, 20))
+	apply(t, s, start)
+	out := apply(t, s, end)
+	if !strings.Contains(readFile(t, out.ArchivedTo), `"ruleset": "3.5e"`) {
+		t.Error("the archive should record the ruleset")
+	}
+	if e := s.Encounter(); e.Status != combat.Setup || e.Ruleset != "3.5e" {
+		t.Fatalf("next fight: %s, ruleset %q", e.Status, e.Ruleset)
+	}
+	s.Close()
+
+	if err := os.WriteFile(DefaultStatePath, []byte(`{"schemaVersion":2,"status":"ended","ruleset":"3.5e"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg.Ruleset = ""
+	s, resumed := open(t, cfg)
+	if resumed || s.Encounter().Ruleset != "3.5e" {
+		t.Fatalf("after a leftover ended file: resumed %v, ruleset %q", resumed, s.Encounter().Ruleset)
+	}
+}

@@ -25,7 +25,10 @@ func TestRunRejectsBadArguments(t *testing.T) {
 	if err := run([]string{"-h"}); !errors.Is(err, flag.ErrHelp) {
 		t.Errorf("-h: %v", err)
 	}
-	if out := stderr(); strings.Count(out, "usage: dmct [--state FILE] [--log FILE]") != 3 {
+	if err := run([]string{"--ruleset", "4e"}); err == nil || !strings.Contains(err.Error(), `unknown ruleset "4e" (choose 5e or 3.5e)`) {
+		t.Errorf("unknown ruleset: %v", err)
+	}
+	if out := stderr(); strings.Count(out, "usage: dmct [--state FILE] [--log FILE] [--ruleset NAME]") != 3 {
 		t.Errorf("each should print the usage line:\n%s", out)
 	}
 	if entries, _ := os.ReadDir("."); len(entries) != 0 {
@@ -72,5 +75,23 @@ func captureStderr(t *testing.T) func() string {
 		restore()
 		b, _ := os.ReadFile(path)
 		return string(b)
+	}
+}
+
+// --ruleset can't change a fight that is already under way; the state file
+// is fine, so the message doesn't suggest fixing it.
+func TestRunRefusesRulesetChangeMidFight(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fight.json")
+	content := `{"schemaVersion":2,"status":"active","ruleset":"5e","round":1}`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := run([]string{"--state", path, "--ruleset", "3.5e"})
+	if err == nil || !strings.Contains(err.Error(), "holds a 5e fight in progress") ||
+		!strings.Contains(err.Error(), "Run without --ruleset") || strings.Contains(err.Error(), "Fix or move it") {
+		t.Fatalf("err = %v", err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != content {
+		t.Errorf("state file was changed to %q", got)
 	}
 }

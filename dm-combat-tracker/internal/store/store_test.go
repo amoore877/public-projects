@@ -203,3 +203,35 @@ func TestArchive(t *testing.T) {
 		t.Fatal("state file still present after archiving")
 	}
 }
+
+// A file saved before rulesets existed loads as 5e and is upgraded to the
+// current schema; the chosen ruleset survives a save (RS1).
+func TestLoadRuleset(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "dmct-state.json")
+	if err := os.WriteFile(path, []byte(`{"schemaVersion":1,"status":"setup"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	enc, err := Load(path, clock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if enc.Ruleset != "5e" || enc.SchemaVersion != combat.SchemaVersion {
+		t.Fatalf("ruleset %q, schema %d", enc.Ruleset, enc.SchemaVersion)
+	}
+	if _, err := enc.SetRuleset("3.5e"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(path, enc); err != nil {
+		t.Fatal(err)
+	}
+	if enc, err = Load(path, clock); err != nil || enc.Ruleset != "3.5e" {
+		t.Fatalf("after save: %+v, %v", enc, err)
+	}
+
+	if err := os.WriteFile(path, []byte(`{"schemaVersion":2,"status":"setup","ruleset":"4e"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path, clock); err == nil || !strings.Contains(err.Error(), `unknown ruleset "4e"`) {
+		t.Fatalf("unknown ruleset: %v", err)
+	}
+}

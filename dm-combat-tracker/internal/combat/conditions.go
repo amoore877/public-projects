@@ -5,14 +5,6 @@ import (
 	"strings"
 )
 
-// DefaultConditions is the built-in condition preset (D14): D&D 5e plus
-// Concentrating. Custom names are always allowed.
-var DefaultConditions = []string{
-	"Blinded", "Charmed", "Deafened", "Exhaustion", "Frightened", "Grappled",
-	"Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone",
-	"Restrained", "Stunned", "Unconscious", "Concentrating",
-}
-
 // AddCondition puts a condition on a combatant. rounds is nil for an
 // indefinite condition; otherwise it counts down at the start of the
 // combatant's turns (D12).

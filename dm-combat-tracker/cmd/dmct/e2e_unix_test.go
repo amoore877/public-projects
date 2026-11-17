@@ -802,3 +802,37 @@ func TestRefusalsAtStartup(t *testing.T) {
 		t.Errorf("the corrupt state file was changed to %q", got)
 	}
 }
+
+// The ruleset is chosen with --ruleset or :ruleset before combat starts, is
+// shown in the title, survives a restart, and can't change mid-fight (RS1).
+func TestRuleset(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir, "--ruleset", "3.5")
+	a.see("Setup", "3.5e")
+	a.do(":ruleset 5e"+enter, "5e")
+	a.gone("3.5e")
+	a.do(":ruleset 3.5e"+enter, "3.5e")
+	a.do(":add Orc 12 20"+enter, "20/20")
+	a.keys(":cond orc SHAKEN 2" + enter)
+	a.rowShows("Orc", "Shaken (2)")
+	a.do(":start"+enter, "Round 1 ─ Turn: Orc", "3.5e")
+	a.do(":ruleset 5e"+enter, "the ruleset can't change mid-fight")
+	a.keys(esc)
+	a.gone(": ruleset 5e") // wait, so the q isn't read as part of an escape sequence
+	a.quit()
+
+	if got := a.state("dmct-state.json").Ruleset; got != "3.5e" {
+		t.Errorf("saved ruleset %q", got)
+	}
+
+	cmd := exec.Command(bin, "--ruleset", "5e")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), "holds a 3.5e fight in progress") || !strings.Contains(string(out), "Run without --ruleset") {
+		t.Errorf("--ruleset 5e on a 3.5e fight: %v\n%s", err, out)
+	}
+
+	b := launch(t, dir)
+	b.see("Resumed from dmct-state.json", "Round 1 ─ Turn: Orc", "3.5e")
+	b.quit()
+}
