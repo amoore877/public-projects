@@ -7,7 +7,9 @@
    a          add a combatant, or a group: Goblin x4                            
    x          remove the combatant / end the effect early                       
    d / h      damage / heal (=N sets HP)                                        
-   t          set temp HP                                                       
+   t          temp HP (N replaces, +N adds)                                     
+   D          nonlethal damage (=N sets the total; rulesets that track it)      
+   M          edit max HP                                                       
    c / C      add / remove a condition                                          
    e          new effect (source: the selected combatant)                       
    T          change an effect's targets                                        
@@ -19,6 +21,4 @@
    ?          this help                                                         
    q          quit (state is autosaved; asks first if saving fails)             
                                                                                 
- Commands names match loosely (goblin 2, gob2, g2); TARGETS is a comma list     
-   :add NAME [xN] INIT HP [pc|npc] [-- NOTE]                                    
- ↑↓/jk scroll · lines 1–22 of 55 · any other key closes                         
+ ↑↓/jk scroll · lines 1–22 of 61 · any other key closes                         

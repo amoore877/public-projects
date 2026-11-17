@@ -86,10 +86,9 @@ func TestDamageHealTemp(t *testing.T) {
 
 	selectRow(t, m, "Mira")
 	press(m, "t")
-	if !strings.Contains(screen(m), "Temp HP for Mira: 5") {
-		t.Errorf("temp prompt should start with the current value:\n%s", screen(m))
+	if !strings.Contains(screen(m), "Temp HP for Mira (has 5):") {
+		t.Errorf("temp prompt should show the current value:\n%s", screen(m))
 	}
-	press(m, "backspace")
 	typeText(m, "8")
 	press(m, "enter")
 	if c := combatant(t, s, "Mira"); c.TempHP != 8 {
@@ -439,3 +438,79 @@ func TestRenderPrompt(t *testing.T) {
 }
 
 func pasteMsg(s string) tea.PasteMsg { return tea.PasteMsg{Content: s} }
+
+func TestNonlethalMaxHPAndAddedTemp(t *testing.T) {
+	s := newSession(t, fight35()...)
+	m := New(s, "")
+	selectRow(t, m, "Orc 4")
+	press(m, "D")
+	typeText(m, "6")
+	press(m, "enter")
+	if c := combatant(t, s, "Orc 4"); c.Nonlethal != 6 {
+		t.Fatalf("nonlethal %d", c.Nonlethal)
+	}
+	press(m, "D")
+	if !strings.Contains(screen(m), "Nonlethal damage to Orc 4 (has 6):") {
+		t.Errorf("prompt:\n%s", screen(m))
+	}
+	typeText(m, "=9")
+	press(m, "enter")
+	if got := screen(m); !strings.Contains(got, "STAGR 9/9 nl9") && !strings.Contains(got, "STAGR 9/9") {
+		t.Errorf("staggered:\n%s", got)
+	}
+
+	press(m, "M")
+	if !strings.Contains(screen(m), "Max HP for Orc 4: 9") {
+		t.Errorf("max HP prompt starts with the current max:\n%s", screen(m))
+	}
+	press(m, "backspace")
+	typeText(m, "0")
+	press(m, "enter")
+	if got := screen(m); m.overlay == nil || !strings.Contains(got, "isn't a whole number of 1 or more") {
+		t.Errorf("max HP 0:\n%s", got)
+	}
+	press(m, "ctrl+u")
+	typeText(m, "5")
+	press(m, "enter")
+	if c := combatant(t, s, "Orc 4"); c.MaxHP != 5 || c.HP != 5 {
+		t.Errorf("max %d hp %d", c.MaxHP, c.HP)
+	}
+
+	selectRow(t, m, "Tordek")
+	press(m, "t")
+	typeText(m, "4")
+	press(m, "enter")
+	press(m, "t")
+	typeText(m, "+3")
+	press(m, "enter")
+	if c := combatant(t, s, "Tordek"); c.TempHP != 7 {
+		t.Errorf("temp %d", c.TempHP)
+	}
+	press(m, "t")
+	typeText(m, "=2")
+	press(m, "enter")
+	if got := screen(m); m.overlay == nil || !strings.Contains(got, `"=2" isn't a whole number`) {
+		t.Errorf("=N isn't a temp HP form:\n%s", got)
+	}
+	press(m, "esc")
+
+	// 5e has no nonlethal: D says so instead of opening a prompt.
+	m5 := New(newSession(t, fight()...), "")
+	press(m5, "D")
+	if got := screen(m5); m5.overlay != nil || !strings.Contains(got, "The 5e ruleset doesn't track nonlethal damage") {
+		t.Errorf("5e D:\n%s", got)
+	}
+}
+
+// A cut-off HP cell is spelled out in the status line for the selection.
+func TestHPCellDetail(t *testing.T) {
+	s := newSession(t, append(fight35(),
+		on("Orc 1", func(e *combat.Encounter, id combat.RowID) ([]combat.Event, error) { return e.SetTempHP(id, 5) }),
+		on("Orc 1", func(e *combat.Encounter, id combat.RowID) ([]combat.Event, error) { return e.NonlethalDamage(id, 2) }),
+	)...)
+	m := New(s, "")
+	selectRow(t, m, "Orc 1")
+	if got := screen(m); !strings.Contains(got, "Orc 1 · HP DSBLD 0/9 +5 nl2") {
+		t.Errorf("detail:\n%s", got)
+	}
+}

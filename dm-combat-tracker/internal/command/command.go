@@ -52,7 +52,9 @@ var Specs = []Spec{
 	{":dmg TARGETS N", ":dmg g1,g3 9", "damage (temp HP first)"},
 	{":heal TARGETS N", ":heal thorin 8", "heal, up to max HP"},
 	{":hp TARGET N", ":hp g2 3", "set HP directly"},
-	{":temp TARGETS N", ":temp mira 5", "set temp HP"},
+	{":temp TARGETS [+]N", ":temp mira +5", "set temp HP; +N adds to it"},
+	{":nl TARGETS [=]N", ":nl orc 6", "nonlethal damage; =N sets the total (rulesets that track it)"},
+	{":maxhp TARGET N", ":maxhp orc 24", "set max HP; a lower max brings HP down"},
 	{":cond TARGETS NAME [ROUNDS] [-- NOTE]", ":cond g3 prone", "add a condition"},
 	{":uncond TARGET NAME", ":uncond g3 prone", "remove a condition"},
 	{":fx NAME [ROUNDS] [from SOURCE] [at INIT] [on TARGETS]", ":fx Spirit Guardians 10 from mira on g1,g3", "start an effect"},
@@ -67,10 +69,11 @@ var Specs = []Spec{
 }
 
 // Verbs lists the command names, for completion.
-var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "note", "log", "ruleset", "next", "prev", "start", "endcombat"}
+var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "note", "log", "ruleset", "next", "prev", "start", "endcombat"}
 
 var aliases = map[string]string{
 	"remove": "rm", "damage": "dmg", "condition": "cond", "effect": "fx",
+	"nonlethal": "nl", "max": "maxhp",
 	"n": "next", "p": "prev", "previous": "prev",
 }
 
@@ -111,7 +114,7 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 			return Command{}, err
 		}
 		return Command{Kind: Remove, Target: id}, nil
-	case "dmg", "heal", "temp", "hp":
+	case "dmg", "heal", "temp", "hp", "nl", "maxhp":
 		return parseHP(enc, verb, words)
 	case "cond":
 		return parseCond(enc, rest)
@@ -187,32 +190,57 @@ func each(ids []combat.RowID, f func(e *combat.Encounter, id combat.RowID) ([]co
 }
 
 func parseHP(enc *combat.Encounter, verb string, words []string) (Command, error) {
+	usage := map[string]string{"temp": "TARGETS [+]N", "nl": "TARGETS [=]N", "hp": "TARGET N", "maxhp": "TARGET N"}[verb]
+	if usage == "" {
+		usage = "TARGETS N"
+	}
 	if len(words) < 2 {
-		return Command{}, fmt.Errorf("usage: :%s TARGETS N", verb)
+		return Command{}, fmt.Errorf("usage: :%s %s", verb, usage)
 	}
-	n, err := strconv.Atoi(words[len(words)-1])
-	floor := 0 // amounts are never negative; only a set HP can be, down to the ruleset's floor
-	if verb == "hp" {
+	if verb == "nl" && !enc.Rules().Nonlethal {
+		return Command{}, fmt.Errorf("%w (%s)", combat.ErrNoNonlethal, enc.Rules().Name)
+	}
+	raw := words[len(words)-1]
+	text := raw
+	adding := verb == "temp" && strings.HasPrefix(text, "+")
+	setting := verb == "nl" && strings.HasPrefix(text, "=")
+	if adding || setting {
+		text = text[1:]
+	}
+	floor := 0 // amounts are never negative; a set HP can be, down to the ruleset's floor
+	switch verb {
+	case "hp":
 		floor = enc.Rules().HPFloor
+	case "maxhp":
+		floor = 1
 	}
-	if err != nil || n < floor {
-		return Command{}, fmt.Errorf("%q isn't a whole number of %d or more", words[len(words)-1], floor)
+	n, err := strconv.Atoi(text)
+	if err != nil || n < floor || strings.HasPrefix(text, "+") {
+		return Command{}, fmt.Errorf("%q isn't a whole number of %d or more", raw, floor)
 	}
 	ids, err := resolveList(enc, strings.Join(words[:len(words)-1], " "), combatantRow)
 	if err != nil {
 		return Command{}, err
 	}
-	if verb == "hp" && len(ids) > 1 {
-		return Command{}, errors.New(":hp takes one target")
+	if (verb == "hp" || verb == "maxhp") && len(ids) > 1 {
+		return Command{}, fmt.Errorf(":%s takes one target", verb)
 	}
 	op := each(ids, func(e *combat.Encounter, id combat.RowID) ([]combat.Event, error) {
-		switch verb {
-		case "dmg":
+		switch {
+		case verb == "dmg":
 			return e.Damage(id, n)
-		case "heal":
+		case verb == "heal":
 			return e.Heal(id, n)
-		case "hp":
+		case verb == "hp":
 			return e.SetHP(id, n)
+		case verb == "maxhp":
+			return e.SetMaxHP(id, n)
+		case verb == "nl" && setting:
+			return e.SetNonlethal(id, n)
+		case verb == "nl":
+			return e.NonlethalDamage(id, n)
+		case adding:
+			return e.AddTempHP(id, n)
 		}
 		return e.SetTempHP(id, n)
 	})

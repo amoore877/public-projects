@@ -164,7 +164,7 @@ Each event carries the round, the turn-holder's name, and a timestamp (the clock
 
 ## Persistence (`internal/store`)
 
-- JSON, indented, with `schemaVersion` so the format can change later. Version 2 added `ruleset`; a version 1 file loads as `5e` and is written back as version 2.
+- JSON, indented, with `schemaVersion` so the format can change later. Version 2 added `ruleset` and `nonlethal`; a version 1 file loads as `5e` and is written back as version 2.
 - After every operation that changes state: marshal → write `<path>.tmp` → `fsync` → `rename` onto `<path>`.
 - On startup, if the state file exists and `Status != Ended`, the app resumes. Otherwise it starts in Setup.
 - **End combat** (D13) saves the final state, then renames the file to `dmct-state-<YYYYMMDD-HHMMSS>.json` next to it. The next combat starts in Setup with a new state file.
@@ -313,7 +313,7 @@ go test -cover ./...          # target: 90% or more in every package
 
 ## Rulesets
 
-In progress: milestones 8 and 9 are built, 10–12 are planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G9, sub-features RS1–RS9). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
+In progress: milestones 8–10 are built, 11 and 12 are planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G9, sub-features RS1–RS9). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
 
 ### Built so far (milestone 8)
 
@@ -350,11 +350,20 @@ type HealthState struct {
 - The HP column is 11 wide at 80 columns and `DISABLED 0/22` doesn't fit, which is why that state has the tag `DSBLD`. Widening the column would have changed the 5e screens.
 - The turn reminder is plain ("Orc is dying (-7 HP)") and names no rule, since a stable creature is dying by HP too.
 
+### Built so far (milestone 10)
+
+- `Ruleset.Nonlethal` (true for `3.5e`) and `Combatant.Nonlethal`, the running total. `NonlethalDamage` and `SetNonlethal` are refused with `ErrNoNonlethal` in a ruleset without it. Temp HP doesn't absorb nonlethal damage.
+- Staggered and unconscious are `HealthState` values outside `Ruleset.States`, returned by `HealthState(c)` only when HP itself gives no state. So a dying creature with nonlethal damage shows as dying, and a move between an HP state and a nonlethal one is a single `HealthStateChanged`.
+- `Heal` removes up to `n` nonlethal damage, even when HP is already full; `Healed.NonlethalHealed` says how much.
+- `SetMaxHP` works in every ruleset and brings HP down to a lower max. `AddTempHP` is the `+N` form; it emits `TempHPSet` with `Added` set.
+- The log gains "Orc max HP 10 → 6", "Orc is staggered (10 HP, 10 nonlethal)" and "Orc is no longer staggered". Nonlethal arithmetic and temp HP aren't logged, like other HP arithmetic.
+- The HP cell appends `nl6`. In `3.5e` the cell is often cut off (`STAGR 10/1…`), so the status line now spells out the selected row's HP whenever its cell is cut, as it already did for the name, conditions and note.
+- Hotkeys `D` (nonlethal; `=N` sets the total) and `M` (max HP, prefilled). The `t` prompt no longer prefills the current temp HP, since `+N` typed after it would read as `5+3`; the label shows it instead.
+
 ### Model sketch
 
-The remaining fields, for milestones 10–11: `Ruleset` gains `Nonlethal bool` and `FixedAnchor bool` (effects count down on their starting count, RS7).
+The remaining fields, for milestone 11: `Ruleset` gains `FixedAnchor bool` (effects count down on their starting count, RS7).
 
-- `Combatant` gains `Nonlethal int`.
 - `Condition` gains an optional `SourceID`. `Effect` gains `AnchorInit`, the count it ticks on when the ruleset has `FixedAnchor`.
 - `tick` changes from "everything anchored to this row" to "everything anchored to this row *or this initiative count*". A fixed-count anchor with no row at that count needs a tick as the turn order passes it; see open question 1.
 
@@ -366,7 +375,7 @@ Each step keeps `5e` behavior identical to v1, checked by the existing unit, gol
 |---|---|---|
 | 8. ✅ Ruleset core | RS1, RS8 | Adds the `Ruleset` type with the two built-ins, the Setup flag and command, the header label, and per-ruleset condition lists. No behavior change yet beyond the picker. |
 | 9. ✅ HP model | RS2, RS3 | Floor and health states, the event change, table styling, log wording. This is the part that makes 3.5 usable (G1–G3). |
-| 10. HP extras | RS4, RS5, RS6 | Nonlethal, max HP edit, `+N` temp HP. Independent of each other; can be split. |
+| 10. ✅ HP extras | RS4, RS5, RS6 | Nonlethal, max HP edit, `+N` temp HP. Independent of each other; can be split. |
 | 11. Duration anchors | RS7 | Condition sources and fixed-count effects, including `Previous` rewinding both. The riskiest step: it touches `tick`, `TurnRecord` and removal. |
 | 12. Ruleset files | RS9 | File format, validation, built-ins moved to the same form. |
 

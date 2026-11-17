@@ -79,15 +79,16 @@ You can quit with `q` at any point; everything is already saved.
 
 The title line shows the fight's ruleset. Choose it before combat starts, with `--ruleset 3.5e` or `:ruleset 3.5e`; it's saved with the fight and can't change once combat has started. The next fight keeps the last one's ruleset.
 
-The ruleset sets two things:
+The ruleset sets these:
 
 | | `5e` | `3.5e` |
 |---|---|---|
 | Lowest HP | 0 | -10 |
 | Health states | `DOWN` at 0 | `DSBLD` (disabled) at exactly 0, `DYING` from -1 to -9, `DEAD` at -10 |
+| Nonlethal damage | not tracked | tracked: `STAGR` (staggered) when it equals HP, `UNCON` (unconscious) when it's higher |
 | Condition list | D&D 5e | D&D 3.5 (Shaken, Sickened, Nauseated, Dazed, Fatigued and so on) |
 
-It still applies no rules for you: a dying creature doesn't lose HP or roll to stabilize on its own. When a dying creature's turn starts, the status line says so, and Stable is a condition you add by hand. Nonlethal damage isn't tracked yet; see the [plan](docs/DESIGN.md#rulesets).
+It still applies no rules for you: a dying creature doesn't lose HP or roll to stabilize on its own. When a dying creature's turn starts, the status line says so, and Stable is a condition you add by hand.
 
 ### Initiative and ties
 
@@ -97,7 +98,9 @@ A group shares the initiative you give it, with decimals filled in to keep its m
 
 ### HP
 
-`d` takes damage from temp HP first, then HP, down to 0 (-10 in `3.5e`). `h` heals up to max HP, counting from where HP really is, so healing 5 at -7 gives -2. In either prompt, `=N` sets HP to exactly N (`=-4` in `3.5e`). `t` sets temp HP, replacing what's there (temp HP doesn't stack). When adding, HP can be `MAX` or `CURRENT/MAX`, with `+N` on the end for temp HP (`31/44+5`). In `3.5e` the current HP can be negative (`-4/22`).
+`d` takes damage from temp HP first, then HP, down to 0 (-10 in `3.5e`). `h` heals up to max HP, counting from where HP really is, so healing 5 at -7 gives -2. In either prompt, `=N` sets HP to exactly N (`=-4` in `3.5e`). `t` sets temp HP: `N` replaces what's there and `+N` adds to it, for sources that stack. `M` edits max HP: a lower max brings HP down with it, a higher one doesn't heal. When adding, HP can be `MAX` or `CURRENT/MAX`, with `+N` on the end for temp HP (`31/44+5`). In `3.5e` the current HP can be negative (`-4/22`).
+
+In `3.5e`, `D` adds nonlethal damage (`=N` sets the total). It's kept as a separate total, shown as `nl6` after HP, and temp HP doesn't absorb it. Healing lowers it by the amount healed, even at full HP. When the HP cell is too narrow for all of this, the status line spells out the selected creature's HP.
 
 A creature at half HP or less is marked `▼`, and one at 0 shows `DOWN` and is dimmed. Downed creatures stay in the order until you remove them (`x`), so PCs still get their turns for death saves.
 
@@ -132,7 +135,9 @@ The effect gets its own `◆` row, right after its source's turn, as a reminder 
 | `:dmg TARGETS N` | `:dmg g1,g3 9` | Damage |
 | `:heal TARGETS N` | `:heal thorin 8` | Heal |
 | `:hp TARGET N` | `:hp g2 3` | Set HP directly |
-| `:temp TARGETS N` | `:temp mira 5` | Set temp HP |
+| `:temp TARGETS [+]N` | `:temp mira +5` | Set temp HP, or add to it with `+N` |
+| `:nl TARGETS [=]N` | `:nl orc 6` | Nonlethal damage, or set the total with `=N` (`3.5e`) |
+| `:maxhp TARGET N` | `:maxhp orc 24` | Set max HP |
 | `:cond TARGETS NAME [ROUNDS] [-- NOTE]` | `:cond thorin blessed 10` | Add a condition |
 | `:uncond TARGET NAME` | `:uncond g3 prone` | Remove a condition |
 | `:fx NAME [ROUNDS] [from SOURCE] [at INIT] [on TARGETS]` | `:fx Spirit Guardians 10 from mira on g1,g3` | Start an effect |
@@ -159,7 +164,9 @@ Keys act on the selected row (highlighted), which can differ from the row whose 
 | `a` | Add a combatant or group |
 | `x` | Remove the combatant (asks first) / end the effect early |
 | `d` / `h` | Damage / heal (`=N` sets HP) |
-| `t` | Set temp HP |
+| `t` | Temp HP (`N` replaces, `+N` adds) |
+| `D` | Nonlethal damage (`3.5e`; `=N` sets the total) |
+| `M` | Edit max HP |
 | `c` / `C` | Add / remove a condition |
 | `e` | New effect |
 | `T` | Change an effect's targets |

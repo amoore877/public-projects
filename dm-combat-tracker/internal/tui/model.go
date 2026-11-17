@@ -158,7 +158,7 @@ func (m *Model) handleKey(key string) tea.Cmd {
 		m.open(m.promptNewEffect())
 	case "T":
 		m.open(m.promptTargets())
-	case "d", "h", "t":
+	case "d", "h", "t", "D", "M":
 		m.open(m.promptHP(key))
 	case "c":
 		m.open(m.promptAddCondition())
@@ -556,10 +556,13 @@ func (m *Model) selectedDetail(l layout, rows []rowCells) string {
 		if rc.id != m.selected {
 			continue
 		}
-		if !l.cut(colName, rc.name) && !l.cut(colConds, rc.conds) && !l.cut(colNote, rc.note) {
+		if !l.cut(colName, rc.name) && !l.cut(colHP, rc.hp) && !l.cut(colConds, rc.conds) && !l.cut(colNote, rc.note) {
 			return ""
 		}
 		parts := []string{rc.name}
+		if l.cut(colHP, rc.hp) {
+			parts = append(parts, "HP "+rc.hp)
+		}
 		if rc.conds != "" {
 			parts = append(parts, rc.conds)
 		}

@@ -160,12 +160,22 @@ func (r *renderer) event(ev combat.Event) {
 	case combat.HealthStateChanged:
 		switch e.To {
 		case "":
-			r.entry(m, e.Name+" is back above 0 HP")
+			if combat.IsNonlethalState(e.From) {
+				r.entry(m, fmt.Sprintf("%s is no longer %s", e.Name, e.From))
+			} else {
+				r.entry(m, e.Name+" is back above 0 HP")
+			}
 		case "down":
 			r.entry(m, e.Name+" dropped to 0 HP")
 		default:
-			r.entry(m, fmt.Sprintf("%s is %s (%d HP)", e.Name, e.To, e.HP))
+			if combat.IsNonlethalState(e.To) {
+				r.entry(m, fmt.Sprintf("%s is %s (%d HP, %d nonlethal)", e.Name, e.To, e.HP, e.Nonlethal))
+			} else {
+				r.entry(m, fmt.Sprintf("%s is %s (%d HP)", e.Name, e.To, e.HP))
+			}
 		}
+	case combat.MaxHPSet:
+		r.entry(m, fmt.Sprintf("%s max HP %d → %d", e.Name, e.From, e.To))
 
 	case combat.ConditionApplied:
 		var extra []string
@@ -214,8 +224,9 @@ func (r *renderer) event(ev combat.Event) {
 		r.entry(m, "📝 "+e.Text)
 
 		// Not logged: TurnStarted (the turn holder is on every line), HP
-		// arithmetic (Damaged, Healed, HPSet, TempHPSet; crossing 0 is logged via
-		// HealthStateChanged), InitiativeChanged and RowNoteSet.
+		// arithmetic (Damaged, Healed, HPSet, TempHPSet, NonlethalDamaged,
+		// NonlethalSet; changes of state are logged via HealthStateChanged),
+		// InitiativeChanged and RowNoteSet.
 	}
 }
 

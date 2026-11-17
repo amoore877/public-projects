@@ -228,3 +228,113 @@ func TestAddBelowZero(t *testing.T) {
 		t.Errorf("err %v", err)
 	}
 }
+
+// Nonlethal damage keeps its own total; staggered and unconscious come from
+// comparing it with HP, and healing lowers it too (RS4).
+func TestNonlethal(t *testing.T) {
+	e := newEnc()
+	id := add(t, e, "Orc", "12", 10)
+	_, err := e.NonlethalDamage(id, 3)
+	wantErr(t, err, ErrNoNonlethal)
+	_, err = e.SetNonlethal(id, 3)
+	wantErr(t, err, ErrNoNonlethal)
+
+	e = newEnc35(t)
+	id = add(t, e, "Orc", "12", 10)
+	c, _ := e.Combatant(id)
+	state := func() string { return stateName(e.HealthState(c)) }
+	must(t)(e.Damage(id, 4)) // 6 HP
+	evs := must(t)(e.NonlethalDamage(id, 5))
+	wantKinds(t, evs, "NonlethalDamaged")
+	if d := evs[0].(NonlethalDamaged); d.Amount != 5 || d.Total != 5 || c.HP != 6 {
+		t.Errorf("%+v, hp %d", d, c.HP)
+	}
+	evs = must(t)(e.NonlethalDamage(id, 1))
+	wantKinds(t, evs, "NonlethalDamaged", "HealthStateChanged")
+	if ch := evs[1].(HealthStateChanged); ch.To != "staggered" || ch.Nonlethal != 6 || ch.HP != 6 {
+		t.Errorf("%+v", ch)
+	}
+	if s := e.HealthState(c); !s.Acts || s.Label() != "STAGR" {
+		t.Errorf("staggered %+v", s)
+	}
+	wantKinds(t, must(t)(e.NonlethalDamage(id, 1)), "NonlethalDamaged", "HealthStateChanged")
+	if state() != "unconscious" || e.HealthState(c).Acts {
+		t.Errorf("state %s", state())
+	}
+
+	// Healing 2 brings HP to 8 and nonlethal to 5: no state.
+	evs = must(t)(e.Heal(id, 2))
+	wantKinds(t, evs, "Healed", "HealthStateChanged")
+	if h := evs[0].(Healed); h.Amount != 2 || h.NonlethalHealed != 2 || c.Nonlethal != 5 || state() != "" {
+		t.Errorf("%+v, nonlethal %d, state %s", h, c.Nonlethal, state())
+	}
+	// Healing at full HP still removes nonlethal damage.
+	must(t)(e.SetHP(id, 10))
+	if h := must(t)(e.Heal(id, 3))[0].(Healed); h.Amount != 0 || h.NonlethalHealed != 3 || c.Nonlethal != 2 {
+		t.Errorf("%+v, nonlethal %d", h, c.Nonlethal)
+	}
+	if h := must(t)(e.Heal(id, 9))[0].(Healed); h.NonlethalHealed != 2 || c.Nonlethal != 0 {
+		t.Errorf("%+v, nonlethal %d", h, c.Nonlethal)
+	}
+
+	// An HP state wins over a nonlethal one; temp HP doesn't absorb nonlethal.
+	must(t)(e.SetTempHP(id, 5))
+	must(t)(e.NonlethalDamage(id, 20))
+	if c.TempHP != 5 || state() != "unconscious" {
+		t.Errorf("temp %d, state %s", c.TempHP, state())
+	}
+	if ch := must(t)(e.SetHP(id, -3))[1].(HealthStateChanged); ch.From != "unconscious" || ch.To != "dying" {
+		t.Errorf("%+v", ch)
+	}
+	evs = must(t)(e.SetNonlethal(id, 0))
+	wantKinds(t, evs, "NonlethalSet") // still dying
+	if s := evs[0].(NonlethalSet); s.From != 20 || s.To != 0 {
+		t.Errorf("%+v", s)
+	}
+	_, err = e.NonlethalDamage(id, -1)
+	wantErr(t, err, ErrInvalid)
+}
+
+func TestSetMaxHP(t *testing.T) {
+	e := newEnc()
+	id := add(t, e, "Orc", "12", 30)
+	c, _ := e.Combatant(id)
+	must(t)(e.Damage(id, 5)) // 25/30
+	evs := must(t)(e.SetMaxHP(id, 40))
+	wantKinds(t, evs, "MaxHPSet")
+	if s := evs[0].(MaxHPSet); s.From != 30 || s.To != 40 || s.HP != 25 || c.HP != 25 {
+		t.Errorf("raising max doesn't heal: %+v", s)
+	}
+	if s := must(t)(e.SetMaxHP(id, 24))[0].(MaxHPSet); s.HP != 24 || c.HP != 24 || c.MaxHP != 24 {
+		t.Errorf("lowering max brings HP down: %+v", s)
+	}
+	wantKinds(t, must(t)(e.SetMaxHP(id, 24))) // no change, no event
+	_, err := e.SetMaxHP(id, 0)
+	wantErr(t, err, ErrInvalid)
+
+	// Below zero, a lower max leaves HP where it is.
+	e = newEnc35(t)
+	id = add(t, e, "Orc", "12", 30)
+	c, _ = e.Combatant(id)
+	must(t)(e.SetHP(id, -4))
+	wantKinds(t, must(t)(e.SetMaxHP(id, 10)), "MaxHPSet")
+	if c.HP != -4 {
+		t.Errorf("hp %d", c.HP)
+	}
+}
+
+func TestAddTempHP(t *testing.T) {
+	e := newEnc()
+	id := add(t, e, "Mira", "9", 27)
+	c, _ := e.Combatant(id)
+	must(t)(e.SetTempHP(id, 5))
+	evs := must(t)(e.AddTempHP(id, 3))
+	if s := evs[0].(TempHPSet); s.From != 5 || s.To != 8 || !s.Added || c.TempHP != 8 {
+		t.Errorf("%+v", s)
+	}
+	if s := must(t)(e.SetTempHP(id, 2))[0].(TempHPSet); s.Added || c.TempHP != 2 {
+		t.Errorf("%+v", s)
+	}
+	_, err := e.AddTempHP(id, -1)
+	wantErr(t, err, ErrInvalid)
+}

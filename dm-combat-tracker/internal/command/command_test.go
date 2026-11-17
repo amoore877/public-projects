@@ -340,3 +340,34 @@ func TestNegativeHP(t *testing.T) {
 		t.Errorf("healing 5 at -9 should give -4, got %d", orc.HP)
 	}
 }
+
+func TestHPExtraCommands(t *testing.T) {
+	e := encounter(t)
+	mira, _ := e.Combatant(find(t, e, "Mira"))
+	run(t, e, ":temp mira 5")
+	run(t, e, ":temp mira +3")
+	if mira.TempHP != 8 {
+		t.Errorf("temp %d", mira.TempHP)
+	}
+	parseErr(t, e, ":temp mira +-3", `"+-3" isn't a whole number`)
+	parseErr(t, e, ":temp mira =3", `"=3" isn't a whole number`)
+	run(t, e, ":max mira 20")
+	if mira.MaxHP != 20 || mira.HP != 20 {
+		t.Errorf("maxhp %d/%d", mira.HP, mira.MaxHP)
+	}
+	parseErr(t, e, ":maxhp mira 0", `"0" isn't a whole number of 1 or more`)
+	parseErr(t, e, ":maxhp g1,g2 9", ":maxhp takes one target")
+	parseErr(t, e, ":nl mira 3", "this ruleset doesn't track nonlethal damage (5e)")
+
+	e = combat.New(clock)
+	run(t, e, ":ruleset 3.5e")
+	run(t, e, ":add Orc x2 12 10")
+	run(t, e, ":nl o1,o2 4")
+	run(t, e, ":nonlethal o1 =10")
+	o1, o2 := e.Combatants[0], e.Combatants[1]
+	if o1.Nonlethal != 10 || o2.Nonlethal != 4 || e.HealthState(o1).Name != "staggered" {
+		t.Errorf("nonlethal %d %d", o1.Nonlethal, o2.Nonlethal)
+	}
+	parseErr(t, e, ":nl o1 +2", `"+2" isn't a whole number`)
+	parseErr(t, e, ":nl o1", "usage: :nl TARGETS [=]N")
+}

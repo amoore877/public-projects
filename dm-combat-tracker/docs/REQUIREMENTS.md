@@ -123,7 +123,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 
 ### Rulesets
 
-R8 says the core isn't tied to one game system. That holds for turn order, effects and the log, but a review against D&D 3.5 found places where v1 quietly assumes 5e. This section lists those gaps and the sub-features that close them. The build order is in [DESIGN.md](DESIGN.md#rulesets). RS1, RS2, RS3 and RS8 are built; the rest are planned.
+R8 says the core isn't tied to one game system. That holds for turn order, effects and the log, but a review against D&D 3.5 found places where v1 quietly assumes 5e. This section lists those gaps and the sub-features that close them. The build order is in [DESIGN.md](DESIGN.md#rulesets). RS1–RS6 and RS8 are built; RS7 and RS9 are planned.
 
 A **ruleset** is a per-encounter choice that sets the HP rules, the health states, the duration anchoring and the condition list. It still rolls no dice and automates no rules (R8).
 
@@ -173,8 +173,8 @@ Checked and found to need **no change**:
 #### RS4. Nonlethal damage (G4)
 
 - A per-combatant **nonlethal** total, in rulesets that use it (`3.5e`), shown beside HP when above 0.
-- Hotkey and command to add nonlethal damage. Healing lowers the nonlethal total by the amount healed as well as raising HP.
-- Derived states, shown and logged like RS3: **staggered** when nonlethal equals current HP, **unconscious** when it is higher.
+- Hotkey and command to add nonlethal damage, or set the total to fix a mistake. Healing lowers the nonlethal total by the amount healed as well as raising HP, even at full HP. Temp HP doesn't absorb it.
+- Derived states, shown and logged like RS3: **staggered** when nonlethal equals current HP, **unconscious** when it is higher. A state from HP (disabled, dying, dead) takes precedence.
 
 #### RS5. Editing max HP (G5)
 

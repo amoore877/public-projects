@@ -281,3 +281,20 @@ func TestHealthStates35(t *testing.T) {
 
 	golden(t, path, "states_35.golden")
 }
+
+// TestHPExtras35 covers the nonlethal and max HP entries (RS4, RS5).
+func TestHPExtras35(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "log.md")
+	f := newFight(t, path, newClock())
+	f.do(f.enc.SetRuleset("3.5e"))
+	f.add("Orc", combat.NPC, "8", 10)
+	f.do(f.enc.Start())
+	f.do(f.enc.NonlethalDamage(f.id("Orc"), 10)) // staggered
+	f.do(f.enc.NonlethalDamage(f.id("Orc"), 1))  // unconscious
+	f.do(f.enc.Heal(f.id("Orc"), 4))             // nonlethal 7 < 10 HP
+	f.do(f.enc.SetMaxHP(f.id("Orc"), 6))
+	f.do(f.enc.AddTempHP(f.id("Orc"), 2)) // not logged
+	f.do(f.enc.End())
+
+	golden(t, path, "hp_extras_35.golden")
+}

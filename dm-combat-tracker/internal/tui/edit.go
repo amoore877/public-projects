@@ -30,7 +30,7 @@ func (m *Model) selectedCombatant() *combat.Combatant {
 	return r.Combatant
 }
 
-// --- damage, heal, temp HP ------------------------------------------------
+// --- damage, heal, temp HP, nonlethal, max HP -----------------------------
 
 func (m *Model) promptHP(kind string) overlay {
 	c := m.selectedCombatant()
@@ -46,34 +46,66 @@ func (m *Model) promptHP(kind string) overlay {
 		p.label = "Heal " + name + ":"
 	case "t":
 		p.label = "Temp HP for " + name + ":"
-		p.help = "replaces current temp HP"
 		if c.TempHP > 0 {
-			p.ed = newLineEdit(strconv.Itoa(c.TempHP))
+			p.label = fmt.Sprintf("Temp HP for %s (has %d):", name, c.TempHP)
 		}
+		p.help = "N replaces · +N adds"
+	case "D":
+		if !m.sess.Encounter().Rules().Nonlethal {
+			m.warn(fmt.Sprintf("The %s ruleset doesn't track nonlethal damage", m.sess.Encounter().Rules().Name))
+			return nil
+		}
+		p.label = "Nonlethal damage to " + name + ":"
+		if c.Nonlethal > 0 {
+			p.label = fmt.Sprintf("Nonlethal damage to %s (has %d):", name, c.Nonlethal)
+		}
+		p.help = "=N sets the total"
+	case "M":
+		p.label = "Max HP for " + name + ":"
+		p.ed = newLineEdit(strconv.Itoa(c.MaxHP))
+		p.help = "a lower max brings HP down; a higher one doesn't heal"
 	}
 	p.submit = func(m *Model, text string) (overlay, error) {
 		text = strings.TrimSpace(text)
-		set := kind != "t" && strings.HasPrefix(text, "=")
+		set := kind != "t" && kind != "M" && strings.HasPrefix(text, "=")
+		add := kind == "t" && strings.HasPrefix(text, "+")
 		floor := 0
-		if set {
+		switch {
+		case set && kind != "D":
 			floor = m.sess.Encounter().Rules().HPFloor
+		case kind == "M":
+			floor = 1
 		}
-		n, err := parseAmount(strings.TrimPrefix(text, "="), floor)
+		if set || add {
+			text = text[1:]
+		}
+		n, err := parseAmount(text, floor)
 		if err != nil {
 			return p, err
 		}
-		m.apply(func(e *combat.Encounter) ([]combat.Event, error) {
+		_, err = m.run(func(e *combat.Encounter) ([]combat.Event, error) {
 			switch {
+			case kind == "D" && set:
+				return e.SetNonlethal(id, n)
+			case kind == "D":
+				return e.NonlethalDamage(id, n)
+			case kind == "M":
+				return e.SetMaxHP(id, n)
 			case set:
 				return e.SetHP(id, n)
 			case kind == "d":
 				return e.Damage(id, n)
 			case kind == "h":
 				return e.Heal(id, n)
+			case add:
+				return e.AddTempHP(id, n)
 			default:
 				return e.SetTempHP(id, n)
 			}
 		})
+		if err != nil {
+			return p, err
+		}
 		return nil, nil
 	}
 	return p
@@ -87,7 +119,7 @@ func parseAmount(s string, floor int) (int, error) {
 		return 0, errors.New("Enter a number")
 	}
 	n, err := strconv.Atoi(s)
-	if err != nil || n < floor {
+	if err != nil || n < floor || strings.HasPrefix(s, "+") {
 		return 0, fmt.Errorf("%q isn't a whole number of %d or more", s, floor)
 	}
 	return n, nil

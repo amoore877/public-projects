@@ -715,7 +715,8 @@ func TestHelpAndTerminalSizes(t *testing.T) {
 	a.do(":add Bandit Captain 9 65 -- has the key"+enter, "has the key")
 	a.do(":cond band restrained 2"+enter, "Restrained (2)")
 
-	a.do("?", " Help", "n / space", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]", "lines 1–22 of")
+	a.do("?", " Help", "n / space", "q          quit", "lines 1–22 of")
+	a.do("jj", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
 	a.do("G", ":next  :prev  :start  :endcombat")
 	a.do("x", "Setup ─ press S to start combat") // any other key closes help without acting
 	a.see("Bandit Captain")
@@ -879,5 +880,46 @@ func TestNegativeHP35(t *testing.T) {
 		"[R1 · Orc] Orc is dead (-10 HP)",
 		"[R1 · Orc] Orc is dying (-1 HP)",
 		"[R1 · Orc] Orc is back above 0 HP",
+	)
+}
+
+// Nonlethal damage, max HP edits and stacking temp HP, by key and by
+// command, in a 3.5e fight (RS4–RS6).
+func TestHPExtras(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir, "--ruleset", "3.5e", "--log", "recap.md")
+	a.do(":add Tordek 18 30 pc"+enter, "30/30")
+	a.do(":add Orc 12 10"+enter, "10/10")
+	a.do(":start"+enter, "Round 1 ─ Turn: Tordek")
+
+	// The HP cell is too narrow for these; the status line spells out the
+	// selected row's (the command selects its target).
+	a.do(":nl orc 10"+enter, "Orc · HP STAGR 10/10 nl10")
+	a.rowShows("Orc", "STAGR 10/1…")
+	a.do("D1"+enter, "Orc · HP UNCON 10/10 nl11")
+	a.keys(":heal orc 4" + enter)
+	a.rowShows("Orc", "10/10 nl7")
+	a.do("M\x7f\x7f6"+enter, "Orc · HP UNCON 6/6 nl7") // backspace twice, then 6
+
+	a.keys(":temp tordek 5" + enter)
+	a.keys(":temp tordek +3" + enter)
+	a.rowShows("Tordek", "30/30 +8")
+	a.keys(":maxhp tordek 24" + enter)
+	a.rowShows("Tordek", "24/24 +8")
+	a.quit()
+
+	if c := combatantNamed(t, a.state("dmct-state.json"), "Orc"); c.Nonlethal != 7 || c.MaxHP != 6 {
+		t.Errorf("Orc saved with %d nonlethal, max %d", c.Nonlethal, c.MaxHP)
+	}
+	wantLines(t, logLines(t, filepath.Join(dir, "recap.md")),
+		"# Combat",
+		"## Round 1",
+		"[R1 · Tordek] Combat started: Tordek (18), Orc (12)",
+		"[R1 · Tordek] Orc is staggered (10 HP, 10 nonlethal)",
+		"[R1 · Tordek] Orc is unconscious (10 HP, 11 nonlethal)",
+		"[R1 · Tordek] Orc is no longer unconscious",
+		"[R1 · Tordek] Orc max HP 10 → 6",
+		"[R1 · Tordek] Orc is unconscious (6 HP, 7 nonlethal)",
+		"[R1 · Tordek] Tordek max HP 30 → 24",
 	)
 }

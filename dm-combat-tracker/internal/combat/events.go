@@ -92,6 +92,32 @@ type (
 		Name   string
 		Amount int // actually restored, after the max-HP cap
 		HP     int
+		// NonlethalHealed is how much nonlethal damage the healing also
+		// removed (RS4); 0 in rulesets that don't track it.
+		NonlethalHealed int
+	}
+	// NonlethalDamaged adds to the nonlethal total (RS4).
+	NonlethalDamaged struct {
+		EventMeta
+		ID     RowID
+		Name   string
+		Amount int
+		Total  int
+	}
+	NonlethalSet struct {
+		EventMeta
+		ID       RowID
+		Name     string
+		From, To int
+	}
+	// MaxHPSet changes max HP (RS5). HP is the current HP afterwards, which
+	// comes down with a lower max.
+	MaxHPSet struct {
+		EventMeta
+		ID       RowID
+		Name     string
+		From, To int
+		HP       int
 	}
 	HPSet struct {
 		EventMeta
@@ -104,15 +130,17 @@ type (
 		ID       RowID
 		Name     string
 		From, To int
+		Added    bool // To came from adding to From (+N), not replacing it (RS6)
 	}
 	// HealthStateChanged is a move between the ruleset's health states
 	// (RS3). From or To is "" when the creature has no state (it is fine).
 	HealthStateChanged struct {
 		EventMeta
-		ID       RowID
-		Name     string
-		From, To string
-		HP       int
+		ID        RowID
+		Name      string
+		From, To  string
+		HP        int
+		Nonlethal int
 	}
 
 	ConditionApplied struct {

@@ -50,6 +50,7 @@ var (
 	ErrEmpty         = errors.New("no combatants")
 	ErrNothingToUndo = errors.New("no earlier turn to go back to")
 	ErrInvalid       = errors.New("invalid input")
+	ErrNoNonlethal   = errors.New("this ruleset doesn't track nonlethal damage")
 )
 
 // Encounter is one fight. All fields are exported for serialization by
@@ -79,7 +80,8 @@ type Combatant struct {
 	HP         int          `json:"hp"`
 	MaxHP      int          `json:"maxHp"`
 	TempHP     int          `json:"tempHp"`
-	Conditions []*Condition `json:"conditions"` // own conditions only; effect-linked ones are derived
+	Nonlethal  int          `json:"nonlethal,omitempty"` // running total, in rulesets that track it (RS4)
+	Conditions []*Condition `json:"conditions"`          // own conditions only; effect-linked ones are derived
 	Note       string       `json:"note,omitempty"`
 	AddedSeq   int          `json:"addedSeq"`
 }

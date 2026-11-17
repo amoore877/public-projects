@@ -150,7 +150,7 @@ func TestHelp(t *testing.T) {
 		t.Error("a key that closes help shouldn't also run")
 	}
 	// Every hotkey handled by the model is in the help.
-	for _, k := range []string{"a", "x", "d", "h", "t", "c", "C", "e", "T", "i", "N", "l", ":", "S", "E", "?", "q"} {
+	for _, k := range []string{"a", "x", "d", "h", "t", "D", "M", "c", "C", "e", "T", "i", "N", "l", ":", "S", "E", "?", "q"} {
 		found := false
 		for _, h := range keyHelp {
 			for _, part := range strings.Split(h[0], " / ") {

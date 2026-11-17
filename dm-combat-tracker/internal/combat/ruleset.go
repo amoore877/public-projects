@@ -11,7 +11,8 @@ const DefaultRuleset = "5e"
 
 // Ruleset is the per-encounter choice of game system (RS1). It still rolls
 // no dice and automates no rules (R8); it sets the HP floor, the health
-// states and the condition preset. Duration anchoring joins it later.
+// states, nonlethal damage and the condition preset. Duration anchoring
+// joins it later.
 type Ruleset struct {
 	Name string
 	// HPFloor is the lowest HP a combatant can have (RS2): 0 in 5e, -10 in
@@ -20,6 +21,9 @@ type Ruleset struct {
 	// States are the named health states by HP range (RS3). The first one
 	// whose range holds the HP applies; none means the creature is fine.
 	States []HealthState
+	// Nonlethal tracks a running nonlethal damage total per combatant, with
+	// the staggered and unconscious states it causes (RS4).
+	Nonlethal bool
 	// Conditions is the preset list for the picker (RS8). Custom names are
 	// always allowed.
 	Conditions []string
@@ -57,9 +61,37 @@ func (r Ruleset) State(hp int) *HealthState {
 	return nil
 }
 
+// The states nonlethal damage causes (RS4). They apply only while HP itself
+// puts the creature in no state.
+var (
+	staggered   = HealthState{Name: "staggered", Tag: "stagr", Acts: true}
+	unconscious = HealthState{Name: "unconscious", Tag: "uncon"}
+)
+
+// IsNonlethalState reports whether a state name comes from nonlethal damage
+// rather than HP.
+func IsNonlethalState(name string) bool {
+	return name == staggered.Name || name == unconscious.Name
+}
+
 // HealthState returns the combatant's health state under the encounter's
-// ruleset, or nil if it has none.
-func (e *Encounter) HealthState(c *Combatant) *HealthState { return e.Rules().State(c.HP) }
+// ruleset, or nil if it has none. A state from HP wins over one from
+// nonlethal damage.
+func (e *Encounter) HealthState(c *Combatant) *HealthState {
+	r := e.Rules()
+	if s := r.State(c.HP); s != nil {
+		return s
+	}
+	if r.Nonlethal && c.Nonlethal > 0 {
+		switch {
+		case c.Nonlethal > c.HP:
+			return &unconscious
+		case c.Nonlethal == c.HP:
+			return &staggered
+		}
+	}
+	return nil
+}
 
 // stateChange reports a move between health states since before, if any.
 func (e *Encounter) stateChange(c *Combatant, before *HealthState) []Event {
@@ -67,7 +99,7 @@ func (e *Encounter) stateChange(c *Combatant, before *HealthState) []Event {
 	if from == to {
 		return nil
 	}
-	return []Event{HealthStateChanged{EventMeta: e.meta(), ID: c.ID, Name: c.Name, From: from, To: to, HP: c.HP}}
+	return []Event{HealthStateChanged{EventMeta: e.meta(), ID: c.ID, Name: c.Name, From: from, To: to, HP: c.HP, Nonlethal: c.Nonlethal}}
 }
 
 func stateName(s *HealthState) string {
@@ -89,8 +121,9 @@ var builtinRulesets = []Ruleset{
 		},
 	},
 	{
-		Name:    "3.5e",
-		HPFloor: -10,
+		Name:      "3.5e",
+		HPFloor:   -10,
+		Nonlethal: true,
 		States: []HealthState{
 			{Name: "disabled", Tag: "dsbld", Min: intPtr(0), Max: intPtr(0), Acts: true},
 			{Name: "dying", Min: intPtr(-9), Max: intPtr(-1), Remind: true},

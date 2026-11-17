@@ -61,7 +61,7 @@ func buildRows(enc *combat.Encounter) []rowCells {
 }
 
 // hpText is the HP cell: the health state's label ("DYING -4/22"), or a
-// bloodied mark, then any temp HP.
+// bloodied mark, then any temp HP (+5) and nonlethal total (nl6).
 func hpText(c *combat.Combatant, state *combat.HealthState) string {
 	s := fmt.Sprintf("%d/%d", c.HP, c.MaxHP)
 	switch {
@@ -72,6 +72,9 @@ func hpText(c *combat.Combatant, state *combat.HealthState) string {
 	}
 	if c.TempHP > 0 {
 		s += fmt.Sprintf(" +%d", c.TempHP)
+	}
+	if c.Nonlethal > 0 {
+		s += fmt.Sprintf(" nl%d", c.Nonlethal)
 	}
 	return s
 }
