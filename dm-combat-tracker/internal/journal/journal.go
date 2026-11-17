@@ -157,10 +157,15 @@ func (r *renderer) event(ev combat.Event) {
 		r.entry(m, fmt.Sprintf("%s joined at initiative %s (%d/%d HP)", e.Name, e.Initiative, e.HP, e.MaxHP))
 	case combat.CombatantRemoved:
 		r.entry(m, e.Name+" removed from combat")
-	case combat.Downed:
-		r.entry(m, e.Name+" dropped to 0 HP")
-	case combat.Revived:
-		r.entry(m, e.Name+" is back above 0 HP")
+	case combat.HealthStateChanged:
+		switch e.To {
+		case "":
+			r.entry(m, e.Name+" is back above 0 HP")
+		case "down":
+			r.entry(m, e.Name+" dropped to 0 HP")
+		default:
+			r.entry(m, fmt.Sprintf("%s is %s (%d HP)", e.Name, e.To, e.HP))
+		}
 
 	case combat.ConditionApplied:
 		var extra []string
@@ -210,7 +215,7 @@ func (r *renderer) event(ev combat.Event) {
 
 		// Not logged: TurnStarted (the turn holder is on every line), HP
 		// arithmetic (Damaged, Healed, HPSet, TempHPSet; crossing 0 is logged via
-		// Downed/Revived), InitiativeChanged and RowNoteSet.
+		// HealthStateChanged), InitiativeChanged and RowNoteSet.
 	}
 }
 

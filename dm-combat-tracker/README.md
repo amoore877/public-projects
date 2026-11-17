@@ -79,7 +79,15 @@ You can quit with `q` at any point; everything is already saved.
 
 The title line shows the fight's ruleset. Choose it before combat starts, with `--ruleset 3.5e` or `:ruleset 3.5e`; it's saved with the fight and can't change once combat has started. The next fight keeps the last one's ruleset.
 
-For now the ruleset only sets which conditions the picker offers: the D&D 5e list, or the D&D 3.5 list (Shaken, Sickened, Nauseated, Dazed, Fatigued and so on). HP still follows the 5e rules in both (it stops at 0), so 3.5's negative HP and dying aren't tracked yet; see the [plan](docs/DESIGN.md#rulesets).
+The ruleset sets two things:
+
+| | `5e` | `3.5e` |
+|---|---|---|
+| Lowest HP | 0 | -10 |
+| Health states | `DOWN` at 0 | `DSBLD` (disabled) at exactly 0, `DYING` from -1 to -9, `DEAD` at -10 |
+| Condition list | D&D 5e | D&D 3.5 (Shaken, Sickened, Nauseated, Dazed, Fatigued and so on) |
+
+It still applies no rules for you: a dying creature doesn't lose HP or roll to stabilize on its own. When a dying creature's turn starts, the status line says so, and Stable is a condition you add by hand. Nonlethal damage isn't tracked yet; see the [plan](docs/DESIGN.md#rulesets).
 
 ### Initiative and ties
 
@@ -89,9 +97,11 @@ A group shares the initiative you give it, with decimals filled in to keep its m
 
 ### HP
 
-`d` takes damage from temp HP first, then HP, down to 0. `h` heals up to max HP. In either prompt, `=N` sets HP to exactly N. `t` sets temp HP, replacing what's there (temp HP doesn't stack). When adding, HP can be `MAX` or `CURRENT/MAX`, with `+N` on the end for temp HP (`31/44+5`).
+`d` takes damage from temp HP first, then HP, down to 0 (-10 in `3.5e`). `h` heals up to max HP, counting from where HP really is, so healing 5 at -7 gives -2. In either prompt, `=N` sets HP to exactly N (`=-4` in `3.5e`). `t` sets temp HP, replacing what's there (temp HP doesn't stack). When adding, HP can be `MAX` or `CURRENT/MAX`, with `+N` on the end for temp HP (`31/44+5`). In `3.5e` the current HP can be negative (`-4/22`).
 
 A creature at half HP or less is marked `▼`, and one at 0 shows `DOWN` and is dimmed. Downed creatures stay in the order until you remove them (`x`), so PCs still get their turns for death saves.
+
+In `3.5e` the HP cell shows `DSBLD`, `DYING` or `DEAD` instead. A disabled creature can still act, so only its HP cell is highlighted; dying and dead rows are dimmed, and a dead creature's name is struck through. Each change is logged ("Orc is dying (-7 HP)").
 
 ### Conditions and durations
 

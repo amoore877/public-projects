@@ -836,3 +836,48 @@ func TestRuleset(t *testing.T) {
 	b.see("Resumed from dmct-state.json", "Round 1 ─ Turn: Orc", "3.5e")
 	b.quit()
 }
+
+// A 3.5e fight: HP runs below zero to -10, healing counts up from the real
+// value, and disabled, dying and dead each show in the table, the status
+// line and the log (RS2, RS3).
+func TestNegativeHP35(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir, "--ruleset", "3.5e", "--log", "recap.md")
+	a.do(":add Tordek 18 44 pc"+enter, "44/44")
+	a.do(":add Orc 12 22"+enter, "22/22")
+	a.do(":add Wolf 5 -3/13"+enter, "DYING -3/13") // joins already dying
+	a.do(":start"+enter, "Round 1 ─ Turn: Tordek")
+
+	a.keys(":dmg orc 22" + enter)
+	a.rowShows("Orc", "DSBLD 0/22")
+	a.keys(":dmg orc 7" + enter)
+	a.rowShows("Orc", "DYING -7/22")
+	a.do("n", "Turn: Orc", "Orc is dying (-7 HP)")
+	a.keys(":heal orc 5" + enter)
+	a.rowShows("Orc", "DYING -2/22") // not 5
+	a.keys(":dmg orc 100" + enter)
+	a.rowShows("Orc", "DEAD -10/22")
+	a.keys(":hp orc -1" + enter)
+	a.rowShows("Orc", "DYING -1/22")
+	a.keys(":heal orc 4" + enter)
+	a.rowShows("Orc", "3/22 ▼")
+	a.quit()
+
+	if c := combatantNamed(t, a.state("dmct-state.json"), "Wolf"); c.HP != -3 {
+		t.Errorf("Wolf saved at %d HP", c.HP)
+	}
+	b := launch(t, dir)
+	b.see("Resumed from dmct-state.json", "DYING -3/13")
+	b.quit()
+
+	wantLines(t, logLines(t, filepath.Join(dir, "recap.md")),
+		"# Combat",
+		"## Round 1",
+		"[R1 · Tordek] Combat started: Tordek (18), Orc (12), Wolf (5)",
+		"[R1 · Tordek] Orc is disabled (0 HP)",
+		"[R1 · Tordek] Orc is dying (-7 HP)",
+		"[R1 · Orc] Orc is dead (-10 HP)",
+		"[R1 · Orc] Orc is dying (-1 HP)",
+		"[R1 · Orc] Orc is back above 0 HP",
+	)
+}

@@ -263,3 +263,21 @@ func TestLineup(t *testing.T) {
 		t.Fatalf("lineup =\n%s\nwant\n%s", got, want)
 	}
 }
+
+// TestHealthStates35 covers the 3.5e health-state entries (RS3).
+func TestHealthStates35(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "log.md")
+	f := newFight(t, path, newClock())
+	f.do(f.enc.SetRuleset("3.5e"))
+	f.add("Tordek", combat.PC, "15", 22)
+	f.add("Orc", combat.NPC, "8", 9)
+	f.do(f.enc.Start())
+	f.do(f.enc.Damage(f.id("Tordek"), 22))
+	f.do(f.enc.Damage(f.id("Tordek"), 4))
+	f.do(f.enc.Heal(f.id("Tordek"), 3))
+	f.do(f.enc.Heal(f.id("Tordek"), 8))
+	f.do(f.enc.Damage(f.id("Orc"), 30))
+	f.do(f.enc.End())
+
+	golden(t, path, "states_35.golden")
+}

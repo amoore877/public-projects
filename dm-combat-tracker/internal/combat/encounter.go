@@ -84,9 +84,6 @@ type Combatant struct {
 	AddedSeq   int          `json:"addedSeq"`
 }
 
-// Down reports whether the combatant is at 0 HP.
-func (c *Combatant) Down() bool { return c.HP <= 0 }
-
 // Bloodied reports whether HP is at or below half (display only).
 func (c *Combatant) Bloodied() bool { return c.HP > 0 && c.HP*2 <= c.MaxHP }
 

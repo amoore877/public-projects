@@ -262,8 +262,8 @@ func TestRowLookupsAndErrors(t *testing.T) {
 func TestSetHPCrossingZero(t *testing.T) {
 	e := newEnc()
 	id := add(t, e, "Goblin", "12", 7)
-	wantKinds(t, must(t)(e.SetHP(id, -3)), "HPSet", "Downed")
-	wantKinds(t, must(t)(e.SetHP(id, 99)), "HPSet", "Revived")
+	wantKinds(t, must(t)(e.SetHP(id, -3)), "HPSet", "HealthStateChanged")
+	wantKinds(t, must(t)(e.SetHP(id, 99)), "HPSet", "HealthStateChanged")
 	if c, _ := e.Combatant(id); c.HP != 7 {
 		t.Errorf("HP = %d, want clamped to 7", c.HP)
 	}

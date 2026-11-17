@@ -105,15 +105,14 @@ type (
 		Name     string
 		From, To int
 	}
-	Downed struct {
+	// HealthStateChanged is a move between the ruleset's health states
+	// (RS3). From or To is "" when the creature has no state (it is fine).
+	HealthStateChanged struct {
 		EventMeta
-		ID   RowID
-		Name string
-	}
-	Revived struct {
-		EventMeta
-		ID   RowID
-		Name string
+		ID       RowID
+		Name     string
+		From, To string
+		HP       int
 	}
 
 	ConditionApplied struct {

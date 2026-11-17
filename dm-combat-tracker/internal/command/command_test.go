@@ -120,7 +120,7 @@ func TestHPCommands(t *testing.T) {
 		t.Errorf("dmg: %d %d focus %d", g1.HP, g3.HP, cmd.Focus)
 	}
 	run(t, e, "dmg goblin 1 9") // leading ":" optional; spaced name
-	if !g1.Down() {
+	if e.HealthState(g1) == nil {
 		t.Error("goblin 1 should be down")
 	}
 	run(t, e, ":heal g1, g3 10")
@@ -310,5 +310,33 @@ func TestRulesetCommand(t *testing.T) {
 	}
 	if _, err := cmd.Op(e); !errors.Is(err, combat.ErrNotSetup) || e.Ruleset != "3.5e" {
 		t.Errorf("mid-fight: %v, ruleset %q", err, e.Ruleset)
+	}
+}
+
+// In 3.5e HP can be set, and a combatant added, below zero down to -10.
+func TestNegativeHP(t *testing.T) {
+	e := encounter(t)
+	parseErr(t, e, ":hp g1 -3", `"-3" isn't a whole number of 0 or more`)
+	parseErr(t, e, ":add Orc 12 -4/22", "current HP must be 0–22")
+
+	e = combat.New(clock)
+	run(t, e, ":ruleset 3.5e")
+	run(t, e, ":add Orc 12 -4/22+3")
+	orc := e.Combatants[0]
+	if orc.HP != -4 || orc.MaxHP != 22 || orc.TempHP != 3 {
+		t.Fatalf("added %+v", orc)
+	}
+	parseErr(t, e, ":add Orc 12 -11/22", "current HP must be from -10 to 22")
+	run(t, e, ":hp orc -9")
+	if orc.HP != -9 {
+		t.Errorf("hp %d", orc.HP)
+	}
+	parseErr(t, e, ":hp orc -11", `"-11" isn't a whole number of -10 or more`)
+	// Amounts are still never negative.
+	parseErr(t, e, ":dmg orc -2", `"-2" isn't a whole number of 0 or more`)
+	parseErr(t, e, ":heal orc -2", `"-2" isn't a whole number of 0 or more`)
+	run(t, e, ":heal orc 5")
+	if orc.HP != -4 {
+		t.Errorf("healing 5 at -9 should give -4, got %d", orc.HP)
 	}
 }

@@ -104,7 +104,7 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 			return Command{Kind: EndCombat, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.End() }}, nil
 		}
 	case "add":
-		return parseAdd(rest)
+		return parseAdd(enc, rest)
 	case "rm":
 		id, err := resolve(enc, rest, combatantRow)
 		if err != nil {
@@ -191,8 +191,12 @@ func parseHP(enc *combat.Encounter, verb string, words []string) (Command, error
 		return Command{}, fmt.Errorf("usage: :%s TARGETS N", verb)
 	}
 	n, err := strconv.Atoi(words[len(words)-1])
-	if err != nil || n < 0 {
-		return Command{}, fmt.Errorf("%q isn't a whole number of 0 or more", words[len(words)-1])
+	floor := 0 // amounts are never negative; only a set HP can be, down to the ruleset's floor
+	if verb == "hp" {
+		floor = enc.Rules().HPFloor
+	}
+	if err != nil || n < floor {
+		return Command{}, fmt.Errorf("%q isn't a whole number of %d or more", words[len(words)-1], floor)
 	}
 	ids, err := resolveList(enc, strings.Join(words[:len(words)-1], " "), combatantRow)
 	if err != nil {
@@ -359,7 +363,7 @@ func parseFXTargets(enc *combat.Encounter, verb string, words []string) (Command
 // groupToken matches a group size such as "x4" or "×4".
 var groupToken = regexp.MustCompile(`^[xX×](\d+)$`)
 
-func parseAdd(rest string) (Command, error) {
+func parseAdd(enc *combat.Encounter, rest string) (Command, error) {
 	usage := errors.New("usage: :add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
 	head, note, _ := strings.Cut(rest, "--")
 	words := strings.Fields(head)
@@ -389,7 +393,7 @@ func parseAdd(rest string) (Command, error) {
 	}
 	name := strings.Join(nameWords, " ")
 
-	cur, maxHP, temp, err := ParseHP(hpText)
+	cur, maxHP, temp, err := ParseHP(hpText, enc.Rules().HPFloor)
 	if err != nil {
 		return Command{}, err
 	}
@@ -445,8 +449,9 @@ func ParseAddInitiative(text string, count int) (combat.Initiative, []combat.Ini
 }
 
 // ParseHP reads "44" (full health) or "31/44", either with an optional
-// "+5" of temp HP on the end (R3).
-func ParseHP(text string) (cur *int, maxHP, temp int, err error) {
+// "+5" of temp HP on the end (R3). The current HP can go down to floor, the
+// ruleset's HP floor, so "-4/22" is accepted in 3.5e (RS2).
+func ParseHP(text string, floor int) (cur *int, maxHP, temp int, err error) {
 	text, tempS, hasTemp := strings.Cut(strings.TrimSpace(text), "+")
 	if hasTemp {
 		temp, err = strconv.Atoi(strings.TrimSpace(tempS))
@@ -464,8 +469,11 @@ func ParseHP(text string) (cur *int, maxHP, temp int, err error) {
 	}
 	if split {
 		n, err := strconv.Atoi(strings.TrimSpace(curS))
-		if err != nil || n < 0 || n > maxHP {
-			return nil, 0, 0, fmt.Errorf("current HP must be 0–%d", maxHP)
+		if err != nil || n < floor || n > maxHP {
+			if floor < 0 {
+				return nil, 0, 0, fmt.Errorf("current HP must be from %d to %d", floor, maxHP)
+			}
+			return nil, 0, 0, fmt.Errorf("current HP must be %d–%d", floor, maxHP)
 		}
 		cur = &n
 	}

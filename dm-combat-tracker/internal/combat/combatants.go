@@ -17,7 +17,7 @@ type CombatantSpec struct {
 	Note       string
 }
 
-func (s *CombatantSpec) validate() error {
+func (s *CombatantSpec) validate(hpFloor int) error {
 	s.Name = strings.TrimSpace(s.Name)
 	if s.Name == "" {
 		return fmt.Errorf("%w: name is required", ErrInvalid)
@@ -31,8 +31,8 @@ func (s *CombatantSpec) validate() error {
 	if s.MaxHP < 1 {
 		return fmt.Errorf("%w: max HP must be at least 1", ErrInvalid)
 	}
-	if s.HP != nil && (*s.HP < 0 || *s.HP > s.MaxHP) {
-		return fmt.Errorf("%w: HP must be between 0 and max HP", ErrInvalid)
+	if s.HP != nil && (*s.HP < hpFloor || *s.HP > s.MaxHP) {
+		return fmt.Errorf("%w: HP must be between %d and max HP", ErrInvalid, hpFloor)
 	}
 	if s.TempHP < 0 {
 		return fmt.Errorf("%w: temp HP can't be negative", ErrInvalid)
@@ -46,7 +46,7 @@ func (e *Encounter) Add(spec CombatantSpec) (RowID, []Event, error) {
 	if err := e.checkEditable(); err != nil {
 		return 0, nil, err
 	}
-	if err := spec.validate(); err != nil {
+	if err := spec.validate(e.Rules().HPFloor); err != nil {
 		return 0, nil, err
 	}
 	c := e.insert(spec, spec.Name, spec.Initiative)
@@ -70,7 +70,7 @@ func (e *Encounter) AddGroup(g GroupSpec) ([]RowID, []Event, error) {
 	if err := e.checkEditable(); err != nil {
 		return nil, nil, err
 	}
-	if err := g.validate(); err != nil {
+	if err := g.validate(e.Rules().HPFloor); err != nil {
 		return nil, nil, err
 	}
 	if g.Count < 1 || g.Count > 999 {

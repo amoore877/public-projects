@@ -313,7 +313,7 @@ go test -cover ./...          # target: 90% or more in every package
 
 ## Rulesets
 
-In progress: milestone 8 is built, 9–12 are planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G9, sub-features RS1–RS9). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset; the other two are still 5e-only.
+In progress: milestones 8 and 9 are built, 10–12 are planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G9, sub-features RS1–RS9). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
 
 ### Built so far (milestone 8)
 
@@ -324,28 +324,37 @@ In progress: milestone 8 is built, 9–12 are planned. The requirements are [Rul
 - The title line shows the ruleset on the right, and drops it when the turn holder's name needs the room.
 - The condition picker and `:cond` take their presets and spelling from `Rules()`.
 
-### Model sketch
-
-The remaining fields, for milestones 9–11:
+### Built so far (milestone 9)
 
 ```go
 type Ruleset struct {
-    Name        string        // "5e", "3.5e"
-    HPFloor     *int          // nil = no floor; 5e = 0
-    States      []HealthState // ordered; first whose range holds HP wins
-    Nonlethal   bool
-    FixedAnchor bool          // effects count down on their starting count (RS7)
-    Conditions  []string
+    Name       string        // "5e", "3.5e"
+    HPFloor    int           // 5e: 0; 3.5e: -10
+    States     []HealthState // ordered; first whose range holds HP wins
+    Conditions []string
 }
 
 type HealthState struct {
-    Name     string // "down", "disabled", "dying", "dead"
+    Name     string // "down", "disabled", "dying", "dead"; used in the log and status line
+    Tag      string // short form for the HP column ("dsbld"); defaults to Name
     Min, Max *int   // inclusive HP range; nil = open
     Acts     bool   // still takes turns normally (3.5 disabled)
+    Remind   bool   // status line points it out when its turn starts (3.5 dying)
 }
 ```
 
-- `Combatant` gains `Nonlethal int`. `Down()` becomes `State() *HealthState`; the `Downed`/`Revived` events become one `HealthStateChanged{From, To}`.
+- Damage and set-HP stop at `HPFloor`; heal counts up from the real value. The add form, `:add`, `:hp` and `=N` accept a current HP down to the floor.
+- `Combatant.Down()` is gone. `Encounter.HealthState(c)` returns the state or nil, and the `Downed`/`Revived` events became one `HealthStateChanged{From, To, HP}`, emitted whenever the state's name changes.
+- The log keeps the v1 wording for 5e ("dropped to 0 HP", "is back above 0 HP") and writes "Orc is dying (-7 HP)" for any other state.
+- In the table, a state with `Acts` highlights only the HP cell; any other dims the row as `DOWN` always has. Dying also colors the HP cell and dead strikes the name through.
+- The HP column is 11 wide at 80 columns and `DISABLED 0/22` doesn't fit, which is why that state has the tag `DSBLD`. Widening the column would have changed the 5e screens.
+- The turn reminder is plain ("Orc is dying (-7 HP)") and names no rule, since a stable creature is dying by HP too.
+
+### Model sketch
+
+The remaining fields, for milestones 10–11: `Ruleset` gains `Nonlethal bool` and `FixedAnchor bool` (effects count down on their starting count, RS7).
+
+- `Combatant` gains `Nonlethal int`.
 - `Condition` gains an optional `SourceID`. `Effect` gains `AnchorInit`, the count it ticks on when the ruleset has `FixedAnchor`.
 - `tick` changes from "everything anchored to this row" to "everything anchored to this row *or this initiative count*". A fixed-count anchor with no row at that count needs a tick as the turn order passes it; see open question 1.
 
@@ -356,7 +365,7 @@ Each step keeps `5e` behavior identical to v1, checked by the existing unit, gol
 | Milestone | Sub-features | Notes |
 |---|---|---|
 | 8. ✅ Ruleset core | RS1, RS8 | Adds the `Ruleset` type with the two built-ins, the Setup flag and command, the header label, and per-ruleset condition lists. No behavior change yet beyond the picker. |
-| 9. HP model | RS2, RS3 | Floor and health states, the event change, table styling, log wording. This is the part that makes 3.5 usable (G1–G3). |
+| 9. ✅ HP model | RS2, RS3 | Floor and health states, the event change, table styling, log wording. This is the part that makes 3.5 usable (G1–G3). |
 | 10. HP extras | RS4, RS5, RS6 | Nonlethal, max HP edit, `+N` temp HP. Independent of each other; can be split. |
 | 11. Duration anchors | RS7 | Condition sources and fixed-count effects, including `Previous` rewinding both. The riskiest step: it touches `tick`, `TurnRecord` and removal. |
 | 12. Ruleset files | RS9 | File format, validation, built-ins moved to the same form. |
@@ -370,4 +379,4 @@ The end-combat, duration, and condition-list questions were settled as D13, D12,
 1. **Fixed-count ticking (RS7).** When a 3.5 caster delays, their effect should still tick at the old count, where there may be no row. Options: tick as `advance` passes that count, or pin the effect's own row to the old count and tick on the row (the row exists already and keeps its own `Initiative`). The second looks simpler and reuses the unsourced-effect path.
 2. **Correcting an initiative versus Delay/Ready.** With a fixed anchor, fixing a mistyped initiative shouldn't leave the caster's effects behind on the wrong count. Either the edit asks "move effects too?", or there are two commands.
 3. **State-file format.** Whether to store the whole ruleset in the state file or only its name. Milestone 8 stores the name, which is enough while every ruleset is built in. Storing all of it keeps an archived fight readable after a ruleset file changes, so this has to be settled by milestone 12.
-4. **HP floor in 3.5.** No floor at all, or stop at -10 since anything lower is equally dead.
+4. ~~**HP floor in 3.5.**~~ Settled: HP stops at -10, since anything lower is equally dead.

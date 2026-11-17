@@ -2,7 +2,8 @@ package combat
 
 import "fmt"
 
-// Damage takes n from temp HP first, then HP, clamping at 0.
+// Damage takes n from temp HP first, then HP, stopping at the ruleset's HP
+// floor (RS2).
 func (e *Encounter) Damage(id RowID, n int) ([]Event, error) {
 	c, err := e.hpTarget(id, n)
 	if err != nil {
@@ -10,32 +11,27 @@ func (e *Encounter) Damage(id RowID, n int) ([]Event, error) {
 	}
 	absorbed := min(c.TempHP, n)
 	c.TempHP -= absorbed
-	wasUp := !c.Down()
-	c.HP = max(c.HP-(n-absorbed), 0)
+	before := e.HealthState(c)
+	c.HP = max(c.HP-(n-absorbed), e.Rules().HPFloor)
 	evs := []Event{Damaged{EventMeta: e.meta(), ID: c.ID, Name: c.Name, Amount: n, HP: c.HP, TempHP: c.TempHP, AbsorbedByTemp: absorbed}}
-	if wasUp && c.Down() {
-		evs = append(evs, Downed{EventMeta: e.meta(), ID: c.ID, Name: c.Name})
-	}
-	return evs, nil
+	return append(evs, e.stateChange(c, before)...), nil
 }
 
-// Heal restores up to n HP, capped at max HP. Temp HP is unchanged.
+// Heal restores up to n HP, capped at max HP, counting up from the real
+// value (healing 5 at -7 gives -2). Temp HP is unchanged.
 func (e *Encounter) Heal(id RowID, n int) ([]Event, error) {
 	c, err := e.hpTarget(id, n)
 	if err != nil {
 		return nil, err
 	}
-	wasDown := c.Down()
-	before := c.HP
+	before := e.HealthState(c)
+	from := c.HP
 	c.HP = min(c.HP+n, c.MaxHP)
-	evs := []Event{Healed{EventMeta: e.meta(), ID: c.ID, Name: c.Name, Amount: c.HP - before, HP: c.HP}}
-	if wasDown && !c.Down() {
-		evs = append(evs, Revived{EventMeta: e.meta(), ID: c.ID, Name: c.Name})
-	}
-	return evs, nil
+	evs := []Event{Healed{EventMeta: e.meta(), ID: c.ID, Name: c.Name, Amount: c.HP - from, HP: c.HP}}
+	return append(evs, e.stateChange(c, before)...), nil
 }
 
-// SetHP overrides HP directly, clamped to [0, MaxHP].
+// SetHP overrides HP directly, clamped to [HP floor, MaxHP].
 func (e *Encounter) SetHP(id RowID, n int) ([]Event, error) {
 	if err := e.checkEditable(); err != nil {
 		return nil, err
@@ -44,17 +40,11 @@ func (e *Encounter) SetHP(id RowID, n int) ([]Event, error) {
 	if err != nil {
 		return nil, err
 	}
-	wasDown := c.Down()
+	before := e.HealthState(c)
 	from := c.HP
-	c.HP = min(max(n, 0), c.MaxHP)
+	c.HP = min(max(n, e.Rules().HPFloor), c.MaxHP)
 	evs := []Event{HPSet{EventMeta: e.meta(), ID: c.ID, Name: c.Name, From: from, To: c.HP}}
-	switch {
-	case !wasDown && c.Down():
-		evs = append(evs, Downed{EventMeta: e.meta(), ID: c.ID, Name: c.Name})
-	case wasDown && !c.Down():
-		evs = append(evs, Revived{EventMeta: e.meta(), ID: c.ID, Name: c.Name})
-	}
-	return evs, nil
+	return append(evs, e.stateChange(c, before)...), nil
 }
 
 // SetTempHP replaces temp HP (it doesn't stack).

@@ -186,6 +186,20 @@ func (m *Model) turnOp(op session.Op) {
 	if m.apply(op) {
 		m.selected = m.sess.Encounter().Current
 		m.syncSelection()
+		m.turnReminder()
+	}
+}
+
+// turnReminder points out, in the status line, a turn holder whose health
+// state asks for it (3.5 dying). It only reminds; the DM applies the rule (RS3).
+func (m *Model) turnReminder() {
+	enc := m.sess.Encounter()
+	c, ok := enc.Combatant(enc.Current)
+	if !ok || m.msg != "" {
+		return
+	}
+	if st := enc.HealthState(c); st != nil && st.Remind {
+		m.info(fmt.Sprintf("%s is %s (%d HP)", c.Name, st.Name, c.HP))
 	}
 }
 
@@ -456,8 +470,10 @@ func (m *Model) cellStyle(rc rowCells) func(column, string) string {
 	selected := rc.id == m.selected
 	return func(c column, s string) string {
 		st := lipgloss.NewStyle()
+		// A state that stops the creature acting dims its row; one it can
+		// still act in (3.5 disabled) only marks the HP cell.
 		switch {
-		case rc.down:
+		case rc.state != nil && !rc.state.Acts:
 			st = st.Inherit(styleDown)
 		case rc.effect:
 			st = st.Inherit(styleEffect)
@@ -470,6 +486,16 @@ func (m *Model) cellStyle(rc rowCells) func(column, string) string {
 		}
 		if c == colHP && strings.Contains(rc.hp, "▼") {
 			st = st.Inherit(styleBloodied)
+		}
+		if rc.state != nil {
+			switch {
+			case c == colHP && rc.state.Acts:
+				st = st.Inherit(styleWarn)
+			case c == colHP && rc.state.Remind:
+				st = st.Inherit(styleBloodied)
+			case c == colName && rc.state.Name == "dead":
+				st = st.Strikethrough(true)
+			}
 		}
 		if selected {
 			st = st.Inherit(styleSelected)

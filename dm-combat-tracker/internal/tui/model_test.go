@@ -558,3 +558,94 @@ func TestProgram(t *testing.T) {
 		t.Errorf("saved goblin: %+v", g)
 	}
 }
+
+// fight35 is a 3.5e fight with one creature in each health state.
+func fight35() []session.Op {
+	dmg := func(name string, n int) session.Op {
+		return on(name, func(e *combat.Encounter, id combat.RowID) ([]combat.Event, error) { return e.Damage(id, n) })
+	}
+	return []session.Op{
+		func(e *combat.Encounter) ([]combat.Event, error) { return e.SetRuleset("3.5e") },
+		add("Tordek", combat.PC, "18", 44),
+		group("Orc", 4, 12, 9),
+		add("Mialee", combat.PC, "9", 22),
+		dmg("Tordek", 30),
+		dmg("Orc 1", 9),
+		dmg("Orc 2", 13),
+		dmg("Orc 3", 40),
+		on("Orc 2", func(e *combat.Encounter, id combat.RowID) ([]combat.Event, error) {
+			_, evs, err := e.AddCondition(id, "Stable", nil, "")
+			return evs, err
+		}),
+		on("Mialee", func(e *combat.Encounter, id combat.RowID) ([]combat.Event, error) { return e.SetTempHP(id, 5) }),
+		dmg("Mialee", 30),
+		start,
+	}
+}
+
+func TestRenderFight35(t *testing.T) {
+	s := newSession(t, fight35()...)
+	m := New(s, "")
+	golden(t, "fight35_80.golden", screen(m))
+
+	// Disabled marks only the HP cell; dying and dead dim the row.
+	rows := buildRows(s.Encounter())
+	styled := func(name string, c column) string {
+		for _, rc := range rows {
+			if rc.name == name {
+				return m.cellStyle(rc)(c, "x")
+			}
+		}
+		t.Fatalf("no row %s", name)
+		return ""
+	}
+	if styled("Orc 1", colName) != styled("Orc 4", colName) || styled("Orc 1", colHP) == styled("Orc 4", colHP) {
+		t.Error("a disabled creature's row should look normal apart from its HP cell")
+	}
+	if styled("Orc 2", colName) == styled("Orc 4", colName) || styled("Orc 3", colName) == styled("Orc 2", colName) {
+		t.Error("dying and dead rows should each have their own look")
+	}
+}
+
+// The status line points out a dying creature when its turn starts, by key
+// or by command, and =N can set HP below zero in 3.5e.
+func TestDyingReminderAndNegativeSet(t *testing.T) {
+	s := newSession(t, fight35()...)
+	m := New(s, "")
+	press(m, "n") // Orc 1 is disabled: it acts, so nothing to point out
+	if got := screen(m); !strings.Contains(got, "Turn: Orc 1") || strings.Contains(got, " is d") {
+		t.Fatalf("no reminder expected:\n%s", got)
+	}
+	press(m, "n")
+	if got := screen(m); !strings.Contains(got, "Turn: Orc 2") || !strings.Contains(got, "Orc 2 is dying (-4 HP)") {
+		t.Fatalf("dying reminder:\n%s", got)
+	}
+	press(m, "n")
+	runCmd(m, "prev")
+	if got := screen(m); !strings.Contains(got, "Orc 2 is dying (-4 HP)") {
+		t.Errorf(":prev onto a dying creature should remind too:\n%s", got)
+	}
+
+	press(m, "d")
+	typeText(m, "=-8")
+	press(m, "enter")
+	if c := combatant(t, s, "Orc 2"); c.HP != -8 {
+		t.Errorf("=-8: hp %d", c.HP)
+	}
+	press(m, "d")
+	typeText(m, "=-11")
+	press(m, "enter")
+	if got := screen(m); m.overlay == nil || !strings.Contains(got, "isn't a whole number of -10 or more") {
+		t.Errorf("below the floor:\n%s", got)
+	}
+	press(m, "esc")
+
+	// 5e still refuses a negative set.
+	m5 := New(newSession(t, fight()...), "")
+	press(m5, "d")
+	typeText(m5, "=-1")
+	press(m5, "enter")
+	if got := screen(m5); m5.overlay == nil || !strings.Contains(got, "isn't a whole number of 0 or more") {
+		t.Errorf("5e negative set:\n%s", got)
+	}
+}

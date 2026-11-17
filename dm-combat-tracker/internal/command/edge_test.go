@@ -34,7 +34,7 @@ func TestParseHP(t *testing.T) {
 		"44+5":       {-1, 44, 5},
 		"31/44 + 12": {31, 44, 12},
 	} {
-		cur, maxHP, temp, err := ParseHP(text)
+		cur, maxHP, temp, err := ParseHP(text, 0)
 		got := [3]int{-1, maxHP, temp}
 		if cur != nil {
 			got[0] = *cur
@@ -44,7 +44,7 @@ func TestParseHP(t *testing.T) {
 		}
 	}
 	for _, text := range []string{"", "0", "x", "-1/7", "8/7", "7+-1", "7+"} {
-		if _, _, _, err := ParseHP(text); err == nil {
+		if _, _, _, err := ParseHP(text, 0); err == nil {
 			t.Errorf("ParseHP(%q) should fail", text)
 		}
 	}

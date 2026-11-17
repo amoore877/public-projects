@@ -21,7 +21,7 @@ type rowCells struct {
 	conds   string
 	note    string
 	current bool
-	down    bool
+	state   *combat.HealthState // nil when the creature is fine
 	effect  bool
 	tied    bool
 }
@@ -39,10 +39,10 @@ func buildRows(enc *combat.Encounter) []rowCells {
 		if c := r.Combatant; c != nil {
 			rc.name = c.Name
 			rc.kind = strings.ToUpper(string(c.Kind))
-			rc.hp = hpText(c)
+			rc.state = enc.HealthState(c)
+			rc.hp = hpText(c, rc.state)
 			rc.conds = conditionsText(enc, c)
 			rc.note = c.Note
-			rc.down = c.Down()
 			rc.tied = ties[c.ID]
 			if rc.tied {
 				rc.init += " !"
@@ -60,11 +60,13 @@ func buildRows(enc *combat.Encounter) []rowCells {
 	return out
 }
 
-func hpText(c *combat.Combatant) string {
+// hpText is the HP cell: the health state's label ("DYING -4/22"), or a
+// bloodied mark, then any temp HP.
+func hpText(c *combat.Combatant, state *combat.HealthState) string {
 	s := fmt.Sprintf("%d/%d", c.HP, c.MaxHP)
 	switch {
-	case c.Down():
-		s = "DOWN " + s
+	case state != nil:
+		s = state.Label() + " " + s
 	case c.Bloodied():
 		s += " ▼"
 	}

@@ -10,18 +10,78 @@ import (
 const DefaultRuleset = "5e"
 
 // Ruleset is the per-encounter choice of game system (RS1). It still rolls
-// no dice and automates no rules (R8); for now it only sets the condition
-// preset. HP rules and duration anchoring join it in later milestones.
+// no dice and automates no rules (R8); it sets the HP floor, the health
+// states and the condition preset. Duration anchoring joins it later.
 type Ruleset struct {
 	Name string
+	// HPFloor is the lowest HP a combatant can have (RS2): 0 in 5e, -10 in
+	// 3.5e, where anything lower is equally dead.
+	HPFloor int
+	// States are the named health states by HP range (RS3). The first one
+	// whose range holds the HP applies; none means the creature is fine.
+	States []HealthState
 	// Conditions is the preset list for the picker (RS8). Custom names are
 	// always allowed.
 	Conditions []string
 }
 
+// HealthState is a named state a combatant is in while its HP is within
+// [Min, Max]; a nil bound is open.
+type HealthState struct {
+	Name     string
+	Tag      string // short form for the HP column; defaults to Name
+	Min, Max *int
+	Acts     bool // still takes its turns normally (3.5 disabled)
+	Remind   bool // the status line points it out when the creature's turn starts
+}
+
+func (s *HealthState) holds(hp int) bool {
+	return (s.Min == nil || hp >= *s.Min) && (s.Max == nil || hp <= *s.Max)
+}
+
+// Label is the state's short form for the table, in capitals.
+func (s *HealthState) Label() string {
+	if s.Tag != "" {
+		return strings.ToUpper(s.Tag)
+	}
+	return strings.ToUpper(s.Name)
+}
+
+// State returns the health state for an HP value, or nil for none.
+func (r Ruleset) State(hp int) *HealthState {
+	for i := range r.States {
+		if r.States[i].holds(hp) {
+			return &r.States[i]
+		}
+	}
+	return nil
+}
+
+// HealthState returns the combatant's health state under the encounter's
+// ruleset, or nil if it has none.
+func (e *Encounter) HealthState(c *Combatant) *HealthState { return e.Rules().State(c.HP) }
+
+// stateChange reports a move between health states since before, if any.
+func (e *Encounter) stateChange(c *Combatant, before *HealthState) []Event {
+	from, to := stateName(before), stateName(e.HealthState(c))
+	if from == to {
+		return nil
+	}
+	return []Event{HealthStateChanged{EventMeta: e.meta(), ID: c.ID, Name: c.Name, From: from, To: to, HP: c.HP}}
+}
+
+func stateName(s *HealthState) string {
+	if s == nil {
+		return ""
+	}
+	return s.Name
+}
+
 var builtinRulesets = []Ruleset{
 	{
-		Name: "5e",
+		Name:    "5e",
+		HPFloor: 0,
+		States:  []HealthState{{Name: "down", Max: intPtr(0)}},
 		Conditions: []string{
 			"Blinded", "Charmed", "Deafened", "Exhaustion", "Frightened", "Grappled",
 			"Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone",
@@ -29,7 +89,13 @@ var builtinRulesets = []Ruleset{
 		},
 	},
 	{
-		Name: "3.5e",
+		Name:    "3.5e",
+		HPFloor: -10,
+		States: []HealthState{
+			{Name: "disabled", Tag: "dsbld", Min: intPtr(0), Max: intPtr(0), Acts: true},
+			{Name: "dying", Min: intPtr(-9), Max: intPtr(-1), Remind: true},
+			{Name: "dead", Max: intPtr(-10)},
+		},
 		// States that come from HP (disabled, dying, dead, staggered) are
 		// left out; they are shown from HP, not picked (RS8).
 		Conditions: []string{

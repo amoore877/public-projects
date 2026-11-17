@@ -54,7 +54,11 @@ func (m *Model) promptHP(kind string) overlay {
 	p.submit = func(m *Model, text string) (overlay, error) {
 		text = strings.TrimSpace(text)
 		set := kind != "t" && strings.HasPrefix(text, "=")
-		n, err := parseAmount(strings.TrimPrefix(text, "="))
+		floor := 0
+		if set {
+			floor = m.sess.Encounter().Rules().HPFloor
+		}
+		n, err := parseAmount(strings.TrimPrefix(text, "="), floor)
 		if err != nil {
 			return p, err
 		}
@@ -75,14 +79,16 @@ func (m *Model) promptHP(kind string) overlay {
 	return p
 }
 
-func parseAmount(s string) (int, error) {
+// parseAmount reads a whole number of at least floor: 0 for an amount, or
+// the ruleset's HP floor for a set HP.
+func parseAmount(s string, floor int) (int, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return 0, errors.New("Enter a number")
 	}
 	n, err := strconv.Atoi(s)
-	if err != nil || n < 0 {
-		return 0, fmt.Errorf("%q isn't a whole number of 0 or more", s)
+	if err != nil || n < floor {
+		return 0, fmt.Errorf("%q isn't a whole number of %d or more", s, floor)
 	}
 	return n, nil
 }
@@ -312,7 +318,7 @@ func (m *Model) promptAdd() overlay {
 
 	hpStep := &inputPrompt{help: "max HP, or CURRENT/MAX; +N adds temp HP"}
 	hpStep.submit = func(m *Model, text string) (overlay, error) {
-		cur, mx, tmp, err := command.ParseHP(text)
+		cur, mx, tmp, err := command.ParseHP(text, m.sess.Encounter().Rules().HPFloor)
 		if err != nil {
 			return hpStep, err
 		}

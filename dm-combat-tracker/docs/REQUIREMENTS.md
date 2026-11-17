@@ -123,7 +123,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 
 ### Rulesets
 
-R8 says the core isn't tied to one game system. That holds for turn order, effects and the log, but a review against D&D 3.5 found places where v1 quietly assumes 5e. This section lists those gaps and the sub-features that close them. The build order is in [DESIGN.md](DESIGN.md#rulesets). RS1 and RS8 are built; the rest are planned.
+R8 says the core isn't tied to one game system. That holds for turn order, effects and the log, but a review against D&D 3.5 found places where v1 quietly assumes 5e. This section lists those gaps and the sub-features that close them. The build order is in [DESIGN.md](DESIGN.md#rulesets). RS1, RS2, RS3 and RS8 are built; the rest are planned.
 
 A **ruleset** is a per-encounter choice that sets the HP rules, the health states, the duration anchoring and the condition list. It still rolls no dice and automates no rules (R8).
 
@@ -157,15 +157,15 @@ Checked and found to need **no change**:
 
 #### RS2. HP below zero (G1, G2)
 
-- The ruleset sets an **HP floor**: 0 for 5e, none for 3.5e.
+- The ruleset sets an **HP floor**: 0 for 5e, -10 for 3.5e (anything lower is equally dead).
 - Damage, heal and set-HP work on the real value, so healing from -7 counts up from -7. The add form accepts a negative current HP when the ruleset allows it.
-- The HP column shows negative values as they are (`-4 / 22`).
+- The HP column shows negative values as they are (`-4/22`).
 
 #### RS3. Health states (G3)
 
 - The ruleset defines named states by HP threshold, replacing the single "down" flag:
   - `5e`: **down** at 0.
-  - `3.5e`: **disabled** at exactly 0, **dying** from -1 to -9, **dead** at -10 or lower.
+  - `3.5e`: **disabled** at exactly 0, **dying** from -1 to -9, **dead** at -10.
 - Each state has its own look in the table, and each move between states is logged ("Goblin 2 is dying"). Stable is a condition the DM adds by hand (RS8).
 - "Bloodied" stays a display-only state in every ruleset.
 - No automation: the app doesn't take the 1 HP a round from a dying creature or roll to stabilize. When a dying creature's turn starts, the status line reminds the DM.

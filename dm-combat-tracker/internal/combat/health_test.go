@@ -1,6 +1,7 @@
 package combat
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -28,9 +29,9 @@ func TestHP(t *testing.T) {
 			name:  "down and revive",
 			start: CombatantSpec{MaxHP: 10},
 			steps: []step{
-				{"dmg", 25, 0, 0, []string{"Damaged", "Downed"}},
-				{"dmg", 3, 0, 0, []string{"Damaged"}}, // already down: no second Downed
-				{"heal", 4, 4, 0, []string{"Healed", "Revived"}},
+				{"dmg", 25, 0, 0, []string{"Damaged", "HealthStateChanged"}},
+				{"dmg", 3, 0, 0, []string{"Damaged"}}, // already down: no second state change
+				{"heal", 4, 4, 0, []string{"Healed", "HealthStateChanged"}},
 				{"heal", 100, 10, 0, []string{"Healed"}},
 			},
 		},
@@ -39,8 +40,8 @@ func TestHP(t *testing.T) {
 			start: CombatantSpec{MaxHP: 10},
 			steps: []step{
 				{"set", 50, 10, 0, []string{"HPSet"}},
-				{"set", -5, 0, 0, []string{"HPSet", "Downed"}},
-				{"set", 3, 3, 0, []string{"HPSet", "Revived"}},
+				{"set", -5, 0, 0, []string{"HPSet", "HealthStateChanged"}},
+				{"set", 3, 3, 0, []string{"HPSet", "HealthStateChanged"}},
 			},
 		},
 		{
@@ -119,5 +120,111 @@ func TestBloodied(t *testing.T) {
 		if c.Bloodied() != want {
 			t.Errorf("hp %d/7 bloodied = %v", hp, !want)
 		}
+	}
+}
+
+func newEnc35(t *testing.T) *Encounter {
+	t.Helper()
+	e := newEnc()
+	must(t)(e.SetRuleset("3.5e"))
+	return e
+}
+
+// 3.5e: HP runs below zero to -10, healing counts up from the real value,
+// and each move between disabled, dying and dead is reported (RS2, RS3).
+func TestHP35(t *testing.T) {
+	e := newEnc35(t)
+	id := add(t, e, "Orc", "12", 22)
+	c, _ := e.Combatant(id)
+	state := func() string { return stateName(e.HealthState(c)) }
+	change := func(evs []Event) string {
+		t.Helper()
+		if len(evs) != 2 {
+			t.Fatalf("want a state change, got %v", kinds(evs))
+		}
+		ch := evs[1].(HealthStateChanged)
+		if ch.HP != c.HP || ch.ID != id || ch.Name != "Orc" {
+			t.Errorf("change %+v", ch)
+		}
+		return ch.From + ">" + ch.To
+	}
+
+	if got := change(must(t)(e.Damage(id, 22))); got != ">disabled" || c.HP != 0 {
+		t.Errorf("%s at %d", got, c.HP)
+	}
+	if got := change(must(t)(e.Damage(id, 4))); got != "disabled>dying" || c.HP != -4 {
+		t.Errorf("%s at %d", got, c.HP)
+	}
+	wantKinds(t, must(t)(e.Damage(id, 3)), "Damaged") // -7: still dying
+	evs := must(t)(e.Heal(id, 5))
+	wantKinds(t, evs, "Healed")
+	if h := evs[0].(Healed); c.HP != -2 || h.Amount != 5 || h.HP != -2 {
+		t.Errorf("healing 5 at -7 should give -2: hp %d, %+v", c.HP, h)
+	}
+	if got := change(must(t)(e.Heal(id, 2))); got != "dying>disabled" {
+		t.Error(got)
+	}
+	if got := change(must(t)(e.Heal(id, 1))); got != "disabled>" || state() != "" {
+		t.Error(got)
+	}
+	// Straight past disabled and dying; the floor is -10.
+	if got := change(must(t)(e.Damage(id, 500))); got != ">dead" || c.HP != -10 {
+		t.Errorf("%s at %d", got, c.HP)
+	}
+	wantKinds(t, must(t)(e.Damage(id, 5)), "Damaged")
+	if got := change(must(t)(e.SetHP(id, -9))); got != "dead>dying" {
+		t.Error(got)
+	}
+	must(t)(e.SetHP(id, -99))
+	if c.HP != -10 || state() != "dead" {
+		t.Errorf("set below the floor: %d %s", c.HP, state())
+	}
+	if got := change(must(t)(e.SetHP(id, 99))); got != "dead>" || c.HP != 22 {
+		t.Errorf("%s at %d", got, c.HP)
+	}
+}
+
+func TestHealthStates(t *testing.T) {
+	five, _ := LookupRuleset("5e")
+	three, _ := LookupRuleset("3.5e")
+	for hp, want := range map[int]string{5: "", 1: "", 0: "down"} {
+		if got := stateName(five.State(hp)); got != want {
+			t.Errorf("5e at %d: %q, want %q", hp, got, want)
+		}
+	}
+	for hp, want := range map[int]string{1: "", 0: "disabled", -1: "dying", -9: "dying", -10: "dead"} {
+		if got := stateName(three.State(hp)); got != want {
+			t.Errorf("3.5e at %d: %q, want %q", hp, got, want)
+		}
+	}
+	if s := three.State(0); !s.Acts || s.Remind {
+		t.Errorf("disabled still acts: %+v", s)
+	}
+	if s := three.State(-3); s.Acts || !s.Remind {
+		t.Errorf("dying: %+v", s)
+	}
+	if five.HPFloor != 0 || three.HPFloor != -10 {
+		t.Errorf("floors %d %d", five.HPFloor, three.HPFloor)
+	}
+}
+
+// A combatant can join already below zero where the ruleset allows it.
+func TestAddBelowZero(t *testing.T) {
+	e := newEnc()
+	_, _, err := e.Add(CombatantSpec{Name: "X", MaxHP: 10, HP: ptr(-1)})
+	wantErr(t, err, ErrInvalid)
+
+	e = newEnc35(t)
+	id, _, err := e.Add(CombatantSpec{Name: "X", MaxHP: 10, HP: ptr(-4)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c, _ := e.Combatant(id); c.HP != -4 || stateName(e.HealthState(c)) != "dying" || c.Bloodied() {
+		t.Errorf("joined at %d", c.HP)
+	}
+	_, _, err = e.Add(CombatantSpec{Name: "Y", MaxHP: 10, HP: ptr(-11)})
+	wantErr(t, err, ErrInvalid)
+	if err == nil || !strings.Contains(err.Error(), "between -10 and max HP") {
+		t.Errorf("err %v", err)
 	}
 }

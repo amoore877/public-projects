@@ -80,7 +80,7 @@ func TestDamageHealTemp(t *testing.T) {
 	press(m, "d")
 	typeText(m, "=0")
 	press(m, "enter")
-	if c := combatant(t, s, "Goblin 1"); !c.Down() {
+	if c := combatant(t, s, "Goblin 1"); s.Encounter().HealthState(c) == nil {
 		t.Errorf("=0 should set HP to 0, got %d", c.HP)
 	}
 
