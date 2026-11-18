@@ -42,6 +42,7 @@ Each entry is a decision made during planning, with what it rules out.
 | D32 | **In `3.5e` a sourced effect's row stays on the count it started on, and the effect counts down on that row** (RS7, G7), sorted just before its source on a tie so it ends just before that count comes up. In `5e` it still follows its source (D12). | Reuses the unsourced-effect path; the row already has its own `Initiative`. Rejected: an `AnchorInit` field ticked as `advance` passes the count, which needs crossing checks with wrap-around in both `Next` and `Previous`. |
 | D33 | **In `3.5e`, changing the initiative of a creature that is the source of effects asks "move its effects too?"** Yes for a mistyped initiative, no for Delay or Ready. | One command and no new concept, and it only asks when the answer matters. Rejected: a separate `:delay` command alongside an initiative edit that always moves the effects. |
 | D34 | **A condition can name a source; it then counts down at the start of the source's turn** (RS7, G8). The `c` flow asks only for a timed condition, only during combat, and only offers the turn holder (enter keeps the bearer); `:cond … by SOURCE` names anyone. When the source leaves, its conditions count down on their bearer's turn again. | The usual case is "until the start of your next turn", cast on the caster's turn. A condition has no row to hold the source's old count, so following the bearer is the only rule that needs no hidden anchor. Rejected: a source picker over every combatant in the `c` flow (more keys for the rare case). |
+| D35 | **The state file stores only the ruleset's name** (RS9), as it has since milestone 8. | Simple, and the file stays small and readable. Accepted cost: if a ruleset file changes, an archived or resumed fight is read under the new definition. Rejected: copying the whole ruleset into each state file. |
 
 ## Layout
 
@@ -316,7 +317,7 @@ go test -cover ./...          # target: 90% or more in every package
 
 ## Rulesets
 
-In progress: milestones 8–11 are built, 12 is planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G9, sub-features RS1–RS9). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
+In progress: milestones 8–11 are built, 11c and 12 are planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G10, sub-features RS1–RS10). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
 
 ### Built so far (milestone 8)
 
@@ -390,7 +391,8 @@ Each step keeps `5e` behavior identical to v1, checked by the existing unit, gol
 | 10. ✅ HP extras | RS4, RS5, RS6 | Nonlethal, max HP edit, `+N` temp HP. Independent of each other; can be split. |
 | 11a. ✅ Condition sources | RS7 (G8) | `Condition.SourceID`, ticking on the source's turn, rewind and removal. Affects 5e too. |
 | 11b. ✅ Fixed-count effects | RS7 (G7) | `FixedAnchor`, pinned effect rows, the move-effects question on initiative edits. The riskiest step: it touches `tick` and ordering. |
-| 12. Ruleset files | RS9 | File format, validation, built-ins moved to the same form. |
+| 11c. Delay without lost turns | RS10 (G10) | Action item from 11b: an initiative edit that moves the turn holder later must not skip the rows in between. Touches `SetInitiative`, `Next` and rewind; affects 5e too. Mechanism not yet decided. |
+| 12. Ruleset files | RS9 | File format, validation, built-ins moved to the same form. The state file keeps only the ruleset's name (D35). |
 
 Milestones 8 and 9 alone are enough to run a 3.5 fight; 10–12 remove workarounds.
 
@@ -400,5 +402,6 @@ The end-combat, duration, and condition-list questions were settled as D13, D12,
 
 1. ~~**Fixed-count ticking (RS7).**~~ Settled as D32.
 2. ~~**Correcting an initiative versus Delay/Ready.**~~ Settled as D33.
-3. **State-file format.** Whether to store the whole ruleset in the state file or only its name. Milestone 8 stores the name, which is enough while every ruleset is built in. Storing all of it keeps an archived fight readable after a ruleset file changes, so this has to be settled by milestone 12.
+3. ~~**State-file format.**~~ Settled as D35: only the name.
 4. ~~**HP floor in 3.5.**~~ Settled: HP stops at -10, since anything lower is equally dead.
+5. **Delay mechanism (RS10).** How an initiative edit on the turn holder avoids skipping turns: pass the turn on to the next row in the old order, or keep the turn and remember the rows still owed one. Open until milestone 11c.

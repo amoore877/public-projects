@@ -123,7 +123,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 
 ### Rulesets
 
-R8 says the core isn't tied to one game system. That holds for turn order, effects and the log, but a review against D&D 3.5 found places where v1 quietly assumes 5e. This section lists those gaps and the sub-features that close them. The build order is in [DESIGN.md](DESIGN.md#rulesets). RS1–RS8 are built; RS9 is planned.
+R8 says the core isn't tied to one game system. That holds for turn order, effects and the log, but a review against D&D 3.5 found places where v1 quietly assumes 5e. This section lists those gaps and the sub-features that close them. The build order is in [DESIGN.md](DESIGN.md#rulesets). RS1–RS8 are built; RS9 and RS10 are planned.
 
 A **ruleset** is a per-encounter choice that sets the HP rules, the health states, the duration anchoring and the condition list. It still rolls no dice and automates no rules (R8).
 
@@ -140,13 +140,14 @@ A **ruleset** is a per-encounter choice that sets the HP rules, the health state
 | G7 | Duration anchor after an initiative change | A sourced effect counts down on its caster's turn, wherever the caster now is in the order. | Delay and Ready move the caster for good, but the effect still ends on the count it began on. Durations drift by part of a round. | No |
 | G8 | Conditions from another creature | A condition counts down on its bearer's turn, so a "1 round" daze expires as the bearer's turn starts, before it costs them anything. Affects 5e as well. | The duration is counted on the originator's turn. Today's workaround is a sourced effect with one target. | No |
 | G9 | Condition list | The picker offers only the 5e list. Custom names can be typed. | Shaken, Sickened, Nauseated, Dazed, Fatigued, Staggered and so on. | No |
+| G10 | Moving the turn holder later | An initiative edit leaves the turn on the edited row. Moving the turn holder to a later count and pressing `n` starts the next round, so every creature between the old and new count loses its turn this round. Affects 5e as well. | Delay: the creature steps aside, those after it act, and it acts at its new count in the same round. The workaround is to press `n` first and set the new count when it steps in. | No, but easy to get wrong |
 
 Checked and found to need **no change**:
 
 - **A caster dying or leaving.** Nothing ends automatically when a creature drops, in either edition. Removing the row asks keep-or-end (R5), and kept effects count down on their own row, which is the 3.5 rule (a spell outlives its caster, on the count it was cast).
 - **Concentration.** Ending it is a manual dispel in both editions.
 - **Round-based countdown.** Counting down at the start of the caster's turn is the same as 3.5's "ends just before the initiative count it began on", apart from G7.
-- **Initiative.** Decimal tie-breaks and mid-combat edits already cover 3.5 ties, Delay and Ready.
+- **Initiative.** Decimal tie-breaks and mid-combat edits already cover 3.5 ties and Ready. Delay is covered apart from G10.
 
 #### RS1. Choosing a ruleset
 
@@ -202,6 +203,13 @@ Checked and found to need **no change**:
 
 - A ruleset can be loaded from a file, so other systems (Pathfinder, 4e, home rules) need no code change. The file sets the name, HP floor, health-state thresholds, whether nonlethal is tracked, the effect anchoring rule, and the condition list.
 - The two built-in rulesets are expressed in the same form, and a bad file is refused at start-up with the reason.
+
+#### RS10. Delay without lost turns (G10)
+
+- Changing the turn holder's initiative to a later count during its turn must not skip the creatures between the old and new count: they still act this round, and the moved creature acts at its new count in the same round, once.
+- Moving the turn holder earlier, or editing any other row, behaves as today: the turn stays where it is.
+- Rewind (`p`) still steps back one turn at a time, and the log records the change as today.
+- Applies in every ruleset. In `3.5e` the D33 "move them too?" question is still asked first.
 
 #### Still out of scope
 
