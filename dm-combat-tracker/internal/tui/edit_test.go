@@ -229,11 +229,15 @@ func TestConditions(t *testing.T) {
 	press(m, "backspace")
 	typeText(m, "2")
 	press(m, "enter")
+	if got := screen(m); !strings.Contains(got, "counts down on whose turn?") || !strings.Contains(got, "caused it") {
+		t.Errorf("a timed condition off the turn holder should ask for a source:\n%s", got)
+	}
+	press(m, "n")
 	typeText(m, "DC 12 STR to stand")
 	press(m, "enter")
 	c := combatant(t, s, "Goblin 1")
 	cond, ok := c.FindCondition("Prone")
-	if !ok || cond.Remaining == nil || *cond.Remaining != 2 || cond.Note != "DC 12 STR to stand" {
+	if !ok || cond.Remaining == nil || *cond.Remaining != 2 || cond.Note != "DC 12 STR to stand" || cond.SourceID != 0 {
 		t.Fatalf("condition: %+v", cond)
 	}
 
@@ -512,5 +516,28 @@ func TestHPCellDetail(t *testing.T) {
 	selectRow(t, m, "Orc 1")
 	if got := screen(m); !strings.Contains(got, "Orc 1 · HP DSBLD 0/9 +5 nl2") {
 		t.Errorf("detail:\n%s", got)
+	}
+}
+
+// Answering s to the source question makes the turn holder the source, and
+// the table names it (RS7, G8).
+func TestConditionSourceFromTurnHolder(t *testing.T) {
+	s := newSession(t, fight()...)
+	m := New(s, "")
+	holder := s.Encounter().Current
+	selectRow(t, m, "Goblin 1")
+	press(m, "c")
+	typeText(m, "Dazed")
+	press(m, "enter")
+	typeText(m, "1")
+	press(m, "enter", "s", "enter")
+	c := combatant(t, s, "Goblin 1")
+	cond, ok := c.FindCondition("Dazed")
+	if !ok || cond.SourceID != holder {
+		t.Fatalf("condition: %+v, want source %d", cond, holder)
+	}
+	src, _ := s.Encounter().Combatant(holder)
+	if !strings.Contains(screen(m), "Dazed (1 by "+src.Name) {
+		t.Errorf("table should name the source:\n%s", screen(m))
 	}
 }

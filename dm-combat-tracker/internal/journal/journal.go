@@ -185,7 +185,11 @@ func (r *renderer) event(ev combat.Event) {
 		if e.Note != "" {
 			extra = append(extra, e.Note)
 		}
-		r.entry(m, fmt.Sprintf("%s applied to %s%s", e.Condition, e.Target, paren(strings.Join(extra, "; "))))
+		by := ""
+		if e.Source != "" {
+			by = " by " + e.Source
+		}
+		r.entry(m, fmt.Sprintf("%s applied to %s%s%s", e.Condition, e.Target, by, paren(strings.Join(extra, "; "))))
 	case combat.ConditionRemoved:
 		r.entry(m, fmt.Sprintf("%s removed from %s", e.Condition, e.Target))
 	case combat.ConditionExpired:

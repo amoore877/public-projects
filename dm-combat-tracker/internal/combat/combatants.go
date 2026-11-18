@@ -225,6 +225,14 @@ func (e *Encounter) Remove(id RowID, sourced SourcedEffects) ([]Event, error) {
 	for _, fx := range e.Effects {
 		fx.Targets = removeID(fx.Targets, id)
 	}
+	// Conditions it caused stay, and count down on their bearer's turn again.
+	for _, x := range e.Combatants {
+		for _, cond := range x.Conditions {
+			if cond.SourceID == id {
+				cond.SourceID = 0
+			}
+		}
+	}
 	if e.Current == id {
 		removingCurrent = true
 	}

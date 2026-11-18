@@ -135,11 +135,12 @@ func (m *Model) promptAddCondition() overlay {
 	id, target := c.ID, c.Name
 	var name string
 	var rounds *int
+	var source combat.RowID
 
 	note := &inputPrompt{help: "optional, e.g. DC 14 CON save ends"}
 	note.submit = func(m *Model, text string) (overlay, error) {
 		m.apply(func(e *combat.Encounter) ([]combat.Event, error) {
-			_, evs, err := e.AddCondition(id, name, rounds, text)
+			_, evs, err := e.AddConditionFrom(id, name, rounds, source, text)
 			return evs, err
 		})
 		return nil, nil
@@ -157,7 +158,7 @@ func (m *Model) promptAddCondition() overlay {
 			rounds = &n
 		}
 		note.label = fmt.Sprintf("%s on %s · note:", name, target)
-		return note, nil
+		return m.askConditionSource(id, target, rounds, &source, note), nil
 	}
 
 	pick := &inputPrompt{label: "Condition on " + target + ":", suggest: m.suggestConditions}
@@ -171,6 +172,28 @@ func (m *Model) promptAddCondition() overlay {
 		return dur, nil
 	}
 	return pick
+}
+
+// askConditionSource asks whether a timed condition was caused by the
+// creature whose turn it is (RS7, G8), then goes on to next. It asks only when
+// that is a combatant other than the bearer; otherwise there is no source.
+// Typing any other source is left to :cond … by SOURCE.
+func (m *Model) askConditionSource(bearer combat.RowID, target string, rounds *int, source *combat.RowID, next overlay) overlay {
+	*source = 0
+	enc := m.sess.Encounter()
+	holder, ok := enc.Combatant(enc.Current)
+	if rounds == nil || enc.Status != combat.Active || !ok || holder.ID == bearer {
+		return next
+	}
+	holderID := holder.ID
+	return &choicePrompt{
+		question: "counts down on whose turn?",
+		enter:    "n",
+		choices: []choice{
+			{key: "s", label: holder.Name + " caused it", run: func(*Model) overlay { *source = holderID; return next }},
+			{key: "n", label: target + "'s own", run: func(*Model) overlay { return next }},
+		},
+	}
 }
 
 // suggestConditions lists the ruleset's presets that start with text (all of

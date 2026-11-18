@@ -55,7 +55,7 @@ var Specs = []Spec{
 	{":temp TARGETS [+]N", ":temp mira +5", "set temp HP; +N adds to it"},
 	{":nl TARGETS [=]N", ":nl orc 6", "nonlethal damage; =N sets the total (rulesets that track it)"},
 	{":maxhp TARGET N", ":maxhp orc 24", "set max HP; a lower max brings HP down"},
-	{":cond TARGETS NAME [ROUNDS] [-- NOTE]", ":cond g3 prone", "add a condition"},
+	{":cond TARGETS NAME [ROUNDS] [by SOURCE] [-- NOTE]", ":cond g3 dazed 1 by mira", "add a condition; with a source it counts down on the source's turn"},
 	{":uncond TARGET NAME", ":uncond g3 prone", "remove a condition"},
 	{":fx NAME [ROUNDS] [from SOURCE] [at INIT] [on TARGETS]", ":fx Spirit Guardians 10 from mira on g1,g3", "start an effect"},
 	{":fxadd FX TARGETS", ":fxadd spirit g2", "add effect targets"},
@@ -252,11 +252,21 @@ func parseCond(enc *combat.Encounter, rest string) (Command, error) {
 	note = strings.TrimSpace(note)
 	words := strings.Fields(head)
 	if len(words) < 2 {
-		return Command{}, errors.New("usage: :cond TARGETS NAME [ROUNDS] [-- NOTE]")
+		return Command{}, errors.New("usage: :cond TARGETS NAME [ROUNDS] [by SOURCE] [-- NOTE]")
 	}
 	ids, nameWords, err := splitTarget(enc, words, combatantRow, 1)
 	if err != nil {
 		return Command{}, err
+	}
+	var source combat.RowID
+	for k := len(nameWords) - 2; k >= 1; k-- {
+		if strings.EqualFold(nameWords[k], "by") {
+			if source, err = resolve(enc, strings.Join(nameWords[k+1:], " "), combatantRow); err != nil {
+				return Command{}, fmt.Errorf("source: %w", err)
+			}
+			nameWords = nameWords[:k]
+			break
+		}
 	}
 	var rounds *int
 	if len(nameWords) > 1 {
@@ -269,7 +279,7 @@ func parseCond(enc *combat.Encounter, rest string) (Command, error) {
 	}
 	name := enc.Rules().CanonicalCondition(strings.Join(nameWords, " "))
 	op := each(ids, func(e *combat.Encounter, id combat.RowID) ([]combat.Event, error) {
-		_, evs, err := e.AddCondition(id, name, rounds, note)
+		_, evs, err := e.AddConditionFrom(id, name, rounds, source, note)
 		return evs, err
 	})
 	return Command{Focus: ids[0], Op: op}, nil

@@ -82,8 +82,15 @@ func hpText(c *combat.Combatant, state *combat.HealthState) string {
 func conditionsText(enc *combat.Encounter, c *combat.Combatant) string {
 	var parts []string
 	for _, cond := range c.Conditions {
+		var extra []string
 		if cond.Remaining != nil {
-			parts = append(parts, fmt.Sprintf("%s (%d)", cond.Name, *cond.Remaining))
+			extra = append(extra, fmt.Sprint(*cond.Remaining))
+		}
+		if src, ok := enc.Combatant(cond.SourceID); ok && cond.SourceID != 0 {
+			extra = append(extra, "by "+src.Name)
+		}
+		if len(extra) > 0 {
+			parts = append(parts, fmt.Sprintf("%s (%s)", cond.Name, strings.Join(extra, " ")))
 		} else {
 			parts = append(parts, cond.Name)
 		}

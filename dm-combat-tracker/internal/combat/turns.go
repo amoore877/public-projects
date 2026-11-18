@@ -101,30 +101,16 @@ func (e *Encounter) advance(order []Row, idx int, rec *TurnRecord) []Event {
 	}
 }
 
-// tick counts down everything anchored to row id, recording into rec: a
-// combatant's own conditions and the effects it is the source of, or, for an
-// effect row, the effect itself if it has no source (D12).
+// tick counts down everything anchored to row id, recording into rec: for a
+// combatant, its own conditions that have no source, the conditions it caused
+// on others, and the effects it is the source of; for an effect row, the
+// effect itself if it has no source (D12, RS7).
 func (e *Encounter) tick(id RowID, rec *TurnRecord) []Event {
 	var evs []Event
-	if c, ok := e.Combatant(id); ok {
-		kept := c.Conditions[:0:0]
-		for i, cond := range c.Conditions {
-			if cond.Remaining == nil {
-				kept = append(kept, cond)
-				continue
-			}
-			if *cond.Remaining <= 1 {
-				saved := *cond
-				saved.Remaining = copyIntPtr(cond.Remaining)
-				rec.ExpiredConditions = append(rec.ExpiredConditions, ExpiredCondition{OwnerID: c.ID, Index: i, Condition: saved})
-				evs = append(evs, ConditionExpired{EventMeta: e.meta(), TargetID: c.ID, Target: c.Name, Condition: cond.Name})
-				continue
-			}
-			*cond.Remaining--
-			rec.Ticked = append(rec.Ticked, cond.ID)
-			kept = append(kept, cond)
+	if _, ok := e.Combatant(id); ok {
+		for _, c := range e.Combatants {
+			evs = append(evs, e.tickConditions(c, id, rec)...)
 		}
-		c.Conditions = kept
 		for _, fx := range e.EffectsFrom(id) {
 			evs = append(evs, e.tickEffect(fx, rec)...)
 		}
@@ -133,6 +119,35 @@ func (e *Encounter) tick(id RowID, rec *TurnRecord) []Event {
 	if fx, ok := e.Effect(id); ok && fx.SourceID == 0 {
 		evs = e.tickEffect(fx, rec)
 	}
+	return evs
+}
+
+// tickConditions counts down c's timed conditions anchored to row anchor: its
+// unsourced ones when c is the anchor, otherwise those whose source it is.
+func (e *Encounter) tickConditions(c *Combatant, anchor RowID, rec *TurnRecord) []Event {
+	var evs []Event
+	kept := c.Conditions[:0:0]
+	for i, cond := range c.Conditions {
+		owner := cond.SourceID
+		if owner == 0 {
+			owner = c.ID
+		}
+		if cond.Remaining == nil || owner != anchor {
+			kept = append(kept, cond)
+			continue
+		}
+		if *cond.Remaining <= 1 {
+			saved := *cond
+			saved.Remaining = copyIntPtr(cond.Remaining)
+			rec.ExpiredConditions = append(rec.ExpiredConditions, ExpiredCondition{OwnerID: c.ID, Index: i, Condition: saved})
+			evs = append(evs, ConditionExpired{EventMeta: e.meta(), TargetID: c.ID, Target: c.Name, Condition: cond.Name})
+			continue
+		}
+		*cond.Remaining--
+		rec.Ticked = append(rec.Ticked, cond.ID)
+		kept = append(kept, cond)
+	}
+	c.Conditions = kept
 	return evs
 }
 
@@ -202,6 +217,11 @@ func (e *Encounter) Previous() ([]Event, error) {
 		}
 		cond := x.Condition
 		cond.Remaining = copyIntPtr(x.Condition.Remaining)
+		if cond.SourceID != 0 {
+			if _, ok := e.Combatant(cond.SourceID); !ok {
+				cond.SourceID = 0
+			}
+		}
 		at := min(x.Index, len(c.Conditions))
 		c.Conditions = append(c.Conditions[:at], append([]*Condition{&cond}, c.Conditions[at:]...)...)
 	}

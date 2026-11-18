@@ -123,7 +123,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 
 ### Rulesets
 
-R8 says the core isn't tied to one game system. That holds for turn order, effects and the log, but a review against D&D 3.5 found places where v1 quietly assumes 5e. This section lists those gaps and the sub-features that close them. The build order is in [DESIGN.md](DESIGN.md#rulesets). RS1–RS6 and RS8 are built; RS7 and RS9 are planned.
+R8 says the core isn't tied to one game system. That holds for turn order, effects and the log, but a review against D&D 3.5 found places where v1 quietly assumes 5e. This section lists those gaps and the sub-features that close them. The build order is in [DESIGN.md](DESIGN.md#rulesets). RS1–RS6, RS8 and the condition half of RS7 are built; fixed-count effects (RS7) and RS9 are planned.
 
 A **ruleset** is a per-encounter choice that sets the HP rules, the health states, the duration anchoring and the condition list. It still rolls no dice and automates no rules (R8).
 
@@ -188,9 +188,9 @@ Checked and found to need **no change**:
 
 #### RS7. Duration anchors (G7, G8)
 
-- **Fixed-count effects (G7).** In `3.5e`, a sourced effect counts down at the initiative count it was started on, even if its source later moves. In `5e` it keeps following its source, as in v1.
+- **Fixed-count effects (G7).** In `3.5e`, a sourced effect counts down at the initiative count it was started on, even if its source later moves (Delay, Ready). Its row stays on that count (D32), and changing the source's initiative asks whether its effects move too (D33). In `5e` it keeps following its source, as in v1.
 - **Conditions with a source (G8).** In every ruleset, a condition can name the creature that caused it; it then counts down on that creature's turn (or count, per the rule above) instead of the bearer's. With no source named it behaves as in v1.
-- If a condition's source leaves combat, the condition stays and counts down on the source's last initiative count, the same as a kept effect.
+- If a condition's source leaves combat, the condition stays and counts down on its bearer's turn again. A condition has no row of its own to hold the source's old count, so it can drift by part of a round; the DM can adjust the remaining rounds by hand (D34).
 
 #### RS8. Condition lists (G9)
 

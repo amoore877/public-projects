@@ -108,9 +108,9 @@ In `3.5e` the HP cell shows `DSBLD`, `DYING` or `DEAD` instead. A disabled creat
 
 ### Conditions and durations
 
-`c` adds a condition: pick from the ruleset's list (tab completes) or type your own, then give an optional duration in rounds and an optional note (`DC 14 CON save ends`). `C` removes one.
+`c` adds a condition: pick from the ruleset's list (tab completes) or type your own, then give an optional duration in rounds and an optional note (`DC 14 CON save ends`). For a timed condition during combat it also asks whose turn it counts down on: `s` if the creature whose turn it is caused it, `n` (or enter) for the creature that has it. `C` removes one.
 
-A duration counts down **at the start of its owner's turn** and expires at 0, with a log entry. So a 1-round condition on a goblin lasts until the start of that goblin's next turn. Anything set up before combat starts counts from its owner's first turn after the opening one. For "until the end of its turn", remove it by hand.
+A duration counts down **at the start of its owner's turn** and expires at 0, with a log entry. So a 1-round condition on a goblin lasts until the start of that goblin's next turn. A condition with a source counts down at the start of the **source's** turn instead, so Mira's 1-round daze lasts until her next turn and the table shows `Dazed (1 by Mira)`. If the source leaves combat, the condition goes back to counting on its owner's turn. Anything set up before combat starts counts from its owner's first turn after the opening one. For "until the end of its turn", remove it by hand.
 
 `p` steps back a turn to fix a mis-click. It puts back any durations the step counted down (and anything that expired), but not HP or other edits.
 
@@ -138,7 +138,7 @@ The effect gets its own `◆` row, right after its source's turn, as a reminder 
 | `:temp TARGETS [+]N` | `:temp mira +5` | Set temp HP, or add to it with `+N` |
 | `:nl TARGETS [=]N` | `:nl orc 6` | Nonlethal damage, or set the total with `=N` (`3.5e`) |
 | `:maxhp TARGET N` | `:maxhp orc 24` | Set max HP |
-| `:cond TARGETS NAME [ROUNDS] [-- NOTE]` | `:cond thorin blessed 10` | Add a condition |
+| `:cond TARGETS NAME [ROUNDS] [by SOURCE] [-- NOTE]` | `:cond g3 dazed 1 by mira` | Add a condition; with a source it counts down on the source's turn |
 | `:uncond TARGET NAME` | `:uncond g3 prone` | Remove a condition |
 | `:fx NAME [ROUNDS] [from SOURCE] [at INIT] [on TARGETS]` | `:fx Spirit Guardians 10 from mira on g1,g3` | Start an effect |
 | `:fxadd FX TARGETS` / `:fxrm FX TARGETS` | `:fxrm spirit g1` | Change an effect's targets |

@@ -95,6 +95,9 @@ type Condition struct {
 	Name      string `json:"name"`
 	Remaining *int   `json:"remaining,omitempty"`
 	Note      string `json:"note,omitempty"`
+	// SourceID is the creature that caused the condition (RS7, G8). When set,
+	// the duration counts down on the source's turn instead of the bearer's.
+	SourceID RowID `json:"sourceId,omitempty"`
 }
 
 // Effect is an area spell or ability. It is its own row in the turn order and

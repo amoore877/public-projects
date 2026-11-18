@@ -9,6 +9,14 @@ import (
 // indefinite condition; otherwise it counts down at the start of the
 // combatant's turns (D12).
 func (e *Encounter) AddCondition(id RowID, name string, rounds *int, note string) (RowID, []Event, error) {
+	return e.AddConditionFrom(id, name, rounds, 0, note)
+}
+
+// AddConditionFrom is AddCondition with the creature that caused the
+// condition (RS7, G8). A timed condition then counts down at the start of the
+// source's turns instead of the bearer's. source 0, or the bearer itself,
+// means no source.
+func (e *Encounter) AddConditionFrom(id RowID, name string, rounds *int, source RowID, note string) (RowID, []Event, error) {
 	if err := e.checkEditable(); err != nil {
 		return 0, nil, err
 	}
@@ -23,11 +31,22 @@ func (e *Encounter) AddCondition(id RowID, name string, rounds *int, note string
 	if rounds != nil && *rounds < 1 {
 		return 0, nil, fmt.Errorf("%w: duration must be at least 1 round", ErrInvalid)
 	}
-	cond := &Condition{ID: e.newID(), Name: name, Remaining: copyIntPtr(rounds), Note: strings.TrimSpace(note)}
+	var sourceName string
+	if source == id {
+		source = 0
+	}
+	if source != 0 {
+		src, ok := e.Combatant(source)
+		if !ok {
+			return 0, nil, fmt.Errorf("%w: source %d isn't a combatant", ErrNotFound, source)
+		}
+		sourceName = src.Name
+	}
+	cond := &Condition{ID: e.newID(), Name: name, Remaining: copyIntPtr(rounds), Note: strings.TrimSpace(note), SourceID: source}
 	c.Conditions = append(c.Conditions, cond)
 	return cond.ID, []Event{ConditionApplied{
 		EventMeta: e.meta(), TargetID: c.ID, Target: c.Name,
-		Condition: name, Remaining: copyIntPtr(rounds), Note: cond.Note,
+		Condition: name, Remaining: copyIntPtr(rounds), Note: cond.Note, Source: sourceName,
 	}}, nil
 }
 

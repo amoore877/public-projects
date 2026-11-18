@@ -39,6 +39,9 @@ Each entry is a decision made during planning, with what it rules out.
 | D29 | **Help is a scrollable screen drawn in place of the table**, built from the same key and command lists the code uses (a test checks every verb and hotkey is listed). Any key that isn't a scroll key closes it without acting. | One source of truth, so the help can't go stale. |
 | D30 | **Narrow terminals degrade in tiers**: drop Note, then Kind, then narrow Init, HP, Name and Conditions; below 43×9 a "terminal too small" screen replaces the table and only `q`/`ctrl+c` work. Truncated names keep a trailing group number (`Gob… 2`), and when the selected row's name, conditions or note are cut off, the status line spells them out. | The DM can still tell goblins apart and read what's hidden by selecting the row. Keys are ignored on the too-small screen so nothing changes unseen. Rejected: wrapping rows onto two lines (breaks the fixed layout, D24). |
 | D31 | **Save and log failures show a sticky red banner** under the title, which takes one table row. It stays up through prompts and other messages until a later change writes successfully; a recovered log reports how many changes it missed. While autosave is failing, `q` asks before quitting. | A transient status message was easy to miss and was cleared by the next prompt. The summary comes before the raw error, since narrow terminals cut the end off. |
+| D32 | **In `3.5e` a sourced effect's row stays on the count it started on, and the effect counts down on that row** (RS7, G7), sorted just before its source on a tie so it ends just before that count comes up. In `5e` it still follows its source (D12). | Reuses the unsourced-effect path; the row already has its own `Initiative`. Rejected: an `AnchorInit` field ticked as `advance` passes the count, which needs crossing checks with wrap-around in both `Next` and `Previous`. |
+| D33 | **In `3.5e`, changing the initiative of a creature that is the source of effects asks "move its effects too?"** Yes for a mistyped initiative, no for Delay or Ready. | One command and no new concept, and it only asks when the answer matters. Rejected: a separate `:delay` command alongside an initiative edit that always moves the effects. |
+| D34 | **A condition can name a source; it then counts down at the start of the source's turn** (RS7, G8). The `c` flow asks only for a timed condition, only during combat, and only offers the turn holder (enter keeps the bearer); `:cond … by SOURCE` names anyone. When the source leaves, its conditions count down on their bearer's turn again. | The usual case is "until the start of your next turn", cast on the caster's turn. A condition has no row to hold the source's old count, so following the bearer is the only rule that needs no hidden anchor. Rejected: a source picker over every combatant in the `c` flow (more keys for the rare case). |
 
 ## Layout
 
@@ -135,7 +138,7 @@ If two **combatants** have exactly the same initiative, the UI shows a warning m
 
 <a id="durations"></a>A duration is a count of rounds tied to an **anchor**:
 
-- a combatant's own condition → that combatant
+- a combatant's own condition → that combatant, or the creature that caused it when one is named (D34)
 - an effect (and so all its linked conditions) → its source; with no source (lair and environment effects, or a source that left and whose effects were kept) → the effect's own row
 
 At the **start of the anchor's turn**, `Remaining` drops by 1; at 0 the item expires. So a "1 round" condition on a creature lasts until the start of that creature's next turn, and a 10-round effect cast on Mira's turn lasts until the start of her 10th following turn. The effect's own row still comes up right after its source as a reminder, without counting down. It's simple and predictable for any system. If a DM needs "until end of turn", they can remove the item by hand.
@@ -313,7 +316,7 @@ go test -cover ./...          # target: 90% or more in every package
 
 ## Rulesets
 
-In progress: milestones 8–10 are built, 11 and 12 are planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G9, sub-features RS1–RS9). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
+In progress: milestones 8–10 and 11a are built, 11b and 12 are planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G9, sub-features RS1–RS9). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
 
 ### Built so far (milestone 8)
 
@@ -360,12 +363,21 @@ type HealthState struct {
 - The HP cell appends `nl6`. In `3.5e` the cell is often cut off (`STAGR 10/1…`), so the status line now spells out the selected row's HP whenever its cell is cut, as it already did for the name, conditions and note.
 - Hotkeys `D` (nonlethal; `=N` sets the total) and `M` (max HP, prefilled). The `t` prompt no longer prefills the current temp HP, since `+N` typed after it would read as `5+3`; the label shows it instead.
 
+### Built so far (milestone 11a)
+
+- `Condition.SourceID` (D34). `AddConditionFrom` takes a source; a source that is the bearer is stored as none, and an unknown one is refused. `ConditionApplied` carries the source's name.
+- `tick` on a combatant's turn now walks every combatant's conditions and counts down those anchored to it: its own unsourced ones, and any whose source it is. Expired ones are recorded under their bearer, so `Previous` puts them back in place. A restored condition whose source has left is restored unsourced, as effects are.
+- `Remove` clears the source of the conditions the leaver caused.
+- The log writes "Dazed applied to Goblin by Mira (1 round)"; the table shows `Dazed (1 by Mira)`.
+- After the duration, `c` asks "counts down on whose turn?": `s` for the turn holder, `n` or enter for the bearer. `:cond TARGETS NAME [ROUNDS] by SOURCE [-- NOTE]` names any combatant.
+
 ### Model sketch
 
-The remaining fields, for milestone 11: `Ruleset` gains `FixedAnchor bool` (effects count down on their starting count, RS7).
+The remaining field, for milestone 11b: `Ruleset` gains `FixedAnchor bool` (true for `3.5e`).
 
-- `Condition` gains an optional `SourceID`. `Effect` gains `AnchorInit`, the count it ticks on when the ruleset has `FixedAnchor`.
-- `tick` changes from "everything anchored to this row" to "everything anchored to this row *or this initiative count*". A fixed-count anchor with no row at that count needs a tick as the turn order passes it; see open question 1.
+- With `FixedAnchor`, `tick` counts a sourced effect down on its own row (D32), like an unsourced one, instead of on its source's turn. The effect row sorts just before its source on a tie, not after, so on an unmoved caster it still ends as their turn comes up.
+- `SetInitiative` on a source of effects returns a decision error, like `Remove` does, and the caller answers move-or-keep (D33).
+- A sourced condition still follows its source's turn, not a fixed count: it has no row to pin.
 
 ### Build order
 
@@ -376,7 +388,8 @@ Each step keeps `5e` behavior identical to v1, checked by the existing unit, gol
 | 8. ✅ Ruleset core | RS1, RS8 | Adds the `Ruleset` type with the two built-ins, the Setup flag and command, the header label, and per-ruleset condition lists. No behavior change yet beyond the picker. |
 | 9. ✅ HP model | RS2, RS3 | Floor and health states, the event change, table styling, log wording. This is the part that makes 3.5 usable (G1–G3). |
 | 10. ✅ HP extras | RS4, RS5, RS6 | Nonlethal, max HP edit, `+N` temp HP. Independent of each other; can be split. |
-| 11. Duration anchors | RS7 | Condition sources and fixed-count effects, including `Previous` rewinding both. The riskiest step: it touches `tick`, `TurnRecord` and removal. |
+| 11a. ✅ Condition sources | RS7 (G8) | `Condition.SourceID`, ticking on the source's turn, rewind and removal. Affects 5e too. |
+| 11b. Fixed-count effects | RS7 (G7) | `FixedAnchor`, pinned effect rows, the move-effects question on initiative edits. The riskiest step: it touches `tick` and ordering. |
 | 12. Ruleset files | RS9 | File format, validation, built-ins moved to the same form. |
 
 Milestones 8 and 9 alone are enough to run a 3.5 fight; 10–12 remove workarounds.
@@ -385,7 +398,7 @@ Milestones 8 and 9 alone are enough to run a 3.5 fight; 10–12 remove workaroun
 
 The end-combat, duration, and condition-list questions were settled as D13, D12, and D14. Open for the ruleset work:
 
-1. **Fixed-count ticking (RS7).** When a 3.5 caster delays, their effect should still tick at the old count, where there may be no row. Options: tick as `advance` passes that count, or pin the effect's own row to the old count and tick on the row (the row exists already and keeps its own `Initiative`). The second looks simpler and reuses the unsourced-effect path.
-2. **Correcting an initiative versus Delay/Ready.** With a fixed anchor, fixing a mistyped initiative shouldn't leave the caster's effects behind on the wrong count. Either the edit asks "move effects too?", or there are two commands.
+1. ~~**Fixed-count ticking (RS7).**~~ Settled as D32.
+2. ~~**Correcting an initiative versus Delay/Ready.**~~ Settled as D33.
 3. **State-file format.** Whether to store the whole ruleset in the state file or only its name. Milestone 8 stores the name, which is enough while every ruleset is built in. Storing all of it keeps an archived fight readable after a ruleset file changes, so this has to be settled by milestone 12.
 4. ~~**HP floor in 3.5.**~~ Settled: HP stops at -10, since anything lower is equally dead.

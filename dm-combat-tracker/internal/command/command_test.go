@@ -168,6 +168,18 @@ func TestConditionCommands(t *testing.T) {
 	parseErr(t, e, ":uncond g3 stunned", `Goblin 3 has no condition "stunned"`)
 	parseErr(t, e, ":cond goblin prone", "matches Goblin 1")
 	parseErr(t, e, ":cond g3", "usage")
+
+	// by SOURCE names who caused it (RS7, G8), with or without a duration or note.
+	run(t, e, ":cond g3 dazed 1 by mira -- until her next turn")
+	run(t, e, ":cond g1, g2 frightened by thorin")
+	mira, thorin := find(t, e, "Mira"), find(t, e, "Thorin")
+	if c, ok := g3.FindCondition("dazed"); !ok || c.SourceID != mira || *c.Remaining != 1 || c.Note != "until her next turn" {
+		t.Errorf("dazed: %+v", c)
+	}
+	if c, ok := g2.FindCondition("frightened"); !ok || c.SourceID != thorin || c.Remaining != nil {
+		t.Errorf("frightened: %+v", c)
+	}
+	parseErr(t, e, ":cond g3 dazed 1 by zed", `source: no combatant matches "zed"`)
 }
 
 func TestEffectCommands(t *testing.T) {

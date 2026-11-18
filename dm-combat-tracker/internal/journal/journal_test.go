@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -297,4 +298,22 @@ func TestHPExtras35(t *testing.T) {
 	f.do(f.enc.End())
 
 	golden(t, path, "hp_extras_35.golden")
+}
+
+// A condition with a source names it in the log (RS7, G8).
+func TestConditionSourceLogged(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "log.md")
+	f := newFight(t, path, newClock())
+	f.add("Mira", combat.PC, "15", 27)
+	f.add("Goblin", combat.NPC, "12", 7)
+	f.do(f.enc.Start())
+	_, evs, err := f.enc.AddConditionFrom(f.id("Goblin"), "Dazed", rounds(1), f.id("Mira"), "")
+	f.do(evs, err)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "Dazed applied to Goblin by Mira (1 round)") {
+		t.Errorf("log:\n%s", data)
+	}
 }

@@ -150,6 +150,7 @@ type (
 		Condition string
 		Remaining *int
 		Note      string
+		Source    string // name of the creature that caused it; empty if none
 	}
 	ConditionRemoved struct {
 		EventMeta

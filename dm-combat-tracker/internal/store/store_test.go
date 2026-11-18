@@ -38,6 +38,9 @@ func busyEncounter(t *testing.T) *combat.Encounter {
 	ck(err)
 	_, _, err = e.AddCondition(gobs[1], "Prone", nil, "")
 	ck(err)
+	dz := 5
+	_, _, err = e.AddConditionFrom(gobs[2], "Dazed", &dz, thorin, "")
+	ck(err)
 	fxr := 10
 	_, _, err = e.AddEffect(combat.EffectSpec{Name: "Spirit Guardians", SourceID: thorin, Rounds: &fxr, Targets: gobs[:2], Note: "3d8"})
 	ck(err)
@@ -77,6 +80,9 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 	if len(got.History) == 0 {
 		t.Fatal("expected turn history to survive the round trip")
+	}
+	if g3 := got.Combatants[3]; len(g3.Conditions) != 1 || g3.Conditions[0].SourceID != got.Combatants[0].ID {
+		t.Fatalf("condition source lost: %+v", g3.Conditions)
 	}
 
 	// The loaded encounter keeps working, including rewinding across the save.
