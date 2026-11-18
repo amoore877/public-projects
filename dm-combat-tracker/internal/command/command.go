@@ -144,7 +144,9 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 		if err != nil {
 			return Command{}, err
 		}
-		return Command{Focus: id, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.SetInitiative(id, v) }}, nil
+		return Command{Focus: id, Op: func(e *combat.Encounter) ([]combat.Event, error) {
+			return e.SetInitiative(id, v, combat.AskToMoveEffects)
+		}}, nil
 	case "note":
 		if len(words) == 0 {
 			return Command{}, errors.New("usage: :note TARGET TEXT")

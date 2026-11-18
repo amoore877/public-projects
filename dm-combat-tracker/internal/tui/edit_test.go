@@ -541,3 +541,45 @@ func TestConditionSourceFromTurnHolder(t *testing.T) {
 		t.Errorf("table should name the source:\n%s", screen(m))
 	}
 }
+
+// In 3.5e, changing a source's initiative asks whether its effects move too
+// (D33), from both the i key and :init.
+func TestInitiativeAsksAboutPinnedEffects(t *testing.T) {
+	withFog := append(fight35(), on("Mialee", func(e *combat.Encounter, id combat.RowID) ([]combat.Event, error) {
+		_, evs, err := e.AddEffect(combat.EffectSpec{Name: "Fog Cloud", SourceID: id, Rounds: ptr(5)})
+		return evs, err
+	}))
+	s := newSession(t, withFog...)
+	m := New(s, "")
+	selectRow(t, m, "Mialee")
+	press(m, "i", "backspace")
+	typeText(m, "5")
+	press(m, "enter")
+	if !strings.Contains(screen(m), "Mialee is the source of Fog Cloud: move them too?") {
+		t.Fatalf("expected the move question:\n%s", screen(m))
+	}
+	if v := combatant(t, s, "Mialee").Initiative.String(); v != "9" {
+		t.Fatalf("nothing should change before the DM decides, initiative %s", v)
+	}
+	press(m, "n") // Delay: the effect stays on 9
+	fog := s.Encounter().Effects[0]
+	if v := combatant(t, s, "Mialee").Initiative.String(); v != "5" || fog.Initiative.String() != "9" || m.overlay != nil {
+		t.Errorf("n: Mialee %s, fog %s, overlay %v", v, fog.Initiative, m.overlay)
+	}
+
+	runCmd(m, "init mialee 7")
+	if !strings.Contains(screen(m), "move them too?") || m.Selected() != idOf(t, s, "Mialee") {
+		t.Fatalf(":init should ask too:\n%s", screen(m))
+	}
+	press(m, "y") // a correction: the effect moves by the same 2
+	if v := combatant(t, s, "Mialee").Initiative.String(); v != "7" || fog.Initiative.String() != "11" {
+		t.Errorf("y: Mialee %s, fog %s", v, fog.Initiative)
+	}
+	press(m, "i")
+	press(m, "esc")
+	runCmd(m, "init mialee 6")
+	press(m, "esc") // cancelling the question changes nothing
+	if v := combatant(t, s, "Mialee").Initiative.String(); v != "7" || m.overlay != nil {
+		t.Errorf("esc: Mialee %s, overlay %v", v, m.overlay)
+	}
+}

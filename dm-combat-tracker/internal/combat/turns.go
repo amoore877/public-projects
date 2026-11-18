@@ -104,19 +104,23 @@ func (e *Encounter) advance(order []Row, idx int, rec *TurnRecord) []Event {
 // tick counts down everything anchored to row id, recording into rec: for a
 // combatant, its own conditions that have no source, the conditions it caused
 // on others, and the effects it is the source of; for an effect row, the
-// effect itself if it has no source (D12, RS7).
+// effect itself if it has no source (D12, RS7). Under a FixedAnchor ruleset
+// every effect counts down on its own row instead (D32).
 func (e *Encounter) tick(id RowID, rec *TurnRecord) []Event {
 	var evs []Event
+	fixed := e.Rules().FixedAnchor
 	if _, ok := e.Combatant(id); ok {
 		for _, c := range e.Combatants {
 			evs = append(evs, e.tickConditions(c, id, rec)...)
 		}
-		for _, fx := range e.EffectsFrom(id) {
-			evs = append(evs, e.tickEffect(fx, rec)...)
+		if !fixed {
+			for _, fx := range e.EffectsFrom(id) {
+				evs = append(evs, e.tickEffect(fx, rec)...)
+			}
 		}
 		return evs
 	}
-	if fx, ok := e.Effect(id); ok && fx.SourceID == 0 {
+	if fx, ok := e.Effect(id); ok && (fx.SourceID == 0 || fixed) {
 		evs = e.tickEffect(fx, rec)
 	}
 	return evs

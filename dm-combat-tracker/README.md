@@ -86,6 +86,7 @@ The ruleset sets these:
 | Lowest HP | 0 | -10 |
 | Health states | `DOWN` at 0 | `DSBLD` (disabled) at exactly 0, `DYING` from -1 to -9, `DEAD` at -10 |
 | Nonlethal damage | not tracked | tracked: `STAGR` (staggered) when it equals HP, `UNCON` (unconscious) when it's higher |
+| Sourced effects | count down on the source's turn | stay on the count they began on (see [Area effects](#area-effects)) |
 | Condition list | D&D 5e | D&D 3.5 (Shaken, Sickened, Nauseated, Dazed, Fatigued and so on) |
 
 It still applies no rules for you: a dying creature doesn't lose HP or roll to stabilize on its own. When a dying creature's turn starts, the status line says so, and Stable is a condition you add by hand.
@@ -123,6 +124,8 @@ The effect gets its own `◆` row, right after its source's turn, as a reminder 
 - `T` on the effect row changes its targets as creatures move in or out.
 - `x` on the effect row ends it early (dispelled, concentration broken), with an optional reason for the log.
 - Removing a creature that is the source of effects asks whether to keep them or end them.
+
+In `3.5e` an effect stays on the initiative count it began on, as the 3.5 rules have it. Its row sorts just before its source, and it counts down on its own row, so it ends just before that count comes up. If the source later Delays or Readies, the effect doesn't follow. Changing the initiative of a creature that is the source of effects asks whether to move them too: `y` for a mistyped initiative (they shift by the same amount), `n` for Delay or Ready. For Delay, press `n` to pass the turn first, then set the creature's new initiative when it steps in.
 
 ### The command bar
 

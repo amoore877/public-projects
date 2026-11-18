@@ -291,10 +291,47 @@ func (m *Model) promptInitiative() overlay {
 		if err != nil {
 			return p, err
 		}
-		m.apply(func(e *combat.Encounter) ([]combat.Event, error) { return e.SetInitiative(id, v) })
+		m.setInitiative(id, v, combat.AskToMoveEffects)
 		return nil, nil
 	}
 	return p
+}
+
+// setInitiative changes a row's initiative. In a ruleset that pins effects
+// to their counts, moving their source first asks whether they move too
+// (D33): yes for a mistyped initiative, no for Delay or Ready.
+func (m *Model) setInitiative(id combat.RowID, v combat.Initiative, move combat.SourceMove) {
+	_, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return e.SetInitiative(id, v, move) })
+	var me *combat.MoveEffectsError
+	switch {
+	case errors.As(err, &me):
+		m.chain = m.askMoveEffects(me)
+	case err != nil:
+		m.fail(err)
+	}
+	m.syncSelection()
+}
+
+func (m *Model) askMoveEffects(me *combat.MoveEffectsError) overlay {
+	enc := m.sess.Encounter()
+	name := ""
+	if c, ok := enc.Combatant(me.Combatant); ok {
+		name = c.Name
+	}
+	var fx []string
+	for _, fid := range me.Effects {
+		if f, ok := enc.Effect(fid); ok {
+			fx = append(fx, f.Name)
+		}
+	}
+	id, v := me.Combatant, me.To
+	return &choicePrompt{
+		question: fmt.Sprintf("%s is the source of %s: move them too?", name, strings.Join(fx, ", ")),
+		choices: []choice{
+			{key: "y", label: "move them (a correction)", run: func(m *Model) overlay { m.setInitiative(id, v, combat.MoveEffects); return nil }},
+			{key: "n", label: "leave them (delay, ready)", run: func(m *Model) overlay { m.setInitiative(id, v, combat.LeaveEffects); return nil }},
+		},
+	}
 }
 
 func (m *Model) promptNote() overlay {

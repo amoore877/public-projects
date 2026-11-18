@@ -923,3 +923,51 @@ func TestHPExtras(t *testing.T) {
 		"[R1 · Tordek] Tordek max HP 30 → 24",
 	)
 }
+
+// In a 3.5e fight a sourced effect stays on the count it began on: its row
+// sorts just before its caster, Delay leaves it there, and it ends just
+// before that count comes up again. A corrected initiative moves it along
+// (RS7, D32, D33).
+func TestFixedCountEffects(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir, "--ruleset", "3.5e", "--log", "recap.md")
+	a.do(":add Mira 15 27 pc"+enter, "27/27")
+	a.do(":add Orc 10 15"+enter, "15/15")
+	a.do(":start"+enter, "Round 1 ─ Turn: Mira")
+	a.do(":fx Bless 1 from mira"+enter, "◆ Bless")
+	if got := a.names(); got != "◆ Bless, Mira, Orc" {
+		t.Fatalf("the effect row should sit just before its caster: %s", got)
+	}
+
+	// Mira delays: the turn passes to the orc, then she steps in after it
+	// at 5. Her effect stays on 15.
+	a.do("n", "Round 1 ─ Turn: Orc")
+	a.do(":init mira 5"+enter, "Mira is the source of Bless: move them too?")
+	a.do("n", "n next")
+	if got := a.names(); got != "◆ Bless, Orc, Mira" {
+		t.Fatalf("after the delay: %s", got)
+	}
+	a.do("n", "Round 1 ─ Turn: Mira")
+	a.rowShows("Bless", "1 rd ")
+	// Round 2: it expires on count 15, and the turn moves straight on.
+	a.do("n", "Round 2 ─ Turn: Orc")
+	a.gone("Bless")
+
+	// A mistyped initiative moves the caster's effects with her.
+	a.do(":fx Fog 3 from mira"+enter, "◆ Fog")
+	a.do(":init mira 8"+enter, "move them too?")
+	a.do("y", "n next")
+	if got := a.names(); got != "Orc, ◆ Fog, Mira" {
+		t.Fatalf("after the correction: %s", got)
+	}
+	a.quit()
+
+	enc := a.state("dmct-state.json")
+	if len(enc.Effects) != 1 || enc.Effects[0].Initiative.String() != "8" {
+		t.Errorf("saved effects: %+v", enc.Effects)
+	}
+	lines := strings.Join(logLines(t, filepath.Join(dir, "recap.md")), "\n")
+	if !strings.Contains(lines, "Effect expired: Bless") {
+		t.Errorf("log is missing the expiry:\n%s", lines)
+	}
+}

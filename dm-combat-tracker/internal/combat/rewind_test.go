@@ -190,7 +190,7 @@ func TestRowLookupsAndErrors(t *testing.T) {
 			t.Errorf("%s on a missing row: %v", name, err)
 		}
 	}
-	if _, err := e.SetInitiative(missing, 0); !errors.Is(err, ErrNotFound) {
+	if _, err := e.SetInitiative(missing, 0, AskToMoveEffects); !errors.Is(err, ErrNotFound) {
 		t.Errorf("SetInitiative: %v", err)
 	}
 	if _, err := e.SetNote(missing, "x"); !errors.Is(err, ErrNotFound) {
@@ -201,7 +201,7 @@ func TestRowLookupsAndErrors(t *testing.T) {
 	}
 
 	// Effects can be re-slotted and annotated like combatants.
-	must(t)(e.SetInitiative(fx, ini(t, "3")))
+	must(t)(e.SetInitiative(fx, ini(t, "3"), AskToMoveEffects))
 	must(t)(e.SetNote(fx, " thick "))
 	if f, _ := e.Effect(fx); f.Initiative.String() != "3" || f.Note != "thick" || orderNames(e) != "Thorin,Fog" {
 		t.Errorf("effect after edits: %+v, order %s", f, orderNames(e))

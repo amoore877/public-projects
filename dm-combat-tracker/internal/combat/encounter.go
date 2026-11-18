@@ -191,8 +191,10 @@ func (e *Encounter) meta() EventMeta {
 	return m
 }
 
-// Order returns every combatant and effect in turn order:
-// initiative descending, combatants before effects, then insertion order.
+// Order returns every combatant and effect in turn order: initiative
+// descending, combatants before effects, then insertion order. Under a
+// FixedAnchor ruleset a sourced effect tied with its source sorts just
+// before it instead (D32), so it ends as the source's turn comes up.
 func (e *Encounter) Order() []Row {
 	rows := make([]Row, 0, len(e.Combatants)+len(e.Effects))
 	for _, c := range e.Combatants {
@@ -201,17 +203,57 @@ func (e *Encounter) Order() []Row {
 	for _, fx := range e.Effects {
 		rows = append(rows, Row{Effect: fx})
 	}
+	keys := make(map[RowID]orderKey, len(rows))
+	fixed := e.Rules().FixedAnchor
+	for _, r := range rows {
+		keys[r.ID()] = e.orderKey(r, fixed)
+	}
 	sort.SliceStable(rows, func(i, j int) bool {
-		a, b := rows[i], rows[j]
-		if a.Initiative() != b.Initiative() {
-			return a.Initiative() > b.Initiative()
-		}
-		if (a.Combatant != nil) != (b.Combatant != nil) {
-			return a.Combatant != nil
-		}
-		return a.seq() < b.seq()
+		return keys[rows[i].ID()].before(keys[rows[j].ID()])
 	})
 	return rows
+}
+
+// orderKey places a row among others at the same initiative: rows sort by
+// group (combatants, then effects), then by slot within the group, then by
+// lane, then by insertion. A pinned effect takes its source's slot in the
+// combatant group, in the lane ahead of it.
+type orderKey struct {
+	init  Initiative
+	group int // 0 combatants (and pinned effects), 1 other effects
+	slot  int // AddedSeq of the combatant whose place this is
+	lane  int // 0 a pinned effect, 1 the combatant itself
+	seq   int
+}
+
+func (e *Encounter) orderKey(r Row, fixed bool) orderKey {
+	k := orderKey{init: r.Initiative(), seq: r.seq()}
+	if r.Combatant != nil {
+		k.slot, k.lane = r.Combatant.AddedSeq, 1
+		return k
+	}
+	if fixed && r.Effect.SourceID != 0 {
+		if src, ok := e.Combatant(r.Effect.SourceID); ok && src.Initiative == r.Effect.Initiative {
+			k.slot = src.AddedSeq
+			return k
+		}
+	}
+	k.group, k.slot = 1, r.Effect.AddedSeq
+	return k
+}
+
+func (a orderKey) before(b orderKey) bool {
+	switch {
+	case a.init != b.init:
+		return a.init > b.init
+	case a.group != b.group:
+		return a.group < b.group
+	case a.slot != b.slot:
+		return a.slot < b.slot
+	case a.lane != b.lane:
+		return a.lane < b.lane
+	}
+	return a.seq < b.seq
 }
 
 // Ties returns the IDs of combatants whose initiative exactly equals another

@@ -11,8 +11,8 @@ const DefaultRuleset = "5e"
 
 // Ruleset is the per-encounter choice of game system (RS1). It still rolls
 // no dice and automates no rules (R8); it sets the HP floor, the health
-// states, nonlethal damage and the condition preset. Duration anchoring
-// joins it later.
+// states, nonlethal damage, where sourced effects count down and the
+// condition preset.
 type Ruleset struct {
 	Name string
 	// HPFloor is the lowest HP a combatant can have (RS2): 0 in 5e, -10 in
@@ -24,6 +24,11 @@ type Ruleset struct {
 	// Nonlethal tracks a running nonlethal damage total per combatant, with
 	// the staggered and unconscious states it causes (RS4).
 	Nonlethal bool
+	// FixedAnchor pins a sourced effect to the initiative count it started
+	// on (RS7, G7, D32): it counts down on its own row, which sorts just
+	// before its source on a tie, instead of on its source's turn. Changing
+	// the source's initiative then asks whether its effects move too (D33).
+	FixedAnchor bool
 	// Conditions is the preset list for the picker (RS8). Custom names are
 	// always allowed.
 	Conditions []string
@@ -121,9 +126,10 @@ var builtinRulesets = []Ruleset{
 		},
 	},
 	{
-		Name:      "3.5e",
-		HPFloor:   -10,
-		Nonlethal: true,
+		Name:        "3.5e",
+		HPFloor:     -10,
+		Nonlethal:   true,
+		FixedAnchor: true,
 		States: []HealthState{
 			{Name: "disabled", Tag: "dsbld", Min: intPtr(0), Max: intPtr(0), Acts: true},
 			{Name: "dying", Min: intPtr(-9), Max: intPtr(-1), Remind: true},

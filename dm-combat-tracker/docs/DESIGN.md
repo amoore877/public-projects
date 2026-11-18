@@ -316,7 +316,7 @@ go test -cover ./...          # target: 90% or more in every package
 
 ## Rulesets
 
-In progress: milestones 8–10 and 11a are built, 11b and 12 are planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G9, sub-features RS1–RS9). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
+In progress: milestones 8–11 are built, 12 is planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G9, sub-features RS1–RS9). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
 
 ### Built so far (milestone 8)
 
@@ -371,13 +371,13 @@ type HealthState struct {
 - The log writes "Dazed applied to Goblin by Mira (1 round)"; the table shows `Dazed (1 by Mira)`.
 - After the duration, `c` asks "counts down on whose turn?": `s` for the turn holder, `n` or enter for the bearer. `:cond TARGETS NAME [ROUNDS] by SOURCE [-- NOTE]` names any combatant.
 
-### Model sketch
+### Built so far (milestone 11b)
 
-The remaining field, for milestone 11b: `Ruleset` gains `FixedAnchor bool` (true for `3.5e`).
-
-- With `FixedAnchor`, `tick` counts a sourced effect down on its own row (D32), like an unsourced one, instead of on its source's turn. The effect row sorts just before its source on a tie, not after, so on an unmoved caster it still ends as their turn comes up.
-- `SetInitiative` on a source of effects returns a decision error, like `Remove` does, and the caller answers move-or-keep (D33).
-- A sourced condition still follows its source's turn, not a fixed count: it has no row to pin.
+- `Ruleset.FixedAnchor` (true for `3.5e`). With it, `tick` counts every effect down on its own row (D32), and a combatant's turn no longer touches the effects it is the source of. A sourced condition still follows its source's turn: it has no row to pin.
+- `Order` sorts by a key (initiative, group, slot, lane, insertion). A sourced effect tied with its live source takes the source's slot in the combatant group, in the lane ahead of it, so it sits between any earlier-added tied combatant and its source. Every other row gets the v1 key, so `5e` order is unchanged. An effect whose source has left falls back to sorting after the combatants at its count.
+- `SetInitiative(id, v, SourceMove)`. With `FixedAnchor`, on a combatant that is the source of effects and a new value, `AskToMoveEffects` returns `*MoveEffectsError` and changes nothing (D33). `MoveEffects` shifts each of its effects by the same amount and emits an `InitiativeChanged` for each; `LeaveEffects` changes the combatant alone. In `5e` the choice is ignored.
+- The `i` prompt and `:init` both ask "Mialee is the source of Fog Cloud: move them too?", `y` move or `n` leave; esc changes nothing.
+- The turn stays with its row on an initiative edit, as before. So moving the turn holder later in the order and then pressing `n` starts the next round; for Delay, the DM passes the turn first and sets the new count when the creature steps in (README).
 
 ### Build order
 
@@ -389,7 +389,7 @@ Each step keeps `5e` behavior identical to v1, checked by the existing unit, gol
 | 9. ✅ HP model | RS2, RS3 | Floor and health states, the event change, table styling, log wording. This is the part that makes 3.5 usable (G1–G3). |
 | 10. ✅ HP extras | RS4, RS5, RS6 | Nonlethal, max HP edit, `+N` temp HP. Independent of each other; can be split. |
 | 11a. ✅ Condition sources | RS7 (G8) | `Condition.SourceID`, ticking on the source's turn, rewind and removal. Affects 5e too. |
-| 11b. Fixed-count effects | RS7 (G7) | `FixedAnchor`, pinned effect rows, the move-effects question on initiative edits. The riskiest step: it touches `tick` and ordering. |
+| 11b. ✅ Fixed-count effects | RS7 (G7) | `FixedAnchor`, pinned effect rows, the move-effects question on initiative edits. The riskiest step: it touches `tick` and ordering. |
 | 12. Ruleset files | RS9 | File format, validation, built-ins moved to the same form. |
 
 Milestones 8 and 9 alone are enough to run a 3.5 fight; 10–12 remove workarounds.

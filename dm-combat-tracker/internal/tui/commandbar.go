@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -70,6 +71,13 @@ func (m *Model) runCommand(cmd command.Command, p *inputPrompt) (overlay, error)
 		return nil, nil
 	}
 	if _, err := m.run(session.Op(cmd.Op)); err != nil {
+		var me *combat.MoveEffectsError
+		if errors.As(err, &me) {
+			m.selected = cmd.Focus
+			m.chain = m.askMoveEffects(me)
+			m.syncSelection()
+			return nil, nil
+		}
 		return p, err
 	}
 	switch {

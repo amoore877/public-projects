@@ -119,7 +119,7 @@ func TestSetInitiativeKeepsTurn(t *testing.T) {
 	b := add(t, e, "B", "10", 5)
 	must(t)(e.Start())
 	must(t)(e.Next()) // B's turn
-	must(t)(e.SetInitiative(b, 30000))
+	must(t)(e.SetInitiative(b, 30000, AskToMoveEffects))
 	if e.Current != b || orderNames(e) != "B,A" {
 		t.Errorf("current=%s order=%s", currentName(e), orderNames(e))
 	}

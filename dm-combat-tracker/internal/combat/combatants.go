@@ -262,9 +262,34 @@ func (e *Encounter) passTurn(oldOrder []Row, oldIdx int) []Event {
 	return e.advance(newOrder, len(newOrder)-1, &TurnRecord{})
 }
 
+// SourceMove says what happens to a creature's effects when its initiative
+// changes under a FixedAnchor ruleset (D33).
+type SourceMove int
+
+const (
+	AskToMoveEffects SourceMove = iota // fail with *MoveEffectsError if it matters
+	MoveEffects                        // a corrected initiative: its effects shift with it
+	LeaveEffects                       // Delay or Ready: its effects stay on their counts
+)
+
+// MoveEffectsError is returned by SetInitiative when the combatant is the
+// source of effects pinned to their counts and the caller hasn't said whether
+// they move too (D33). Nothing has been changed.
+type MoveEffectsError struct {
+	Combatant RowID
+	To        Initiative
+	Effects   []RowID
+}
+
+func (m *MoveEffectsError) Error() string {
+	return fmt.Sprintf("combatant is the source of %d effect(s): move them too?", len(m.Effects))
+}
+
 // SetInitiative changes a combatant's or effect's initiative. The order
-// re-sorts; the turn stays with the same row.
-func (e *Encounter) SetInitiative(id RowID, v Initiative) ([]Event, error) {
+// re-sorts; the turn stays with the same row. Under a FixedAnchor ruleset,
+// moving the source of effects asks whether they move by the same amount
+// (D33); otherwise move is ignored, since effects follow their source's turn.
+func (e *Encounter) SetInitiative(id RowID, v Initiative, move SourceMove) ([]Event, error) {
 	if err := e.checkEditable(); err != nil {
 		return nil, err
 	}
@@ -273,12 +298,31 @@ func (e *Encounter) SetInitiative(id RowID, v Initiative) ([]Event, error) {
 		return nil, fmt.Errorf("%w: %d", ErrNotFound, id)
 	}
 	from := r.Initiative()
+	var owned []*Effect
+	if r.Combatant != nil && v != from && e.Rules().FixedAnchor {
+		owned = e.EffectsFrom(id)
+	}
+	if len(owned) > 0 && move == AskToMoveEffects {
+		me := &MoveEffectsError{Combatant: id, To: v}
+		for _, fx := range owned {
+			me.Effects = append(me.Effects, fx.ID)
+		}
+		return nil, me
+	}
+	evs := []Event{InitiativeChanged{EventMeta: e.meta(), ID: id, Name: r.Name(), From: from, To: v}}
 	if r.Combatant != nil {
 		r.Combatant.Initiative = v
 	} else {
 		r.Effect.Initiative = v
 	}
-	return []Event{InitiativeChanged{EventMeta: e.meta(), ID: id, Name: r.Name(), From: from, To: v}}, nil
+	if move == MoveEffects {
+		for _, fx := range owned {
+			old := fx.Initiative
+			fx.Initiative += v - from
+			evs = append(evs, InitiativeChanged{EventMeta: e.meta(), ID: fx.ID, Name: fx.Name, From: old, To: fx.Initiative})
+		}
+	}
+	return evs, nil
 }
 
 // SetNote sets a row's side note.
