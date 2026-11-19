@@ -76,6 +76,14 @@ If the state file can't be read (it's corrupt, or from a newer version of `dmct`
 
 You can quit with `q` at any point; everything is already saved.
 
+### Undo
+
+`u` takes back the last change, whatever it was: damage, a group add with the wrong count, an effect on the wrong targets, a Delay, a removed combatant along with the effects that went with it. The fight goes back exactly as it was, durations and turn included. Press it again to go further back, up to 100 changes. `U` (or `ctrl+r`) puts back what you undid; any new change drops what's left to redo. The status line says what was undone ("Undid: Orc took 7 damage") and the selection moves to that row.
+
+`p` is different: it steps the turn back and keeps everything done since, which is what you want when you passed the turn too early.
+
+The log is never rewritten. Undoing something that was logged adds an `Undone: …` line, and redoing it writes its lines again marked `(redone)`. Ending combat can't be undone (it asks first), and quitting clears the undo history.
+
 ### Rulesets
 
 The title line shows the fight's ruleset. Choose it before combat starts, with `--ruleset 3.5e` or `:ruleset 3.5e`; it's saved with the fight and can't change once combat has started. The next fight keeps the last one's ruleset.
@@ -192,6 +200,7 @@ In `3.5e` an effect stays on the initiative count it began on, as the 3.5 rules 
 | `:log TEXT` | `:log Thorin shoves the goblin off the bridge` | Write a log entry |
 | `:ruleset NAME` | `:ruleset 3.5e` | Choose the ruleset (before combat starts) |
 | `:next` `:prev` `:start` `:endcombat` | | Turn controls |
+| `:undo` `:redo` | | Take back the last change / make it again |
 
 A command with a mistake stays open with the reason, so you only need to fix the typo. A command on several targets checks all of them before changing anything.
 
@@ -217,6 +226,7 @@ Keys act on the selected row (highlighted), which can differ from the row whose 
 | `i` | Edit initiative |
 | `N` | Edit the side note |
 | `l` | Write a log entry |
+| `u` / `U` | Undo / redo the last change (`ctrl+r` also redoes). See [Undo](#undo) |
 | `:` | Command bar |
 | `?` | Help: every key and command |
 | `S` / `E` | Start / end combat |

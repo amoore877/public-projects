@@ -271,12 +271,13 @@ func TestOtherCommands(t *testing.T) {
 	if cmd := run(t, e, ":rm g3"); cmd.Kind != Remove || cmd.Target != find(t, e, "Goblin 3") || cmd.Op != nil {
 		t.Errorf("rm: %+v", cmd)
 	}
-	for line, kind := range map[string]Kind{":next": Turn, ":n": Turn, ":prev": Turn, ":endcombat": EndCombat} {
+	for line, kind := range map[string]Kind{":next": Turn, ":n": Turn, ":prev": Turn, ":endcombat": EndCombat, ":undo": Undo, ":REDO": Redo} {
 		if cmd, err := Parse(e, line); err != nil || cmd.Kind != kind {
 			t.Errorf("%s: %+v %v", line, cmd, err)
 		}
 	}
 	parseErr(t, e, ":next 2", "takes no arguments")
+	parseErr(t, e, ":undo 3", ":undo takes no arguments")
 	parseErr(t, e, ":fly g1", "unknown command :fly")
 	parseErr(t, e, ":", "type a command")
 }

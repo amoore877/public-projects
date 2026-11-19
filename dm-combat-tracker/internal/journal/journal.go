@@ -192,49 +192,58 @@ func (r *renderer) event(ev combat.Event) {
 		}
 		return
 	}
-	switch e := ev.(type) {
+	switch ev.(type) {
 	case combat.CombatStarted:
 		r.ensureHeader(m)
 		r.roundHeading(m.Round)
-		r.entry(m, "Combat started: "+lineup(e.Order))
 	case combat.RoundStarted:
 		r.ensureHeader(m)
 		r.roundHeading(m.Round)
 		r.texts = append(r.texts, "Round "+strconv.Itoa(m.Round)+" started")
+		return
+	}
+	if text, ok := logText(ev); ok {
+		r.entry(m, text)
+	}
+}
+
+// logText is the log's wording for an event, whatever the round, or false
+// for an event the log leaves out.
+func logText(ev combat.Event) (string, bool) {
+	switch e := ev.(type) {
+	case combat.CombatStarted:
+		return "Combat started: " + lineup(e.Order), true
 	case combat.CombatEnded:
-		r.entry(m, "Combat ended after "+plural(e.Rounds, "round"))
+		return "Combat ended after " + plural(e.Rounds, "round"), true
 	case combat.TurnRewound:
-		r.entry(m, "Turn rewound to "+e.Name)
+		return "Turn rewound to " + e.Name, true
 
 	case combat.CombatantAdded:
-		r.entry(m, fmt.Sprintf("%s joined at initiative %s (%d/%d HP)", e.Name, e.Initiative, e.HP, e.MaxHP))
+		return fmt.Sprintf("%s joined at initiative %s (%d/%d HP)", e.Name, e.Initiative, e.HP, e.MaxHP), true
 	case combat.CombatantRemoved:
-		r.entry(m, e.Name+" removed from combat")
+		return e.Name + " removed from combat", true
 	case combat.HealthStateChanged:
 		switch e.To {
 		case "":
 			// Every built-in state covers HP 0 and below, so leaving one
 			// for none means HP is above 0. A ruleset file may say otherwise.
 			if combat.IsNonlethalState(e.From) || e.HP <= 0 {
-				r.entry(m, fmt.Sprintf("%s is no longer %s", e.Name, e.From))
-			} else {
-				r.entry(m, e.Name+" is back above 0 HP")
+				return fmt.Sprintf("%s is no longer %s", e.Name, e.From), true
 			}
+			return e.Name + " is back above 0 HP", true
 		case "down":
 			if e.HP == 0 { // 5e, which can't go below 0
-				r.entry(m, e.Name+" dropped to 0 HP")
-				break
+				return e.Name + " dropped to 0 HP", true
 			}
 			fallthrough
 		default:
 			if combat.IsNonlethalState(e.To) {
-				r.entry(m, fmt.Sprintf("%s is %s (%d HP, %d nonlethal)", e.Name, e.To, e.HP, e.Nonlethal))
-			} else {
-				r.entry(m, fmt.Sprintf("%s is %s (%d HP)", e.Name, e.To, e.HP))
+				return fmt.Sprintf("%s is %s (%d HP, %d nonlethal)", e.Name, e.To, e.HP, e.Nonlethal), true
 			}
+			return fmt.Sprintf("%s is %s (%d HP)", e.Name, e.To, e.HP), true
 		}
 	case combat.MaxHPSet:
-		r.entry(m, fmt.Sprintf("%s max HP %d → %d", e.Name, e.From, e.To))
+		return fmt.Sprintf("%s max HP %d → %d", e.Name, e.From, e.To), true
 
 	case combat.ConditionApplied:
 		var extra []string
@@ -248,11 +257,11 @@ func (r *renderer) event(ev combat.Event) {
 		if e.Source != "" {
 			by = " by " + e.Source
 		}
-		r.entry(m, fmt.Sprintf("%s applied to %s%s%s", e.Condition, e.Target, by, paren(strings.Join(extra, "; "))))
+		return fmt.Sprintf("%s applied to %s%s%s", e.Condition, e.Target, by, paren(strings.Join(extra, "; "))), true
 	case combat.ConditionRemoved:
-		r.entry(m, fmt.Sprintf("%s removed from %s", e.Condition, e.Target))
+		return fmt.Sprintf("%s removed from %s", e.Condition, e.Target), true
 	case combat.ConditionExpired:
-		r.entry(m, fmt.Sprintf("%s expired on %s", e.Condition, e.Target))
+		return fmt.Sprintf("%s expired on %s", e.Condition, e.Target), true
 
 	case combat.EffectStarted:
 		var extra []string
@@ -266,7 +275,7 @@ func (r *renderer) event(ev combat.Event) {
 		if len(e.Targets) > 0 {
 			text += " on " + strings.Join(e.Targets, ", ")
 		}
-		r.entry(m, text)
+		return text, true
 	case combat.EffectTargetsChanged:
 		var parts []string
 		if len(e.Added) > 0 {
@@ -276,21 +285,22 @@ func (r *renderer) event(ev combat.Event) {
 			parts = append(parts, "no longer on "+strings.Join(e.Removed, ", "))
 		}
 		if len(parts) > 0 {
-			r.entry(m, e.Name+" "+strings.Join(parts, "; "))
+			return e.Name + " " + strings.Join(parts, "; "), true
 		}
 	case combat.EffectEnded:
-		r.entry(m, "Effect ended early: "+e.Name+paren(e.Reason))
+		return "Effect ended early: " + e.Name + paren(e.Reason), true
 	case combat.EffectExpired:
-		r.entry(m, "Effect expired: "+e.Name)
+		return "Effect expired: " + e.Name, true
 
 	case combat.NoteLogged:
-		r.entry(m, "📝 "+e.Text)
+		return "📝 " + e.Text, true
 
 		// Not logged: TurnStarted (the turn holder is on every line), HP
 		// arithmetic (Damaged, Healed, HPSet, TempHPSet, NonlethalDamaged,
 		// NonlethalSet; changes of state are logged via HealthStateChanged),
 		// InitiativeChanged and RowNoteSet.
 	}
+	return "", false
 }
 
 // lineup summarizes the starting order, collapsing runs of numbered group

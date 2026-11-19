@@ -112,14 +112,14 @@ Area effects show up as **their own row in the table and as linked conditions on
 - A player-facing view or masked HP.
 - Multiplayer, networking, syncing.
 - Importing stat blocks from external sources.
-- Full undo/redo (only "previous turn" is in scope). Planned after v1: see [Undo and redo](#undo-and-redo).
+- Full undo/redo (only "previous turn" is in scope). Built after v1: see [Undo and redo](#undo-and-redo).
 
 ## Future
 
 - Player-facing view (masked HP descriptors, second terminal or file output).
 - ✅ Rulesets: make the tracker correct for systems other than D&D 5e, starting with D&D 3.5. See [Rulesets](#rulesets).
 - Encounter templates: preload a prepared set of NPCs before combat starts.
-- Undo and redo of any change. See [Undo and redo](#undo-and-redo).
+- ✅ Undo and redo of any change. See [Undo and redo](#undo-and-redo).
 
 ### Rulesets
 
@@ -218,7 +218,7 @@ Dice, the dying creature's HP loss and stabilization rolls, 5e death saves, mass
 
 ### Undo and redo
 
-`p` steps the turn back, but nothing else can be taken back. A mistyped damage amount can be fixed by hand. A mistake that touches several things can't be fixed that way: a group add with the wrong count, an effect on the wrong targets, a Delay to the wrong count, an ended effect, a removed combatant whose conditions and effects went with it. The DM then has to rebuild state from memory in the middle of a fight. The build plan is in [DESIGN.md](DESIGN.md#undo-and-redo).
+`p` steps the turn back, but nothing else can be taken back. A mistyped damage amount can be fixed by hand. A mistake that touches several things can't be fixed that way: a group add with the wrong count, an effect on the wrong targets, a Delay to the wrong count, an ended effect, a removed combatant whose conditions and effects went with it. The DM then has to rebuild state from memory in the middle of a fight. UR1–UR5 are built; the design is in [DESIGN.md](DESIGN.md#undo-and-redo).
 
 #### UR1. Undo
 

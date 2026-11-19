@@ -426,7 +426,7 @@ Milestones 8 and 9 alone are enough to run a 3.5 fight; 10–12 remove workaroun
 
 ## Undo and redo
 
-Planned as milestone 13, for [Undo and redo](REQUIREMENTS.md#undo-and-redo) (UR1–UR5). The decisions are D39–D44: snapshots (D39), one step per `Apply` in `session` (D40), `p` kept (D41), the log (D42), End and restart as barriers (D43), and the keys (D44).
+Built as milestones 13a–13b, for [Undo and redo](REQUIREMENTS.md#undo-and-redo) (UR1–UR5). The decisions are D39–D44: snapshots (D39), one step per `Apply` in `session` (D40), `p` kept (D41), the log (D42), End and restart as barriers (D43), and the keys (D44).
 
 ### How it works
 
@@ -457,12 +457,19 @@ func (s *Session) UndoDepth() (undo, redo int)
 - `journal.Texts`, `Writer.Entry`, `Writer.WriteRedone` and `Writer.Resync`; `combat.Encounter.Meta` stamps the undo line.
 - Tested by applying 31 kinds of change in a 3.5e fight (Setup changes, HP, nonlethal, conditions with and without sources, effects and targets, a Delay, `n`, `p`, a new round, ending an effect, removal) and checking after each that undo gives back the state before byte for byte and redo the state after; then undoing all the way to an empty Setup and redoing it all.
 
+### Built so far (milestone 13b)
+
+- `journal.Summary(evs)`: a change of turn reads "Turn passed to Orc" or "Round 2 started: Mira's turn"; anything else is its first event's wording plus "(and N more)" for later events of the same kind (`Goblin x4`, `:dmg 1-4 7`). Logged events reuse the log's wording through `logText`, pulled out of the renderer; HP arithmetic, initiative, notes on rows and the ruleset have words of their own. A test checks every event type.
+- `u`, `U`, `ctrl+r`, `:undo`, `:redo` (command kinds `Undo`/`Redo`). The status line reads "Undid: … · U redoes" or "Redid: … · u undoes", unless a save or log recovery has something to report. A change of turn selects the turn holder; anything else selects the first row its events name that still exists.
+- The help overlay has the keys and commands; the hint line doesn't (D44). The `:ruleset` help now mentions ruleset files.
+- E2E story: undo a group add, a Delay that moved its effects, an ended effect; redo and undo again; a new change drops the redo; the log lines; a restart has nothing to undo.
+
 ### Build order
 
 | Milestone | Covers | Notes |
 |---|---|---|
 | 13a. ✅ Undo stack | UR1, UR2, UR4, UR5 | `session` stack, `Undo`/`Redo`, log lines and journal re-sync, the barrier at End. Tested in `session` with every kind of operation: apply, undo, redo, compare the encounter JSON byte for byte. |
-| 13b. Undo in the TUI | UR3 | `journal.Summary`, keys and commands, status line, selection, help overlay, golden screens and an E2E story (undo a group add, a Delay that moved effects, and an ended effect; redo one; a new change drops the redo). |
+| 13b. ✅ Undo in the TUI | UR3 | `journal.Summary`, keys and commands, status line, selection, help overlay, golden screens and an E2E story (undo a group add, a Delay that moved effects, and an ended effect; redo one; a new change drops the redo). |
 
 ## Open questions
 

@@ -174,6 +174,10 @@ func (m *Model) handleKey(key string) tea.Cmd {
 		m.open(m.promptEndCombat())
 	case ":":
 		m.open(m.promptCommand())
+	case "u":
+		m.undo(false)
+	case "U", "ctrl+r":
+		m.undo(true)
 	case "?":
 		m.help, m.helpOff = true, 0
 	}

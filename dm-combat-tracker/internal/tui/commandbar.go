@@ -69,6 +69,9 @@ func (m *Model) runCommand(cmd command.Command, p *inputPrompt) (overlay, error)
 	case command.EndCombat:
 		m.endCombat()
 		return nil, nil
+	case command.Undo, command.Redo:
+		m.undo(cmd.Kind == command.Redo)
+		return nil, nil
 	}
 	out, err := m.run(session.Op(cmd.Op))
 	if err != nil {
@@ -114,6 +117,7 @@ var keyHelp = [][2]string{
 	{"i", "edit initiative"},
 	{"N", "edit the side note"},
 	{"l", "write a log entry"},
+	{"u / U", "undo / redo the last change (ctrl+r also redoes)"},
 	{":", "command bar (↑↓ history, tab completes)"},
 	{"S / E", "start / end combat"},
 	{"?", "this help"},

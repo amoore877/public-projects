@@ -24,6 +24,8 @@ const (
 	Turn                  // :next, :prev, :start: the selection follows the turn (D22)
 	Remove                // :rm: run through the UI's remove flow, which asks about sourced effects
 	EndCombat             // :endcombat: combat ends and the state file is archived
+	Undo                  // :undo: take back the last change (UR1); no Op
+	Redo                  // :redo: make the last undone change again (UR2); no Op
 )
 
 // Command is a parsed command.
@@ -64,12 +66,13 @@ var Specs = []Spec{
 	{":init TARGET VALUE", ":init g2 12.35", "set initiative"},
 	{":note TARGET TEXT", ":note g1 fleeing", "set the side note (blank clears)"},
 	{":log TEXT", ":log Thorin shoves the goblin", "write a log entry"},
-	{":ruleset NAME", ":ruleset 3.5e", "choose the game ruleset (5e or 3.5e); only before combat starts"},
+	{":ruleset NAME", ":ruleset 3.5e", "choose the game ruleset (5e, 3.5e or one from a file); only before combat starts"},
 	{":next  :prev  :start  :endcombat", "", "turn controls"},
+	{":undo  :redo", "", "take back the last change / make it again"},
 }
 
 // Verbs lists the command names, for completion.
-var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "note", "log", "ruleset", "next", "prev", "start", "endcombat"}
+var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "note", "log", "ruleset", "next", "prev", "start", "endcombat", "undo", "redo"}
 
 var aliases = map[string]string{
 	"remove": "rm", "damage": "dmg", "condition": "cond", "effect": "fx",
@@ -92,11 +95,15 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 	switch verb {
 	case "":
 		return Command{}, errors.New("type a command, e.g. :dmg g1 7")
-	case "next", "prev", "start", "endcombat":
+	case "next", "prev", "start", "endcombat", "undo", "redo":
 		if rest != "" {
 			return Command{}, fmt.Errorf(":%s takes no arguments", verb)
 		}
 		switch verb {
+		case "undo":
+			return Command{Kind: Undo}, nil
+		case "redo":
+			return Command{Kind: Redo}, nil
 		case "next":
 			return Command{Kind: Turn, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.Next() }}, nil
 		case "prev":

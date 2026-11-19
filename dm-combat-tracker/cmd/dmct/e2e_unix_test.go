@@ -725,8 +725,8 @@ func TestHelpAndTerminalSizes(t *testing.T) {
 	a.do(":cond band restrained 2"+enter, "Restrained (2)")
 
 	a.do("?", " Help", "n / space", "q          quit", "lines 1–22 of")
-	a.do("jj", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
-	a.do("G", ":next  :prev  :start  :endcombat")
+	a.do("jjj", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
+	a.do("G", ":next  :prev  :start  :endcombat", ":undo  :redo")
 	a.do("x", "Setup ─ press S to start combat") // any other key closes help without acting
 	a.see("Bandit Captain")
 
@@ -956,6 +956,73 @@ func TestRulesetFile(t *testing.T) {
 	if err == nil || !strings.Contains(string(out), `pf1.json: "hpFloor" is 4; it can't be above 0`) {
 		t.Errorf("bad file: %v\n%s", err, out)
 	}
+}
+
+// Mistakes taken back mid-fight: a group added with the wrong count, a
+// Delay whose effects moved with it, and an effect ended too soon. Redo
+// puts one back, and a new change drops what's left to redo (UR1–UR5).
+func TestUndoRedo(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir, "--ruleset", "3.5e", "--log", "recap.md")
+	a.do(":add Mira 15 27 pc"+enter, "27/27")
+	a.do(":add Goblin x5 10 7"+enter, "Goblin 5")
+	a.do("u", "Undid: Goblin 1 joined at initiative 10.5 (7/7 HP) (and 4 more)")
+	if got := a.names(); got != "Mira" {
+		t.Fatalf("after undoing the group: %s", got)
+	}
+	a.do(":add Goblin x2 10 7"+enter, "Goblin 2")
+	a.do(":start"+enter, "Round 1 ─ Turn: Mira")
+	a.do(":fx Bless 3 from mira"+enter, "◆ Bless")
+
+	// A Delay that should have left Bless behind.
+	a.do(":init mira 5"+enter, "move them too?")
+	a.do("y", "Mira steps aside")
+	if got := a.names(); got != "Goblin 1, Goblin 2, ◆ Bless, Mira" {
+		t.Fatalf("after the delay: %s", got)
+	}
+	a.do("u", "Undid: Mira initiative 15 → 5", "Round 1 ─ Turn: Mira")
+	if got := a.names(); got != "◆ Bless, Mira, Goblin 1, Goblin 2" {
+		t.Fatalf("after undo: %s", got)
+	}
+	a.do(":init mira 5"+enter, "move them too?")
+	a.do("n", "Mira steps aside")
+
+	// Bless ended by mistake: undo, then redo, then undo again.
+	a.keys(":end bless" + enter)
+	a.gone("◆ Bless")
+	a.do("u", "Undid: Effect ended early: Bless")
+	a.see("◆ Bless")
+	a.do("U", "Redid: Effect ended early: Bless")
+	a.gone("◆ Bless")
+	a.do("u", "◆ Bless")
+
+	// A new change drops the redo.
+	a.do(":dmg goblin1 3"+enter, "4/7")
+	a.do("U", "Nothing to redo")
+	a.do(":undo"+enter, "Undid: Goblin 1 took 3 damage")
+	a.rowShows("Goblin 1", "7/7")
+	a.quit()
+
+	if enc := a.state("dmct-state.json"); len(enc.Effects) != 1 || len(enc.Combatants) != 3 {
+		t.Errorf("saved: %d effects, %d combatants", len(enc.Effects), len(enc.Combatants))
+	}
+
+	// The log keeps everything, marked.
+	wantLines(t, logLines(t, filepath.Join(dir, "recap.md")),
+		"# Combat",
+		"## Round 1",
+		"[R1 · Mira] Combat started: Mira (15), Goblin 1–2 (10.2–10.1)",
+		"[R1 · Mira] Effect started: Bless (Mira, 3 rounds)",
+		"[R1 · Goblin 1] Effect ended early: Bless",
+		"[R1 · Goblin 1] Undone: Effect ended early: Bless",
+		"[R1 · Goblin 1] Effect ended early: Bless (redone)",
+		"[R1 · Goblin 1] Undone: Effect ended early: Bless",
+	)
+
+	// Restarting starts the history again (D43).
+	b := launch(t, dir)
+	b.do("u", "Nothing to undo")
+	b.quit()
 }
 
 // Nonlethal damage, max HP edits and stacking temp HP, by key and by
