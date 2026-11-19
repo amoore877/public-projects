@@ -112,14 +112,14 @@ Area effects show up as **their own row in the table and as linked conditions on
 - A player-facing view or masked HP.
 - Multiplayer, networking, syncing.
 - Importing stat blocks from external sources.
-- Full undo/redo (only "previous turn" is in scope).
+- Full undo/redo (only "previous turn" is in scope). Planned after v1: see [Undo and redo](#undo-and-redo).
 
 ## Future
 
 - Player-facing view (masked HP descriptors, second terminal or file output).
-- Rulesets: make the tracker correct for systems other than D&D 5e, starting with D&D 3.5. See [Rulesets](#rulesets).
+- ✅ Rulesets: make the tracker correct for systems other than D&D 5e, starting with D&D 3.5. See [Rulesets](#rulesets).
 - Encounter templates: preload a prepared set of NPCs before combat starts.
-- General undo stack.
+- Undo and redo of any change. See [Undo and redo](#undo-and-redo).
 
 ### Rulesets
 
@@ -215,3 +215,36 @@ Checked and found to need **no change**:
 #### Still out of scope
 
 Dice, the dying creature's HP loss and stabilization rolls, 5e death saves, massive-damage rules, and concentration checks. These stay with the DM under R8.
+
+### Undo and redo
+
+`p` steps the turn back, but nothing else can be taken back. A mistyped damage amount can be fixed by hand. A mistake that touches several things can't be fixed that way: a group add with the wrong count, an effect on the wrong targets, a Delay to the wrong count, an ended effect, a removed combatant whose conditions and effects went with it. The DM then has to rebuild state from memory in the middle of a fight. The build plan is in [DESIGN.md](DESIGN.md#undo-and-redo).
+
+#### UR1. Undo
+
+- One key takes back the last change, whatever it was, and leaves the fight exactly as it was before it: HP, conditions, effects, initiative, the turn, the round and the counted-down durations.
+- One change is one DM action, however many rows it touched: `Goblin x4`, `:dmg 1-4 7`, a Delay that moves its effects too, and removing a combatant and ending its effects are each one step.
+- Pressing it again takes back the change before that, back to at least the last 100 changes.
+- Changes made in Setup can be undone too, including the ruleset choice and starting combat.
+
+#### UR2. Redo
+
+- A second key puts back what was undone, one step at a time, in order.
+- Any new change after an undo drops what's left to redo.
+
+#### UR3. Feedback
+
+- The status line names what was undone or redone ("Undid: Orc took 7 damage"), including changes that are never logged, such as HP arithmetic.
+- The selection moves to the row the step changed, if it's still there.
+- With nothing to undo or redo, the status line says so, and nothing changes.
+
+#### UR4. Log and state
+
+- The log stays append-only. Undoing a change that wrote log lines adds a line saying it was undone, and redoing it writes its lines again. Undoing a change that wrote nothing logs nothing.
+- The state file is saved after an undo or redo, as after any change.
+
+#### UR5. Boundaries
+
+- Ending combat (already behind a confirmation, and archiving the state file) can't be undone; the undo history starts again with the new fight.
+- `p` keeps its meaning: it steps the turn back and keeps changes made since. Undo is strictly last-in, first-out.
+- The history lasts while `dmct` runs. Quitting and starting again resumes the fight with nothing to undo.

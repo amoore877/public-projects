@@ -46,6 +46,12 @@ Each entry is a decision made during planning, with what it rules out.
 | D36 | **Moving the turn holder past the row after it passes the turn on** (RS10, G10), as `n` would, recorded in turn history so `p` steps back over it. The mover goes into `Encounter.Delayed` until its turn comes again at its new count, which then skips the countdown; the list clears each round. The status line says "Mira steps aside · turn passes to Orc" and the selection follows the turn (D22). | Matches the table: the delayer steps aside and the next creature acts. `Delayed` is the only extra state, and it lasts at most a round. Rejected: keeping the turn on the mover and remembering the rows still owed one (hidden state across several `Next` calls). |
 | D37 | **Ruleset files are JSON** (RS9), decoded with unknown fields refused, and the two built-ins are embedded JSON files read by the same parser. The file's fields mirror `combat.Ruleset`. | No new dependency, the same format as the state file, and a misspelt key fails at start-up instead of being silently ignored. Keeping the built-ins in the file form means the parser is exercised on every run and the built-ins serve as examples. Rejected: YAML or TOML (a dependency for a few fields), Go-only built-ins beside a separate file format. |
 | D38 | **Every `*.json` in one folder is loaded at every start-up**: `dmct/rulesets` under the user's config folder, or `--rulesets DIR`. A missing default folder is fine; a missing `--rulesets` folder, a bad file, or a name that matches a built-in or another file (by the `--ruleset` matching rules) stops start-up with the file and the reason. | D35 stores only the name, so the definition must be found again on resume without the DM naming a file each time. Refusing a built-in's name keeps `5e` and `3.5e` meaning the same thing in every saved fight. Rejected: `--ruleset FILE` (resume would need the path again), files beside the state file (one set per campaign folder is rarely what's wanted, and `--rulesets .` gives it anyway), overriding built-ins. |
+| D39 | **Snapshot undo.** Before each change, the session keeps a copy of the whole encounter, serialized as the state file is. Undo puts the copy back. | The encounter is already a plain, JSON-serializable value that `store` round-trips exactly, and it's small: a fight's state file is a few KB, plus its turn history. Every operation, present and future, is undoable for free. Rejected: an inverse for every operation (dozens of ops, and `Previous` already shows how much work reversing only durations is); extending `History` to cover every change (mixes turn rewind with general undo, and grows the state file). |
+| D40 | **The stack lives in `session`, one entry per `Apply`.** Each entry holds the snapshot from before the change, the snapshot from after it (for redo), a one-line summary, the row it focused on and the log lines it wrote. A change with no events (a refused or no-op operation) adds nothing. A new change clears the redo side. Capped at 100 entries, oldest dropped. | `Apply` is already the single door for changes, and the TUI calls it exactly once per DM action (a group add, a multi-target command, a Delay with its effects), so "one step" matches what the DM did. `combat` stays free of undo. Two copies per step for 100 steps is a few MB at worst; to be measured on a long E2E fight in 13a. |
+| D41 | **`p` stays.** It keeps meaning "step the turn back, keep what was done since". Undo of an `n` is plain undo of that step, and it also restores the durations because they are in the snapshot. | The two answer different mistakes: `p` is "I passed the turn too early, but the damage I entered since was right"; undo is "take back what I just did". Rejected: making `p` an alias for undo (it would discard edits made after the turn passed). |
+| D42 | **The log stays append-only.** Undoing a step that wrote log lines appends `Undone: <its first line>` (and `+N more` if it wrote several); redoing it appends its lines again, marked `(redone)`. Steps that wrote nothing (Setup changes, HP arithmetic) log nothing either way. | The recap must not show things that didn't happen, and it can't be edited in place (D7). Logging only for logged steps keeps HP fixes as quiet as before. |
+| D43 | **Ending combat is a barrier.** It clears the stack; so does starting `dmct`. | Ending already asks for confirmation, writes an archive and starts a new fight; undoing it would mean renaming the archive back and joining two logs. Restarts are rare mid-fight; persisting the stack would add a second file or bloat the state file (see open questions). |
+| D44 | **Keys `u` (undo) and `U` (redo), plus `:undo` and `:redo`.** Both are free today. The status line says `Undid: Orc took 7 damage · U redoes` or `Nothing to undo`. `ctrl+r` also redoes, for vim habits. | `u`/`ctrl+r` is the vim pair the hotkeys already lean on (`jk`, `gG`). |
 
 ## Layout
 
@@ -318,6 +324,8 @@ go test -cover ./...          # target: 90% or more in every package
 6. ✅ **Command bar + help overlay.**
 7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
+Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo).
+
 ## Rulesets
 
 Milestones 8–12 are built. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G10, sub-features RS1–RS10). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
@@ -416,6 +424,40 @@ Each step keeps `5e` behavior identical to v1, checked by the existing unit, gol
 
 Milestones 8 and 9 alone are enough to run a 3.5 fight; 10–12 remove workarounds.
 
+## Undo and redo
+
+Planned as milestone 13, for [Undo and redo](REQUIREMENTS.md#undo-and-redo) (UR1–UR5). The decisions are D39–D44: snapshots (D39), one step per `Apply` in `session` (D40), `p` kept (D41), the log (D42), End and restart as barriers (D43), and the keys (D44).
+
+### How it works
+
+```go
+// internal/session
+type step struct {
+    before, after []byte          // encounter JSON, as store writes it
+    summary       string          // "Orc took 7 damage", "Goblin 1–4 joined at 12"
+    focus         combat.RowID    // row to select after undo or redo
+    logged        []string        // log lines the step wrote, for the undo line and redo
+}
+
+func (s *Session) Undo() (Outcome, error) // ErrNothingToUndo when empty
+func (s *Session) Redo() (Outcome, error) // ErrNothingToRedo when empty
+func (s *Session) CanUndo() (summary string, ok bool) // for the help overlay and hints
+```
+
+- **Apply** marshals the encounter before running the op. If the op fails or emits nothing, the copy is dropped. Otherwise the step is pushed after the save and log, with `after` marshalled then.
+- **Undo** unmarshals `before`, sets the clock, keeps the current `LogPath` (once a log is bound it stays bound, so the undo line and later entries land in the same file), saves, and writes the undo line. The journal writer is re-synced to `ResumeFor` the restored encounter, so undoing back into an earlier round and passing the turn again writes that round's heading again, under the undo line. That's accurate: it's where the fight picks up.
+- **Redo** does the same with `after`, then re-appends the step's logged lines.
+- **Summaries.** Most changes write no log line (HP arithmetic, temp HP, notes on rows), so the summary can't come from the log. A new `journal.Summary(evs []combat.Event) string` phrases the first event of any kind in the log's wording, adding "and N more" for groups and multi-target changes. That needs a phrase for each event type that the log skips today; it's most of the milestone's work and is tested event by event.
+- **TUI.** `u`/`U` call `Undo`/`Redo` like any other op, go through `track` for the save and log banners, and move the selection to `focus` if the row still exists (D22 otherwise). The help overlay lists both keys; the hint line doesn't, since it's full at 80 columns.
+- **Ruleset files.** A snapshot carries only the ruleset's name (D35), and files load once at start-up, so restoring one can't name a ruleset that isn't loaded.
+
+### Build order
+
+| Milestone | Covers | Notes |
+|---|---|---|
+| 13a. Undo stack | UR1, UR2, UR4, UR5 | `session` stack, `Undo`/`Redo`, log lines and journal re-sync, the barrier at End. Tested in `session` with every kind of operation: apply, undo, redo, compare the encounter JSON byte for byte. |
+| 13b. Undo in the TUI | UR3 | `journal.Summary`, keys and commands, status line, selection, help overlay, golden screens and an E2E story (undo a group add, a Delay that moved effects, and an ended effect; redo one; a new change drops the redo). |
+
 ## Open questions
 
 The end-combat, duration, and condition-list questions were settled as D13, D12, and D14. Open for the ruleset work:
@@ -425,3 +467,5 @@ The end-combat, duration, and condition-list questions were settled as D13, D12,
 3. ~~**State-file format.**~~ Settled as D35: only the name.
 4. ~~**HP floor in 3.5.**~~ Settled: HP stops at -10, since anything lower is equally dead.
 5. ~~**Delay mechanism (RS10).**~~ Settled as D36.
+
+For undo and redo, all settled 2026-11-18: no undo history across a restart and no undo past End (D43); undo and redo are marked in the log (D42); the history keeps 100 steps (D40).
