@@ -43,6 +43,7 @@ Each entry is a decision made during planning, with what it rules out.
 | D33 | **In `3.5e`, changing the initiative of a creature that is the source of effects asks "move its effects too?"** Yes for a mistyped initiative, no for Delay or Ready. | One command and no new concept, and it only asks when the answer matters. Rejected: a separate `:delay` command alongside an initiative edit that always moves the effects. |
 | D34 | **A condition can name a source; it then counts down at the start of the source's turn** (RS7, G8). The `c` flow asks only for a timed condition, only during combat, and only offers the turn holder (enter keeps the bearer); `:cond … by SOURCE` names anyone. When the source leaves, its conditions count down on their bearer's turn again. | The usual case is "until the start of your next turn", cast on the caster's turn. A condition has no row to hold the source's old count, so following the bearer is the only rule that needs no hidden anchor. Rejected: a source picker over every combatant in the `c` flow (more keys for the rare case). |
 | D35 | **The state file stores only the ruleset's name** (RS9), as it has since milestone 8. | Simple, and the file stays small and readable. Accepted cost: if a ruleset file changes, an archived or resumed fight is read under the new definition. Rejected: copying the whole ruleset into each state file. |
+| D36 | **Moving the turn holder past the row after it passes the turn on** (RS10, G10), as `n` would, recorded in turn history so `p` steps back over it. The mover goes into `Encounter.Delayed` until its turn comes again at its new count, which then skips the countdown; the list clears each round. The status line says "Mira steps aside · turn passes to Orc" and the selection follows the turn (D22). | Matches the table: the delayer steps aside and the next creature acts. `Delayed` is the only extra state, and it lasts at most a round. Rejected: keeping the turn on the mover and remembering the rows still owed one (hidden state across several `Next` calls). |
 
 ## Layout
 
@@ -317,7 +318,7 @@ go test -cover ./...          # target: 90% or more in every package
 
 ## Rulesets
 
-In progress: milestones 8–11 are built, 11c and 12 are planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G10, sub-features RS1–RS10). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
+In progress: milestones 8–11c are built, 12 is planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G10, sub-features RS1–RS10). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
 
 ### Built so far (milestone 8)
 
@@ -380,6 +381,13 @@ type HealthState struct {
 - The `i` prompt and `:init` both ask "Mialee is the source of Fog Cloud: move them too?", `y` move or `n` leave; esc changes nothing.
 - The turn stays with its row on an initiative edit, as before. So moving the turn holder later in the order and then pressing `n` starts the next round; for Delay, the DM passes the turn first and sets the new count when the creature steps in (README).
 
+
+### Built so far (milestone 11c)
+
+- `SetInitiative` on the turn holder during combat compares the order before and after. If the row now sorts after the row that followed it, the edit is a Delay (D36): the mover joins `Encounter.Delayed` and `advance` starts the next row's turn, with a `TurnRecord` pushed so `p` can undo it. Moving earlier, moving later without passing anyone, editing another row, and edits in Setup keep the turn where it is.
+- `advance` skips `tick` for a row in `Delayed` and takes it off the list; a new round clears the list. `TurnRecord.PrevDelayed` lets `Previous` restore it.
+- The TUI reports the pass and selects the new turn holder, for both `i` and `:init`. The E2E 3.5e story delays on the caster's own turn.
+
 ### Build order
 
 Each step keeps `5e` behavior identical to v1, checked by the existing unit, golden-screen and E2E suites.
@@ -391,7 +399,7 @@ Each step keeps `5e` behavior identical to v1, checked by the existing unit, gol
 | 10. ✅ HP extras | RS4, RS5, RS6 | Nonlethal, max HP edit, `+N` temp HP. Independent of each other; can be split. |
 | 11a. ✅ Condition sources | RS7 (G8) | `Condition.SourceID`, ticking on the source's turn, rewind and removal. Affects 5e too. |
 | 11b. ✅ Fixed-count effects | RS7 (G7) | `FixedAnchor`, pinned effect rows, the move-effects question on initiative edits. The riskiest step: it touches `tick` and ordering. |
-| 11c. Delay without lost turns | RS10 (G10) | Action item from 11b: an initiative edit that moves the turn holder later must not skip the rows in between. Touches `SetInitiative`, `Next` and rewind; affects 5e too. Mechanism not yet decided. |
+| 11c. ✅ Delay without lost turns | RS10 (G10) | Action item from 11b: an initiative edit that moves the turn holder later must not skip the rows in between. Touches `SetInitiative`, `Next` and rewind; affects 5e too (D36). |
 | 12. Ruleset files | RS9 | File format, validation, built-ins moved to the same form. The state file keeps only the ruleset's name (D35). |
 
 Milestones 8 and 9 alone are enough to run a 3.5 fight; 10–12 remove workarounds.
@@ -404,4 +412,4 @@ The end-combat, duration, and condition-list questions were settled as D13, D12,
 2. ~~**Correcting an initiative versus Delay/Ready.**~~ Settled as D33.
 3. ~~**State-file format.**~~ Settled as D35: only the name.
 4. ~~**HP floor in 3.5.**~~ Settled: HP stops at -10, since anything lower is equally dead.
-5. **Delay mechanism (RS10).** How an initiative edit on the turn holder avoids skipping turns: pass the turn on to the next row in the old order, or keep the turn and remember the rows still owed one. Open until milestone 11c.
+5. ~~**Delay mechanism (RS10).**~~ Settled as D36.

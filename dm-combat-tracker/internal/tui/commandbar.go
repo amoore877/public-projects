@@ -70,7 +70,8 @@ func (m *Model) runCommand(cmd command.Command, p *inputPrompt) (overlay, error)
 		m.endCombat()
 		return nil, nil
 	}
-	if _, err := m.run(session.Op(cmd.Op)); err != nil {
+	out, err := m.run(session.Op(cmd.Op))
+	if err != nil {
 		var me *combat.MoveEffectsError
 		if errors.As(err, &me) {
 			m.selected = cmd.Focus
@@ -81,6 +82,7 @@ func (m *Model) runCommand(cmd command.Command, p *inputPrompt) (overlay, error)
 		return p, err
 	}
 	switch {
+	case m.notePassedTurn(out.Events):
 	case cmd.Kind == command.Turn:
 		m.selected = m.sess.Encounter().Current
 		m.turnReminder()

@@ -583,3 +583,29 @@ func TestInitiativeAsksAboutPinnedEffects(t *testing.T) {
 		t.Errorf("esc: Mialee %s, overlay %v", v, m.overlay)
 	}
 }
+
+// Moving the turn holder past the next row passes the turn on, says so and
+// selects the new turn holder, from both i and :init (RS10).
+func TestDelayPassesTurnInUI(t *testing.T) {
+	s := newSession(t, fight()...)
+	m := New(s, "")
+	press(m, "i") // Thorin holds the turn at 18
+	press(m, "backspace", "backspace")
+	typeText(m, "10")
+	press(m, "enter")
+	if cur := s.Encounter().Current; cur != idOf(t, s, "Goblin 1") || m.Selected() != cur {
+		t.Fatalf("turn %d selected %d, want Goblin 1", cur, m.Selected())
+	}
+	if !strings.Contains(screen(m), "Thorin steps aside · turn passes to Goblin 1") {
+		t.Errorf("status line:\n%s", screen(m))
+	}
+
+	runCmd(m, "init g1 1")
+	if s.Encounter().Current != idOf(t, s, "Goblin 2") || m.Selected() != idOf(t, s, "Goblin 2") {
+		t.Errorf(":init should pass the turn too")
+	}
+	runCmd(m, "next")
+	if strings.Contains(screen(m), "steps aside") {
+		t.Errorf(":next is not a delay:\n%s", screen(m))
+	}
+}

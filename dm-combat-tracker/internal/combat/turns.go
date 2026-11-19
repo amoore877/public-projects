@@ -7,6 +7,7 @@ import "fmt"
 type TurnRecord struct {
 	PrevCurrent       RowID              `json:"prevCurrent"`
 	PrevRound         int                `json:"prevRound"`
+	PrevDelayed       []RowID            `json:"prevDelayed,omitempty"`
 	Ticked            []RowID            `json:"ticked,omitempty"` // conditions/effects decremented but still present
 	ExpiredConditions []ExpiredCondition `json:"expiredConditions,omitempty"`
 	ExpiredEffects    []Effect           `json:"expiredEffects,omitempty"`
@@ -63,13 +64,21 @@ func (e *Encounter) Next() ([]Event, error) {
 	}
 	order := e.Order()
 	idx := indexOf(order, e.Current)
-	rec := TurnRecord{PrevCurrent: e.Current, PrevRound: e.Round}
+	rec := e.newRecord()
 	evs := e.advance(order, idx, &rec)
+	e.pushHistory(rec)
+	return evs, nil
+}
+
+func (e *Encounter) newRecord() TurnRecord {
+	return TurnRecord{PrevCurrent: e.Current, PrevRound: e.Round, PrevDelayed: append([]RowID(nil), e.Delayed...)}
+}
+
+func (e *Encounter) pushHistory(rec TurnRecord) {
 	e.History = append(e.History, rec)
 	if len(e.History) > historyCap {
 		e.History = append([]TurnRecord(nil), e.History[len(e.History)-historyCap:]...)
 	}
-	return evs, nil
 }
 
 // advance moves Current to the row after order[idx] and starts its turn.
@@ -86,11 +95,17 @@ func (e *Encounter) advance(order []Row, idx int, rec *TurnRecord) []Event {
 		if next >= len(order) {
 			next = 0
 			e.Round++
+			e.Delayed = nil
 			e.Current = order[0].ID()
 			evs = append(evs, RoundStarted{EventMeta: e.meta()})
 		}
 		e.Current = order[next].ID()
-		evs = append(evs, e.tick(e.Current, rec)...)
+		if containsID(e.Delayed, e.Current) {
+			// It already started a turn this round and stepped aside (RS10).
+			e.Delayed = removeID(append([]RowID(nil), e.Delayed...), e.Current)
+		} else {
+			evs = append(evs, e.tick(e.Current, rec)...)
+		}
 		if r, ok := e.row(e.Current); ok {
 			m := e.meta()
 			return append(evs, TurnStarted{EventMeta: m, ID: r.ID(), Name: r.Name()})
@@ -232,6 +247,7 @@ func (e *Encounter) Previous() ([]Event, error) {
 
 	e.Current = rec.PrevCurrent
 	e.Round = rec.PrevRound
+	e.Delayed = rec.PrevDelayed
 	m := e.meta()
 	return []Event{TurnRewound{EventMeta: m, ID: e.Current, Name: m.TurnHolder}}, nil
 }

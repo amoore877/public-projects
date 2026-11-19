@@ -95,6 +95,8 @@ It still applies no rules for you: a dying creature doesn't lose HP or roll to s
 
 Initiative is typed in by hand, as a decimal. Ties are settled by decimals: three creatures tied at 15 can be `15.3`, `15.2` and `15.1`. Exact ties between combatants are marked with `!` and a warning until you change one (`i`).
 
+To **Delay** (or Ready), change the initiative of the creature whose turn it is to the count it will act on. If that moves it past the next creature, the turn passes on ("Mira steps aside · turn passes to Orc"), the creatures in between act, and its turn comes again at the new count in the same round. Its durations don't count down a second time that round. `p` steps back over the pass; the new initiative stays.
+
 A group shares the initiative you give it, with decimals filled in to keep its members in order: `Goblin x4` at `12` becomes `12.4` … `12.1`. You can also give each member its own initiative, comma-separated: `14, 9, 11, 12`.
 
 ### HP
@@ -125,7 +127,7 @@ The effect gets its own `◆` row, right after its source's turn, as a reminder 
 - `x` on the effect row ends it early (dispelled, concentration broken), with an optional reason for the log.
 - Removing a creature that is the source of effects asks whether to keep them or end them.
 
-In `3.5e` an effect stays on the initiative count it began on, as the 3.5 rules have it. Its row sorts just before its source, and it counts down on its own row, so it ends just before that count comes up. If the source later Delays or Readies, the effect doesn't follow. Changing the initiative of a creature that is the source of effects asks whether to move them too: `y` for a mistyped initiative (they shift by the same amount), `n` for Delay or Ready. For Delay, press `n` to pass the turn first, then set the creature's new initiative when it steps in.
+In `3.5e` an effect stays on the initiative count it began on, as the 3.5 rules have it. Its row sorts just before its source, and it counts down on its own row, so it ends just before that count comes up. If the source later Delays or Readies, the effect doesn't follow. Changing the initiative of a creature that is the source of effects asks whether to move them too: `y` for a mistyped initiative (they shift by the same amount), `n` for Delay or Ready.
 
 ### The command bar
 

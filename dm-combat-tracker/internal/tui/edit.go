@@ -301,15 +301,40 @@ func (m *Model) promptInitiative() overlay {
 // to their counts, moving their source first asks whether they move too
 // (D33): yes for a mistyped initiative, no for Delay or Ready.
 func (m *Model) setInitiative(id combat.RowID, v combat.Initiative, move combat.SourceMove) {
-	_, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return e.SetInitiative(id, v, move) })
+	out, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return e.SetInitiative(id, v, move) })
 	var me *combat.MoveEffectsError
 	switch {
 	case errors.As(err, &me):
 		m.chain = m.askMoveEffects(me)
 	case err != nil:
 		m.fail(err)
+	default:
+		m.notePassedTurn(out.Events)
 	}
 	m.syncSelection()
+}
+
+// notePassedTurn reports an initiative edit that moved the turn holder past
+// the next row (RS10): the turn passed on, and the selection follows it as
+// it does for n (D22). It returns whether that happened.
+func (m *Model) notePassedTurn(evs []combat.Event) bool {
+	var moved string
+	for _, ev := range evs {
+		switch ev := ev.(type) {
+		case combat.InitiativeChanged:
+			if moved == "" {
+				moved = ev.Name
+			}
+		case combat.TurnStarted:
+			if moved == "" {
+				return false // :next, :start
+			}
+			m.selected = ev.ID
+			m.info(moved + " steps aside · turn passes to " + ev.Name)
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Model) askMoveEffects(me *combat.MoveEffectsError) overlay {

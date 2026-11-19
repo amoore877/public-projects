@@ -286,7 +286,11 @@ func (m *MoveEffectsError) Error() string {
 }
 
 // SetInitiative changes a combatant's or effect's initiative. The order
-// re-sorts; the turn stays with the same row. Under a FixedAnchor ruleset,
+// re-sorts and the turn stays with the same row, unless the row holds the
+// turn and moves past the row after it: then it has stepped aside (Delay)
+// and the turn passes on as Next would, which p can step back (RS10, D36).
+// Its turn comes again at its new count, without counting its durations
+// down twice. Under a FixedAnchor ruleset,
 // moving the source of effects asks whether they move by the same amount
 // (D33); otherwise move is ignored, since effects follow their source's turn.
 func (e *Encounter) SetInitiative(id RowID, v Initiative, move SourceMove) ([]Event, error) {
@@ -309,6 +313,8 @@ func (e *Encounter) SetInitiative(id RowID, v Initiative, move SourceMove) ([]Ev
 		}
 		return nil, me
 	}
+	oldOrder := e.Order()
+	oldIdx := indexOf(oldOrder, id)
 	evs := []Event{InitiativeChanged{EventMeta: e.meta(), ID: id, Name: r.Name(), From: from, To: v}}
 	if r.Combatant != nil {
 		r.Combatant.Initiative = v
@@ -320,6 +326,16 @@ func (e *Encounter) SetInitiative(id RowID, v Initiative, move SourceMove) ([]Ev
 			old := fx.Initiative
 			fx.Initiative += v - from
 			evs = append(evs, InitiativeChanged{EventMeta: e.meta(), ID: fx.ID, Name: fx.Name, From: old, To: fx.Initiative})
+		}
+	}
+	if e.Status == Active && id == e.Current && oldIdx+1 < len(oldOrder) {
+		order := e.Order()
+		next := indexOf(order, oldOrder[oldIdx+1].ID())
+		if indexOf(order, id) > next {
+			rec := e.newRecord()
+			e.Delayed = append(e.Delayed, id)
+			evs = append(evs, e.advance(order, next-1, &rec)...)
+			e.pushHistory(rec)
 		}
 	}
 	return evs, nil

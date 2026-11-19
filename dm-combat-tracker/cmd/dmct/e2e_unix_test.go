@@ -939,11 +939,10 @@ func TestFixedCountEffects(t *testing.T) {
 		t.Fatalf("the effect row should sit just before its caster: %s", got)
 	}
 
-	// Mira delays: the turn passes to the orc, then she steps in after it
-	// at 5. Her effect stays on 15.
-	a.do("n", "Round 1 ─ Turn: Orc")
+	// Mira delays to 5 on her turn: her effect stays on 15, the turn passes
+	// to the orc, and she still acts this round (RS10).
 	a.do(":init mira 5"+enter, "Mira is the source of Bless: move them too?")
-	a.do("n", "n next")
+	a.do("n", "Mira steps aside · turn passes to Orc", "Round 1 ─ Turn: Orc")
 	if got := a.names(); got != "◆ Bless, Orc, Mira" {
 		t.Fatalf("after the delay: %s", got)
 	}

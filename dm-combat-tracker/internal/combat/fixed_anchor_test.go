@@ -94,10 +94,14 @@ func TestDelayLeavesEffectOnItsCount(t *testing.T) {
 		t.Error("asking must change nothing")
 	}
 	evs := must(t)(e.SetInitiative(mira, ini(t, "10"), LeaveEffects))
-	wantKinds(t, evs, "InitiativeChanged")
+	wantKinds(t, evs, "InitiativeChanged", "TurnStarted") // the turn passes on (RS10)
 	if got := orderNames(e); got != "Thorin,Bless,Goblin,Mira" {
 		t.Errorf("order = %s", got)
 	}
+	if currentName(e) != "Goblin" {
+		t.Errorf("turn = %s, want Goblin", currentName(e))
+	}
+	must(t)(e.Next()) // Mira again, still round 1
 	must(t)(e.Next()) // round 2, Thorin
 	must(t)(e.Next()) // Bless counts down on its own row
 	if currentName(e) != "Bless" || remainingFX(t, e, fx) != 1 {

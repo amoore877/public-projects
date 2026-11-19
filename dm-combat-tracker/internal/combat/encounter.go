@@ -64,9 +64,13 @@ type Encounter struct {
 	Combatants    []*Combatant `json:"combatants"`
 	Effects       []*Effect    `json:"effects"`
 	History       []TurnRecord `json:"history"`
-	LogPath       string       `json:"logPath,omitempty"`
-	NextID        int          `json:"nextId"`
-	NextSeq       int          `json:"nextSeq"`
+	// Delayed holds rows that stepped aside during their turn this round
+	// (RS10, D36). Their turn comes again at their new count, but their
+	// durations don't count down a second time. Cleared each new round.
+	Delayed []RowID `json:"delayed,omitempty"`
+	LogPath string  `json:"logPath,omitempty"`
+	NextID  int     `json:"nextId"`
+	NextSeq int     `json:"nextSeq"`
 
 	clock Clock
 }
