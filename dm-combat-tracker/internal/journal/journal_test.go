@@ -317,3 +317,64 @@ func TestConditionSourceLogged(t *testing.T) {
 		t.Errorf("log:\n%s", data)
 	}
 }
+
+// A ruleset file can put a state above 0 HP, or a state called "down" below
+// it; the log then names the state instead of assuming 0 HP (RS9).
+func TestHealthStatesFromAFile(t *testing.T) {
+	r, err := combat.ParseRuleset([]byte(`{"name":"grim","hpFloor":-5,"states":[
+		{"name":"hurt","min":1,"max":3},
+		{"name":"down","min":-4,"max":0},
+		{"name":"dead","max":-5}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := combat.UseRulesets([]combat.Ruleset{r}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = combat.UseRulesets(nil) })
+
+	path := filepath.Join(t.TempDir(), "log.md")
+	f := newFight(t, path, newClock())
+	f.do(f.enc.SetRuleset("grim"))
+	f.add("Orc", combat.NPC, "8", 10)
+	f.do(f.enc.Start())
+	f.do(f.enc.Damage(f.id("Orc"), 8)) // 2: hurt
+	f.do(f.enc.Damage(f.id("Orc"), 2)) // 0: down
+	f.do(f.enc.Damage(f.id("Orc"), 3)) // -3: still down
+	f.do(f.enc.Heal(f.id("Orc"), 5))   // 2: hurt
+	f.do(f.enc.Heal(f.id("Orc"), 5))   // 7: fine
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Orc is hurt (2 HP)", "Orc dropped to 0 HP", "Orc is hurt (2 HP)", "Orc is back above 0 HP"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("log is missing %q:\n%s", want, data)
+		}
+	}
+
+	// Down below 0, and back out of a state to none at or below 0.
+	r2, err := combat.ParseRuleset([]byte(`{"name":"odd","hpFloor":-5,"states":[{"name":"down","min":-5,"max":-1}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := combat.UseRulesets([]combat.Ruleset{r2}); err != nil {
+		t.Fatal(err)
+	}
+	path = filepath.Join(t.TempDir(), "log.md")
+	f = newFight(t, path, newClock())
+	f.do(f.enc.SetRuleset("odd"))
+	f.add("Orc", combat.NPC, "8", 10)
+	f.do(f.enc.Start())
+	f.do(f.enc.Damage(f.id("Orc"), 12)) // -2: down
+	f.do(f.enc.Heal(f.id("Orc"), 2))    // 0: no state
+	data, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Orc is down (-2 HP)", "Orc is no longer down"} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("log is missing %q:\n%s", want, data)
+		}
+	}
+}

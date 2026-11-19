@@ -12,36 +12,37 @@ const DefaultRuleset = "5e"
 // Ruleset is the per-encounter choice of game system (RS1). It still rolls
 // no dice and automates no rules (R8); it sets the HP floor, the health
 // states, nonlethal damage, where sourced effects count down and the
-// condition preset.
+// condition preset. Built-ins and ruleset files share this form (RS9).
 type Ruleset struct {
-	Name string
+	Name string `json:"name"`
 	// HPFloor is the lowest HP a combatant can have (RS2): 0 in 5e, -10 in
 	// 3.5e, where anything lower is equally dead.
-	HPFloor int
+	HPFloor int `json:"hpFloor"`
 	// States are the named health states by HP range (RS3). The first one
 	// whose range holds the HP applies; none means the creature is fine.
-	States []HealthState
+	States []HealthState `json:"states"`
 	// Nonlethal tracks a running nonlethal damage total per combatant, with
 	// the staggered and unconscious states it causes (RS4).
-	Nonlethal bool
+	Nonlethal bool `json:"nonlethal"`
 	// FixedAnchor pins a sourced effect to the initiative count it started
 	// on (RS7, G7, D32): it counts down on its own row, which sorts just
 	// before its source on a tie, instead of on its source's turn. Changing
 	// the source's initiative then asks whether its effects move too (D33).
-	FixedAnchor bool
+	FixedAnchor bool `json:"fixedAnchor"`
 	// Conditions is the preset list for the picker (RS8). Custom names are
 	// always allowed.
-	Conditions []string
+	Conditions []string `json:"conditions"`
 }
 
 // HealthState is a named state a combatant is in while its HP is within
 // [Min, Max]; a nil bound is open.
 type HealthState struct {
-	Name     string
-	Tag      string // short form for the HP column; defaults to Name
-	Min, Max *int
-	Acts     bool // still takes its turns normally (3.5 disabled)
-	Remind   bool // the status line points it out when the creature's turn starts
+	Name   string `json:"name"`
+	Tag    string `json:"tag"` // short form for the HP column; defaults to Name
+	Min    *int   `json:"min"`
+	Max    *int   `json:"max"`
+	Acts   bool   `json:"acts"`   // still takes its turns normally (3.5 disabled)
+	Remind bool   `json:"remind"` // the status line points it out when the creature's turn starts
 }
 
 func (s *HealthState) holds(hp int) bool {
@@ -114,61 +115,6 @@ func stateName(s *HealthState) string {
 	return s.Name
 }
 
-var builtinRulesets = []Ruleset{
-	{
-		Name:    "5e",
-		HPFloor: 0,
-		States:  []HealthState{{Name: "down", Max: intPtr(0)}},
-		Conditions: []string{
-			"Blinded", "Charmed", "Deafened", "Exhaustion", "Frightened", "Grappled",
-			"Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone",
-			"Restrained", "Stunned", "Unconscious", "Concentrating",
-		},
-	},
-	{
-		Name:        "3.5e",
-		HPFloor:     -10,
-		Nonlethal:   true,
-		FixedAnchor: true,
-		States: []HealthState{
-			{Name: "disabled", Tag: "dsbld", Min: intPtr(0), Max: intPtr(0), Acts: true},
-			{Name: "dying", Min: intPtr(-9), Max: intPtr(-1), Remind: true},
-			{Name: "dead", Max: intPtr(-10)},
-		},
-		// States that come from HP (disabled, dying, dead, staggered) are
-		// left out; they are shown from HP, not picked (RS8).
-		Conditions: []string{
-			"Blinded", "Confused", "Cowering", "Dazed", "Dazzled", "Deafened",
-			"Energy Drained", "Entangled", "Exhausted", "Fascinated", "Fatigued",
-			"Flat-Footed", "Frightened", "Grappling", "Helpless", "Invisible",
-			"Nauseated", "Panicked", "Paralyzed", "Petrified", "Pinned", "Prone",
-			"Shaken", "Sickened", "Stable", "Stunned", "Turned", "Unconscious",
-			"Concentrating",
-		},
-	},
-}
-
-// RulesetNames lists the built-in rulesets, default first.
-func RulesetNames() []string {
-	names := make([]string, len(builtinRulesets))
-	for i, r := range builtinRulesets {
-		names[i] = r.Name
-	}
-	return names
-}
-
-// LookupRuleset finds a built-in ruleset by name. Case doesn't matter and
-// the trailing "e" is optional ("3.5", "5E").
-func LookupRuleset(name string) (Ruleset, bool) {
-	name = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), "e")
-	for _, r := range builtinRulesets {
-		if strings.TrimSuffix(r.Name, "e") == name {
-			return r, true
-		}
-	}
-	return Ruleset{}, false
-}
-
 // Rules returns the encounter's ruleset. An empty or unknown name (which
 // store.Load refuses) reads as the default.
 func (e *Encounter) Rules() Ruleset {
@@ -185,7 +131,7 @@ func (e *Encounter) Rules() Ruleset {
 func (e *Encounter) SetRuleset(name string) ([]Event, error) {
 	r, ok := LookupRuleset(name)
 	if !ok {
-		return nil, fmt.Errorf("%w: unknown ruleset %q (choose %s)", ErrInvalid, strings.TrimSpace(name), strings.Join(RulesetNames(), " or "))
+		return nil, fmt.Errorf("%w: %w", ErrInvalid, UnknownRulesetError(name))
 	}
 	from := e.Rules().Name
 	if r.Name == from {

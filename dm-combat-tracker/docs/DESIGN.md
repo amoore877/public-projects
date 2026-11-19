@@ -44,6 +44,8 @@ Each entry is a decision made during planning, with what it rules out.
 | D34 | **A condition can name a source; it then counts down at the start of the source's turn** (RS7, G8). The `c` flow asks only for a timed condition, only during combat, and only offers the turn holder (enter keeps the bearer); `:cond … by SOURCE` names anyone. When the source leaves, its conditions count down on their bearer's turn again. | The usual case is "until the start of your next turn", cast on the caster's turn. A condition has no row to hold the source's old count, so following the bearer is the only rule that needs no hidden anchor. Rejected: a source picker over every combatant in the `c` flow (more keys for the rare case). |
 | D35 | **The state file stores only the ruleset's name** (RS9), as it has since milestone 8. | Simple, and the file stays small and readable. Accepted cost: if a ruleset file changes, an archived or resumed fight is read under the new definition. Rejected: copying the whole ruleset into each state file. |
 | D36 | **Moving the turn holder past the row after it passes the turn on** (RS10, G10), as `n` would, recorded in turn history so `p` steps back over it. The mover goes into `Encounter.Delayed` until its turn comes again at its new count, which then skips the countdown; the list clears each round. The status line says "Mira steps aside · turn passes to Orc" and the selection follows the turn (D22). | Matches the table: the delayer steps aside and the next creature acts. `Delayed` is the only extra state, and it lasts at most a round. Rejected: keeping the turn on the mover and remembering the rows still owed one (hidden state across several `Next` calls). |
+| D37 | **Ruleset files are JSON** (RS9), decoded with unknown fields refused, and the two built-ins are embedded JSON files read by the same parser. The file's fields mirror `combat.Ruleset`. | No new dependency, the same format as the state file, and a misspelt key fails at start-up instead of being silently ignored. Keeping the built-ins in the file form means the parser is exercised on every run and the built-ins serve as examples. Rejected: YAML or TOML (a dependency for a few fields), Go-only built-ins beside a separate file format. |
+| D38 | **Every `*.json` in one folder is loaded at every start-up**: `dmct/rulesets` under the user's config folder, or `--rulesets DIR`. A missing default folder is fine; a missing `--rulesets` folder, a bad file, or a name that matches a built-in or another file (by the `--ruleset` matching rules) stops start-up with the file and the reason. | D35 stores only the name, so the definition must be found again on resume without the DM naming a file each time. Refusing a built-in's name keeps `5e` and `3.5e` meaning the same thing in every saved fight. Rejected: `--ruleset FILE` (resume would need the path again), files beside the state file (one set per campaign folder is rarely what's wanted, and `--rulesets .` gives it anyway), overriding built-ins. |
 
 ## Layout
 
@@ -70,7 +72,7 @@ type Initiative int64 // thousandths: 15.3 → 15300
 type Encounter struct {
     SchemaVersion int
     Status        Status        // Setup | Active | Ended
-    Ruleset       string        // "5e" | "3.5e"; see Rulesets
+    Ruleset       string        // "5e", "3.5e" or a file's name; see Rulesets
     Round         int           // 0 during Setup
     Current       RowID         // whose turn; zero during Setup
     Combatants    []*Combatant
@@ -318,7 +320,7 @@ go test -cover ./...          # target: 90% or more in every package
 
 ## Rulesets
 
-In progress: milestones 8–11c are built, 12 is planned. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G10, sub-features RS1–RS10). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
+Milestones 8–12 are built. The requirements are [Rulesets](REQUIREMENTS.md#rulesets) (gaps G1–G10, sub-features RS1–RS10). v1 hard-coded the 5e answers in three places: `health.go` (clamp at 0), `Combatant.Down()` (one state at HP ≤ 0) and the condition list. Milestone 8 moved the condition list into the ruleset, and milestone 9 the other two.
 
 ### Built so far (milestone 8)
 
@@ -388,6 +390,16 @@ type HealthState struct {
 - `advance` skips `tick` for a row in `Delayed` and takes it off the list; a new round clears the list. `TurnRecord.PrevDelayed` lets `Previous` restore it.
 - The TUI reports the pass and selects the new turn holder, for both `i` and `:init`. The E2E 3.5e story delays on the caster's own turn.
 
+### Built so far (milestone 12)
+
+- `rulesets/5e.json` and `rulesets/3.5e.json` are embedded in `internal/combat` and parsed by `ParseRuleset` at package init (a bad built-in panics, which a test covers). `Ruleset` and `HealthState` gained JSON tags (D37).
+- `ParseRuleset` refuses unknown fields and trailing data, and checks: a name of 1–10 characters with no spaces, `hpFloor` ≤ 0, each state named, not `staggered`/`unconscious`, a label of at most 5 characters (the HP column), `min ≤ max`, not wholly below the floor, no repeated names and no overlapping ranges; conditions trimmed, not blank and not repeated. Names and conditions compare without case.
+- `UseRulesets` replaces the file rulesets, refusing a clash with a built-in or another file; `LookupRuleset` and `RulesetNames` cover both, built-ins first. `UnknownRulesetError` wraps `ErrUnknownRuleset` and lists the choices; `store.Load` and `SetRuleset` use it.
+- `store.LoadRulesets(dir)` reads `*.json` in name order, ignoring other files and folders, registers them, and on any error names the file and leaves only the built-ins loaded.
+- `main` loads the folder before checking `--ruleset` (D38). A state file in a ruleset that isn't loaded is refused as before, with a hint naming the folder.
+- The log no longer assumes a state ends at 0 HP: leaving a state for none at or below 0 HP writes "Orc is no longer down", and "dropped to 0 HP" is kept for a `down` state at exactly 0. Both built-ins log as before.
+- The E2E harness points `HOME` at a temp folder after the build, so no test reads the real config folder.
+
 ### Build order
 
 Each step keeps `5e` behavior identical to v1, checked by the existing unit, golden-screen and E2E suites.
@@ -400,7 +412,7 @@ Each step keeps `5e` behavior identical to v1, checked by the existing unit, gol
 | 11a. ✅ Condition sources | RS7 (G8) | `Condition.SourceID`, ticking on the source's turn, rewind and removal. Affects 5e too. |
 | 11b. ✅ Fixed-count effects | RS7 (G7) | `FixedAnchor`, pinned effect rows, the move-effects question on initiative edits. The riskiest step: it touches `tick` and ordering. |
 | 11c. ✅ Delay without lost turns | RS10 (G10) | Action item from 11b: an initiative edit that moves the turn holder later must not skip the rows in between. Touches `SetInitiative`, `Next` and rewind; affects 5e too (D36). |
-| 12. Ruleset files | RS9 | File format, validation, built-ins moved to the same form. The state file keeps only the ruleset's name (D35). |
+| 12. ✅ Ruleset files | RS9 | File format, validation, built-ins moved to the same form. The state file keeps only the ruleset's name (D35). |
 
 Milestones 8 and 9 alone are enough to run a 3.5 fight; 10–12 remove workarounds.
 

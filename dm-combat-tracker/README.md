@@ -46,14 +46,15 @@ dmct
 ```
 
 ```
-dmct [--state FILE] [--log FILE] [--ruleset NAME]
+dmct [--state FILE] [--log FILE] [--ruleset NAME] [--rulesets DIR]
 ```
 
 | Flag | Default | What it is |
 |---|---|---|
 | `--state` | `./dmct-state.json` | The fight's state, saved after every change |
 | `--log` | `./dmct-log-YYYY-MM-DD.md` | The Markdown combat log, dated the day combat starts |
-| `--ruleset` | `5e` | The game ruleset, `5e` or `3.5e`, for a fight that hasn't started. See [Rulesets](#rulesets) |
+| `--ruleset` | `5e` | The game ruleset, `5e`, `3.5e` or one from a file, for a fight that hasn't started. See [Rulesets](#rulesets) |
+| `--rulesets` | see [Ruleset files](#ruleset-files) | The folder ruleset files are read from |
 
 Run it in the folder you keep your campaign notes in, so the log lands next to them.
 
@@ -90,6 +91,44 @@ The ruleset sets these:
 | Condition list | D&D 5e | D&D 3.5 (Shaken, Sickened, Nauseated, Dazed, Fatigued and so on) |
 
 It still applies no rules for you: a dying creature doesn't lose HP or roll to stabilize on its own. When a dying creature's turn starts, the status line says so, and Stable is a condition you add by hand.
+
+#### Ruleset files
+
+Other systems (Pathfinder, house rules) are added as JSON files, with no code change. `dmct` reads every `*.json` file in the rulesets folder each time it starts:
+
+- `~/Library/Application Support/dmct/rulesets` on macOS
+- `~/.config/dmct/rulesets` on Linux (or `$XDG_CONFIG_HOME/dmct/rulesets`)
+- `%AppData%\dmct\rulesets` on Windows
+
+or the folder given with `--rulesets DIR`. The default folder doesn't have to exist; a folder named with `--rulesets` does.
+
+```json
+{
+  "name": "pf1",
+  "hpFloor": -10,
+  "nonlethal": true,
+  "fixedAnchor": true,
+  "states": [
+    {"name": "disabled", "tag": "dsbld", "min": 0, "max": 0, "acts": true},
+    {"name": "dying", "min": -9, "max": -1, "remind": true},
+    {"name": "dead", "max": -10}
+  ],
+  "conditions": ["Shaken", "Sickened", "Staggered"]
+}
+```
+
+| Field | Default | Meaning |
+|---|---|---|
+| `name` | required | What you pass to `--ruleset` and `:ruleset`. At most 10 characters, no spaces, and not `5e`, `3.5e` or another file's name. |
+| `hpFloor` | `0` | The lowest HP a creature can have. 0 or below. |
+| `states` | none | Health states by HP. `min` and `max` are inclusive; leave one out for no limit. The ranges can't overlap. `tag` is the short form in the HP column (at most 5 letters; defaults to `name`). `acts: true` highlights only the HP cell instead of dimming the row. `remind: true` points the state out when the creature's turn starts. `staggered` and `unconscious` are reserved for nonlethal damage. |
+| `nonlethal` | `false` | Track nonlethal damage, with the staggered and unconscious states. |
+| `fixedAnchor` | `false` | Sourced effects stay on the count they began on, as in 3.5e. |
+| `conditions` | none | The condition picker's list. Custom names can always be typed. |
+
+The built-in rulesets are written the same way: see [`internal/combat/rulesets`](internal/combat/rulesets) for both. A file with a mistake (an unknown field, overlapping states, a duplicate name) stops `dmct` at start-up with the file and the reason.
+
+A fight saves only its ruleset's name. To resume a fight in a ruleset from a file, the file must still be there, and a change to the file applies to the fight from then on.
 
 ### Initiative and ties
 

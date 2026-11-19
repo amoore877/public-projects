@@ -237,7 +237,7 @@ func TestLoadRuleset(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"schemaVersion":2,"status":"setup","ruleset":"4e"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(path, clock); err == nil || !strings.Contains(err.Error(), `unknown ruleset "4e"`) {
+	if _, err := Load(path, clock); !errors.Is(err, combat.ErrUnknownRuleset) || !strings.Contains(err.Error(), `unknown ruleset "4e"`) {
 		t.Fatalf("unknown ruleset: %v", err)
 	}
 }

@@ -1,0 +1,19 @@
+{
+  "name": "3.5e",
+  "hpFloor": -10,
+  "nonlethal": true,
+  "fixedAnchor": true,
+  "states": [
+    {"name": "disabled", "tag": "dsbld", "min": 0, "max": 0, "acts": true},
+    {"name": "dying", "min": -9, "max": -1, "remind": true},
+    {"name": "dead", "max": -10}
+  ],
+  "conditions": [
+    "Blinded", "Confused", "Cowering", "Dazed", "Dazzled", "Deafened",
+    "Energy Drained", "Entangled", "Exhausted", "Fascinated", "Fatigued",
+    "Flat-Footed", "Frightened", "Grappling", "Helpless", "Invisible",
+    "Nauseated", "Panicked", "Paralyzed", "Petrified", "Pinned", "Prone",
+    "Shaken", "Sickened", "Stable", "Stunned", "Turned", "Unconscious",
+    "Concentrating"
+  ]
+}

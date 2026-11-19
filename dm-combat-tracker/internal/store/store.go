@@ -43,7 +43,7 @@ func Load(path string, clock combat.Clock) (*combat.Encounter, error) {
 	if r, ok := combat.LookupRuleset(enc.Ruleset); ok {
 		enc.Ruleset = r.Name
 	} else {
-		return nil, fmt.Errorf("state %s: unknown ruleset %q", path, enc.Ruleset)
+		return nil, fmt.Errorf("state %s: %w %q", path, combat.ErrUnknownRuleset, enc.Ruleset)
 	}
 	enc.SchemaVersion = combat.SchemaVersion
 	switch enc.Status {

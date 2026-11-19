@@ -160,13 +160,19 @@ func (r *renderer) event(ev combat.Event) {
 	case combat.HealthStateChanged:
 		switch e.To {
 		case "":
-			if combat.IsNonlethalState(e.From) {
+			// Every built-in state covers HP 0 and below, so leaving one
+			// for none means HP is above 0. A ruleset file may say otherwise.
+			if combat.IsNonlethalState(e.From) || e.HP <= 0 {
 				r.entry(m, fmt.Sprintf("%s is no longer %s", e.Name, e.From))
 			} else {
 				r.entry(m, e.Name+" is back above 0 HP")
 			}
 		case "down":
-			r.entry(m, e.Name+" dropped to 0 HP")
+			if e.HP == 0 { // 5e, which can't go below 0
+				r.entry(m, e.Name+" dropped to 0 HP")
+				break
+			}
+			fallthrough
 		default:
 			if combat.IsNonlethalState(e.To) {
 				r.entry(m, fmt.Sprintf("%s is %s (%d HP, %d nonlethal)", e.Name, e.To, e.HP, e.Nonlethal))

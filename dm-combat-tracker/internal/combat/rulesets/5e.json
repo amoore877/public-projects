@@ -1,0 +1,12 @@
+{
+  "name": "5e",
+  "hpFloor": 0,
+  "states": [
+    {"name": "down", "max": 0}
+  ],
+  "conditions": [
+    "Blinded", "Charmed", "Deafened", "Exhaustion", "Frightened", "Grappled",
+    "Incapacitated", "Invisible", "Paralyzed", "Petrified", "Poisoned", "Prone",
+    "Restrained", "Stunned", "Unconscious", "Concentrating"
+  ]
+}

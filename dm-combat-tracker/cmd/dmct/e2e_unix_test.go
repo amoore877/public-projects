@@ -48,6 +48,15 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "build dmct: %v\n%s", err, out)
 		os.Exit(1)
 	}
+	// No test should read ruleset files from the real config folder (D38).
+	// Set after the build, which needs the real HOME for its cache.
+	home := filepath.Join(dir, "home")
+	if err := os.Mkdir(home, 0o755); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	os.Setenv("HOME", home)
+	os.Setenv("XDG_CONFIG_HOME", "")
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)
@@ -881,6 +890,72 @@ func TestNegativeHP35(t *testing.T) {
 		"[R1 · Orc] Orc is dying (-1 HP)",
 		"[R1 · Orc] Orc is back above 0 HP",
 	)
+}
+
+// A ruleset from a file is chosen, shown and used like a built-in, and a
+// fight in it resumes only while its file is still there (RS9, D35, D38).
+func TestRulesetFile(t *testing.T) {
+	dir := t.TempDir()
+	rules := filepath.Join(dir, "rules")
+	if err := os.Mkdir(rules, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pf := `{"name":"pf1","hpFloor":-12,"states":[
+		{"name":"disabled","tag":"dsbld","min":0,"max":0,"acts":true},
+		{"name":"dying","min":-11,"max":-1,"remind":true},
+		{"name":"dead","max":-12}],
+		"conditions":["Shaken","Sickened","Staggered"]}`
+	if err := os.WriteFile(filepath.Join(rules, "pf1.json"), []byte(pf), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	a := launch(t, dir, "--rulesets", rules, "--ruleset", "pf1", "--log", "recap.md")
+	a.see("Setup", "pf1")
+	a.do(":add Orc 12 10"+enter, "10/10")
+	a.keys(":cond orc sickened" + enter)
+	a.rowShows("Orc", "Sickened")
+	a.do(":start"+enter, "Round 1 ─ Turn: Orc", "pf1")
+	a.keys(":dmg orc 15" + enter)
+	a.rowShows("Orc", "DYING -5/10")
+	a.keys(":dmg orc 20" + enter)
+	a.rowShows("Orc", "DEAD -12/10") // the file's floor
+	a.quit()
+
+	wantLines(t, logLines(t, filepath.Join(dir, "recap.md")),
+		"# Combat",
+		"## Round 1",
+		"[R1 · Orc] Combat started: Orc (12)",
+		"[R1 · Orc] Orc is dying (-5 HP)",
+		"[R1 · Orc] Orc is dead (-12 HP)",
+	)
+
+	// Without the folder the fight can't be read, and the state file is
+	// left alone.
+	before := read(t, filepath.Join(dir, "dmct-state.json"))
+	cmd := exec.Command(bin)
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), `unknown ruleset "pf1"`) || !strings.Contains(string(out), "Ruleset files are read from") {
+		t.Errorf("resume without the folder: %v\n%s", err, out)
+	}
+	if read(t, filepath.Join(dir, "dmct-state.json")) != before {
+		t.Error("the state file was changed")
+	}
+
+	b := launch(t, dir, "--rulesets", rules)
+	b.see("Resumed from dmct-state.json", "DEAD -12/10", "pf1")
+	b.quit()
+
+	// A bad file is refused at start-up with the reason.
+	if err := os.WriteFile(filepath.Join(rules, "pf1.json"), []byte(`{"name":"pf1","hpFloor":4}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd = exec.Command(bin, "--rulesets", rules)
+	cmd.Dir = dir
+	out, err = cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(out), `pf1.json: "hpFloor" is 4; it can't be above 0`) {
+		t.Errorf("bad file: %v\n%s", err, out)
+	}
 }
 
 // Nonlethal damage, max HP edits and stacking temp HP, by key and by

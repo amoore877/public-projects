@@ -55,7 +55,7 @@ func Open(cfg Config) (s *Session, resumed bool, err error) {
 	if cfg.Ruleset != "" {
 		r, ok := combat.LookupRuleset(cfg.Ruleset)
 		if !ok {
-			return nil, false, fmt.Errorf("unknown ruleset %q", cfg.Ruleset)
+			return nil, false, combat.UnknownRulesetError(cfg.Ruleset)
 		}
 		if enc != nil && enc.Status == combat.Active && enc.Rules().Name != r.Name {
 			return nil, false, fmt.Errorf("%w: %s holds a %s fight in progress", ErrRulesetInUse, cfg.StatePath, enc.Rules().Name)
