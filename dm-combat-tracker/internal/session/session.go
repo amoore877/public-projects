@@ -34,6 +34,8 @@ type Session struct {
 	cfg Config
 	enc *combat.Encounter
 	log *journal.Writer
+
+	undo, redo []step // D40; in memory only, so a restart starts empty (D43)
 }
 
 // Open resumes the encounter in the state file, or starts a new one in Setup.
@@ -97,6 +99,8 @@ type Outcome struct {
 	LogErr     error  // the log couldn't be written (best-effort)
 	Logged     bool   // log entries were written (false in Setup, where only notes are logged)
 	ArchivedTo string // set when combat ended and the state file was archived
+	Undid      bool   // from Undo: Events are the change that was undone
+	Redid      bool   // from Redo: Events are the change that was made again
 }
 
 // Op is one domain operation, e.g.
@@ -106,9 +110,11 @@ type Op func(*combat.Encounter) ([]combat.Event, error)
 
 // Apply runs op on the encounter. If op fails, nothing is saved or logged and
 // its error is returned. Otherwise the state is saved, the events are logged,
-// and, if combat ended, the state file is archived and a new encounter begins.
+// the change is kept for Undo, and, if combat ended, the state file is
+// archived and a new encounter begins.
 func (s *Session) Apply(op Op) (Outcome, error) {
 	logAt := journal.ResumeFor(s.enc)
+	before := snapshot(s.enc)
 	evs, err := op(s.enc)
 	if err != nil {
 		return Outcome{}, err
@@ -130,6 +136,14 @@ func (s *Session) Apply(op Op) (Outcome, error) {
 
 	out.SaveErr = store.Save(s.cfg.StatePath, s.enc)
 	out.Logged, out.LogErr = s.writeLog(evs, logAt)
+	st := step{before: before, events: evs}
+	if !ended {
+		st.after = snapshot(s.enc)
+	}
+	if out.Logged {
+		st.logged = journal.Texts(evs)
+	}
+	s.record(st, ended)
 
 	if ended {
 		s.closeLog()

@@ -187,6 +187,10 @@ func (e *Encounter) newSeq() int {
 }
 
 // meta stamps an event with the current round, turn holder and time.
+// Meta is the round, turn holder and time as an event made now would carry
+// them; the session stamps its own log lines (undo, redo) with it.
+func (e *Encounter) Meta() EventMeta { return e.meta() }
+
 func (e *Encounter) meta() EventMeta {
 	m := EventMeta{Round: e.Round, At: e.now()}
 	if r, ok := e.row(e.Current); ok {

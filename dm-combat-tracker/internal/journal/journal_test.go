@@ -378,3 +378,81 @@ func TestHealthStatesFromAFile(t *testing.T) {
 		}
 	}
 }
+
+// The pieces the session's undo and redo use (D42).
+func TestUndoAndRedoLines(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "log.md")
+	clk := newClock()
+	f := newFight(t, path, clk)
+	f.add("Mira", combat.PC, "15", 27)
+	f.add("Orc", combat.NPC, "12", 5)
+	f.do(f.enc.Start())
+	f.do(f.enc.Next())
+
+	evs, err := f.enc.Next() // round 2
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := Texts(evs); len(got) != 1 || got[0] != "Round 2 started" {
+		t.Errorf("texts %q", got)
+	}
+	f.do(evs, nil)
+	dmg, err := f.enc.Damage(f.id("Orc"), 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := Texts(dmg); len(got) != 1 || got[0] != "Orc dropped to 0 HP" {
+		t.Errorf("texts %q", got)
+	}
+	if got := Texts(must(f.enc.Damage(f.id("Mira"), 3))); got != nil {
+		t.Errorf("HP arithmetic writes nothing, got %q", got)
+	}
+
+	clk.minutes(2)
+	if err := f.w.Entry(f.enc.Meta(), "Undone: Round 2 started"); err != nil {
+		t.Fatal(err)
+	}
+	f.w.Resync(Resume{Header: true, Round: 1})
+	if err := f.w.WriteRedone(evs, clk.now); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.w.WriteRedone(dmg, clk.now); err != nil {
+		t.Fatal(err)
+	}
+	f.w.Close()
+
+	got := strings.Join(logLines(t, path), "\n")
+	for _, want := range []string{
+		"## Round 2\n- `19:44` **[R2 · Mira]** Undone: Round 2 started\n## Round 2",
+		"- `19:44` **[R2 · Mira]** Orc dropped to 0 HP (redone)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("log is missing %q:\n%s", want, got)
+		}
+	}
+	if err := f.w.Entry(f.enc.Meta(), "too late"); err == nil {
+		t.Error("writing to a closed log should fail")
+	}
+}
+
+func must(evs []combat.Event, err error) []combat.Event {
+	if err != nil {
+		panic(err)
+	}
+	return evs
+}
+
+func logLines(t *testing.T, path string) []string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, l := range strings.Split(string(data), "\n") {
+		if l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
+}

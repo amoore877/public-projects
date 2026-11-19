@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/combat"
 )
@@ -61,7 +62,36 @@ func (w *Writer) Close() error { return w.f.Close() }
 // worth a log line are skipped. On error nothing about the writer's position
 // changes, so the caller can carry on (logging is best-effort).
 func (w *Writer) Write(evs []combat.Event) error {
-	r := renderer{header: w.header, round: w.round, trailing: w.trailing}
+	return w.flush(w.renderer(), evs)
+}
+
+// WriteRedone writes evs again for a redo (D42): each entry is marked
+// "(redone)" and stamped at, the time of the redo.
+func (w *Writer) WriteRedone(evs []combat.Event, at time.Time) error {
+	r := w.renderer()
+	r.suffix, r.at = " (redone)", &at
+	return w.flush(r, evs)
+}
+
+// Entry writes one entry of the session's own, such as an undo line (D42).
+func (w *Writer) Entry(m combat.EventMeta, text string) error {
+	r := w.renderer()
+	r.entry(m, text)
+	return w.flush(r, nil)
+}
+
+// Resync sets where the writer thinks the log stands, after the encounter
+// was put back to an earlier state (an undo or redo). The next round
+// heading is written again if the restored round is before it.
+func (w *Writer) Resync(at Resume) {
+	w.header, w.round = at.Header, at.Round
+}
+
+func (w *Writer) renderer() *renderer {
+	return &renderer{header: w.header, round: w.round, trailing: w.trailing}
+}
+
+func (w *Writer) flush(r *renderer, evs []combat.Event) error {
 	for _, ev := range evs {
 		r.event(ev)
 	}
@@ -75,11 +105,27 @@ func (w *Writer) Write(evs []combat.Event) error {
 	return nil
 }
 
+// Texts lists what writing evs puts in the log, one line per entry
+// without its time and turn stamp, plus "Round N started" for a round
+// heading. Nil means the events write nothing. The session uses it to name
+// an undone step (D42).
+func Texts(evs []combat.Event) []string {
+	r := renderer{header: true}
+	for _, ev := range evs {
+		r.event(ev)
+	}
+	return r.texts
+}
+
 type renderer struct {
 	b        strings.Builder
 	header   bool
 	round    int
 	trailing int
+
+	suffix string     // appended to every entry (" (redone)")
+	at     *time.Time // overrides the events' own time, for a redo
+	texts  []string   // what was written, for Texts
 }
 
 func (r *renderer) raw(s string) {
@@ -127,7 +173,13 @@ func (r *renderer) entry(m combat.EventMeta, text string) {
 			stamp += " · " + oneLine(m.TurnHolder)
 		}
 	}
-	r.raw(fmt.Sprintf("- `%s` **[%s]** %s\n", m.At.Format("15:04"), stamp, oneLine(text)))
+	at := m.At
+	if r.at != nil {
+		at = *r.at
+	}
+	text = oneLine(text) + r.suffix
+	r.texts = append(r.texts, text)
+	r.raw(fmt.Sprintf("- `%s` **[%s]** %s\n", at.Format("15:04"), stamp, text))
 }
 
 func (r *renderer) event(ev combat.Event) {
@@ -148,6 +200,7 @@ func (r *renderer) event(ev combat.Event) {
 	case combat.RoundStarted:
 		r.ensureHeader(m)
 		r.roundHeading(m.Round)
+		r.texts = append(r.texts, "Round "+strconv.Itoa(m.Round)+" started")
 	case combat.CombatEnded:
 		r.entry(m, "Combat ended after "+plural(e.Rounds, "round"))
 	case combat.TurnRewound:
