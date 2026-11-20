@@ -226,3 +226,34 @@ func (r Result) String() string {
 
 // termChar reports whether r can be part of a term: a digit or "d".
 func termChar(r rune) bool { return r == 'd' || (r >= '0' && r <= '9') }
+
+// Breakdown lists what each term rolled, in set order (DR4, D48): terms as
+// typed, each term's faces in roll order. A dice term is "[5 3]", or
+// "-[3]" when subtracted; a whole number keeps its sign ("+2", "-1"), except
+// a positive first term. "2d6+2+1d4" might give "[5 3] +2 [4]".
+func (r Result) Breakdown() string {
+	parts := make([]string, len(r.Terms))
+	for i, rt := range r.Terms {
+		var s string
+		if rt.Term.Dice() {
+			faces := make([]string, len(rt.Faces))
+			for j, f := range rt.Faces {
+				faces[j] = strconv.Itoa(f)
+			}
+			s = "[" + strings.Join(faces, " ") + "]"
+			if rt.Term.Sign < 0 {
+				s = "-" + s
+			}
+		} else {
+			s = strconv.Itoa(rt.Term.Value)
+			switch {
+			case rt.Term.Sign < 0:
+				s = "-" + s
+			case i > 0:
+				s = "+" + s
+			}
+		}
+		parts[i] = s
+	}
+	return strings.Join(parts, " ")
+}

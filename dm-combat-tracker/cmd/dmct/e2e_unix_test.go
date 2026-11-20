@@ -1117,7 +1117,7 @@ func TestFixedCountEffects(t *testing.T) {
 
 // Dice typed at the table: a roll shows its total, a typo is fixed in the
 // prompt, enter alone repeats it, and :roll works too. Nothing in the fight,
-// the log or the undo history changes (DR1–DR3, D45).
+// the log or the undo history changes (DR1–DR4, D45).
 func TestDiceRoller(t *testing.T) {
 	dir := t.TempDir()
 	a := launch(t, dir, "--log", "recap.md")
@@ -1140,6 +1140,19 @@ func TestDiceRoller(t *testing.T) {
 	a.do("r", "Roll:", "e.g. 2d6+2+1d4")
 	a.keys("2d6 + 2 + d4" + enter)
 	rolled("2d6+2+1d4", 5, 18)
+	// Each die, in set order, adds up to the total (DR4).
+	re := regexp.MustCompile(`2d6\+2\+1d4 = (\d+) · \[([1-6]) ([1-6])\] \+2 \[([1-4])\]`)
+	m := re.FindStringSubmatch(a.screen())
+	if m == nil {
+		t.Fatalf("no breakdown:\n%s", a.screen())
+	}
+	n := make([]int, 4)
+	for i := range n {
+		n[i], _ = strconv.Atoi(m[i+1])
+	}
+	if n[0] != n[1]+n[2]+2+n[3] {
+		t.Errorf("breakdown %q doesn't add up", m[0])
+	}
 
 	a.do("r4d"+enter, `The number of sides is missing after "4d"`)
 	a.keys("6" + enter)

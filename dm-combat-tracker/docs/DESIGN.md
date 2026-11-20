@@ -479,7 +479,7 @@ func (s *Session) UndoDepth() (undo, redo int)
 
 ## Dice roller
 
-Milestones 14a–14b, for [Dice roller](REQUIREMENTS.md#dice-roller) (DR1–DR4). The decisions are D45–D48: a tool beside the fight (D45), the grammar (D46), the keys (D47) and the output (D48). 14a is built; 14b is next.
+Milestones 14a–14b, for [Dice roller](REQUIREMENTS.md#dice-roller) (DR1–DR4). The decisions are D45–D48: a tool beside the fight (D45), the grammar (D46), the keys (D47) and the output (D48). Both are built.
 
 ### How it works
 
@@ -520,12 +520,18 @@ func (r Result) Breakdown() string       // "[5 3] +2 [4]"
 - `r` prompt (its hint names the expression enter alone repeats), `:roll [DICE]` (command kind `Roll`), help overlay and README. Like `u`, `r` isn't in the hint line, which is full at 80 columns.
 - Golden screens for the prompt and the result; an E2E story: roll, fix a typo in place, repeat with enter, `:roll`, then check that undo skips the rolls and the log has none.
 
+### Built so far (milestone 14b)
+
+- `dice.Result.Breakdown`: `[5 3] +2 [4]`, `-[3]` for a subtracted dice term, a whole number with its sign except a positive first one.
+- The model keeps the last roll and fits it to the width when drawing, so a resize redraws it: the whole line if it fits, else the breakdown cut with `…`, else `EXPR = TOTAL`, else the expression cut and ` = TOTAL` kept.
+- Tests at every cut point; golden screens for `2d6+2+1d4` and for `20d6+3` at 80 and 43 columns; the E2E story checks that the dice add up to the total.
+
 ### Build order
 
 | Milestone | Covers | Notes |
 |---|---|---|
 | 14a. ✅ Dice roller | DR1, DR2, DR3 | `internal/dice` with `Parse`, `Roll`, `String` and table-driven tests (every refusal, `d` without a count, signs, limits, seeded rolls); `r` prompt, empty-Enter repeat, `:roll`, help overlay and README; golden screen and an E2E story (roll, a refused expression fixed in place, repeat). Status line shows `EXPR = TOTAL`. |
-| 14b. Breakdown | DR4 | `Result.Breakdown`, the `· [5 3] +2 [4]` suffix and its truncation at 80 columns and below; golden screens for a long roll (`20d6`) and a narrow terminal. |
+| 14b. ✅ Breakdown | DR4 | `Result.Breakdown`, the `· [5 3] +2 [4]` suffix and its truncation at 80 columns and below; golden screens for a long roll (`20d6`) and a narrow terminal. |
 
 Later, not designed: dice in the `d`/`h` prompts with resistance, vulnerability and immunity grammar (DR5).
 

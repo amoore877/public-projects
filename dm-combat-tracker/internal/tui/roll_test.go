@@ -1,9 +1,12 @@
 package tui
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"strings"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/combat"
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/dice"
@@ -22,7 +25,7 @@ func wantRolls(t *testing.T, exprs ...string) []string {
 		if err != nil {
 			t.Fatal(err)
 		}
-		out = append(out, e.Roll(r).String())
+		out = append(out, rollText(e.Roll(r)))
 	}
 	return out
 }
@@ -151,8 +154,60 @@ func TestRollDefaultSource(t *testing.T) {
 	m := New(newSession(t), "")
 	for range 50 {
 		runCmd(m, ":roll 1d4")
-		if m.msg < "1d4 = 1" || m.msg > "1d4 = 4" || len(m.msg) != len("1d4 = 1") {
+		if n := m.msg[len("1d4 = ")]; !strings.HasPrefix(m.msg, "1d4 = ") || n < '1' || n > '4' ||
+			m.msg != fmt.Sprintf("1d4 = %c · [%c]", n, n) {
 			t.Fatalf("msg %q", m.msg)
 		}
+	}
+}
+
+// The status line shows what each die rolled, in set order, and cuts the
+// breakdown before the total on a narrow terminal (DR4, D48).
+func TestRollBreakdown(t *testing.T) {
+	e, _ := dice.Parse("2d6+2-1d4")
+	r := e.Roll(seededRand())
+	a, b, c := r.Terms[0].Faces[0], r.Terms[0].Faces[1], r.Terms[2].Faces[0]
+	full := fmt.Sprintf("2d6+2-1d4 = %d · [%d %d] +2 -[%d]", a+b+2-c, a, b, c)
+	if got := rollText(r); got != full {
+		t.Fatalf("rollText %q, want %q", got, full)
+	}
+	head := fmt.Sprintf("2d6+2-1d4 = %d", a+b+2-c)
+	total := fmt.Sprintf(" = %d", a+b+2-c)
+	for _, c := range []struct {
+		width int
+		want  string
+	}{
+		{80, full},
+		{len([]rune(full)), full},
+		{len([]rune(full)) - 1, string([]rune(full)[:len([]rune(full))-2]) + "…"},
+		{len(head) + 4, head + " · …"},
+		{len(head) + 3, head},
+		{len(head), head},
+		{len(head) - 1, "2d6+2-1…" + total},
+		{2, "…" + total},
+	} {
+		if got := rollLine(r, c.width); got != c.want {
+			t.Errorf("width %d: %q, want %q", c.width, got, c.want)
+		}
+	}
+}
+
+func TestRenderLongRoll(t *testing.T) {
+	m := sized(New(newSession(t, fight()...), ""), 80, 24)
+	m.rng = seededRand()
+	runCmd(m, ":roll 20d6+3")
+	golden(t, "roll_20d6_80.golden", screen(m))
+	// Narrow: the breakdown goes, the total stays.
+	m.Update(tea.WindowSizeMsg{Width: 43, Height: 24})
+	got := screen(m)
+	golden(t, "roll_20d6_43.golden", got)
+	lines := strings.Split(got, "\n")
+	if status := lines[len(lines)-2]; !strings.HasPrefix(status, " 20d6+3 = ") || !strings.HasSuffix(strings.TrimSpace(status), "…") {
+		t.Errorf("status line %q", status)
+	}
+	// Another message replaces the roll as usual.
+	press(m, "u")
+	if strings.Contains(screen(m), "20d6") {
+		t.Errorf("roll still shown:\n%s", screen(m))
 	}
 }

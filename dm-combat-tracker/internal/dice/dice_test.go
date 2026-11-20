@@ -1,6 +1,7 @@
 package dice
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"reflect"
 	"strings"
@@ -141,5 +142,49 @@ func TestRollNumberOnly(t *testing.T) {
 	e, _ := Parse("10-3")
 	if r := e.Roll(seeded()); r.Total != 7 || r.String() != "10-3 = 7" {
 		t.Errorf("%+v", r)
+	}
+}
+
+func TestBreakdown(t *testing.T) {
+	roll := func(expr string, faces ...[]int) Result {
+		e, err := Parse(expr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := Result{Expr: e}
+		k := 0
+		for _, term := range e.Terms {
+			rt := Rolled{Term: term}
+			if term.Dice() {
+				rt.Faces = faces[k]
+				k++
+			}
+			r.Terms = append(r.Terms, rt)
+			r.Total += rt.Sum()
+		}
+		return r
+	}
+	for _, c := range []struct {
+		r    Result
+		want string
+	}{
+		{roll("2d6+2+1d4", []int{5, 3}, []int{4}), "[5 3] +2 [4]"},
+		{roll("4d6+4", []int{6, 1, 3, 3}), "[6 1 3 3] +4"},
+		{roll("1d8-1", []int{6}), "[6] -1"},
+		{roll("10-1d4", []int{3}), "10 -[3]"},
+		{roll("-1d4+10", []int{2}), "-[2] +10"},
+		{roll("-3+d20", []int{20}), "-3 [20]"},
+		{roll("7"), "7"},
+	} {
+		if got := c.r.Breakdown(); got != c.want {
+			t.Errorf("%s: %q, want %q", c.r.Expr, got, c.want)
+		}
+	}
+	// A real roll's breakdown matches its faces, in roll order.
+	e, _ := Parse("3d20")
+	r := e.Roll(seeded())
+	f := r.Terms[0].Faces
+	if want := fmt.Sprintf("[%d %d %d]", f[0], f[1], f[2]); r.Breakdown() != want {
+		t.Errorf("%q, want %q", r.Breakdown(), want)
 	}
 }

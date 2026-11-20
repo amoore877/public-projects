@@ -51,14 +51,15 @@ type Model struct {
 	offset   int          // first visible row when the table scrolls
 	msg      string
 	level    msgLevel
-	overlay  overlay    // the open prompt, if any; it gets every key
-	chain    overlay    // set by an action to open another prompt when the current one closes
-	history  []string   // command-bar lines, oldest first
-	help     bool       // the help screen is showing
-	helpOff  int        // its scroll position
-	quitting bool       // set by the quit confirmation; Update then quits
-	rng      *rand.Rand // the dice roller's random source
-	lastRoll *dice.Expr // the last expression rolled, for a repeat (D47)
+	overlay  overlay     // the open prompt, if any; it gets every key
+	chain    overlay     // set by an action to open another prompt when the current one closes
+	history  []string    // command-bar lines, oldest first
+	help     bool        // the help screen is showing
+	helpOff  int         // its scroll position
+	quitting bool        // set by the quit confirmation; Update then quits
+	rng      *rand.Rand  // the dice roller's random source
+	lastRoll *dice.Expr  // the last expression rolled, for a repeat (D47)
+	rolled   dice.Result // the last roll, so the status line can fit it to the width (D48)
 
 	// Sticky problems shown in the error banner until a later change
 	// succeeds where they failed.
@@ -523,6 +524,9 @@ func (m *Model) statusLine(enc *combat.Encounter, l layout, rows []rowCells, end
 		style = styleWarn
 	case levelError:
 		style = styleError
+	}
+	if text != "" && m.lastRoll != nil && text == rollText(m.rolled) {
+		text = rollLine(m.rolled, m.width-1)
 	}
 	if text == "" && len(rows) == 0 {
 		text = "No combatants yet"

@@ -2,8 +2,11 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"math/rand/v2"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/dice"
 )
@@ -55,8 +58,29 @@ func (m *Model) roll(e *dice.Expr) error {
 		return errNoRoll
 	}
 	m.lastRoll = e
-	m.info(e.Roll(m.rng).String())
+	m.rolled = e.Roll(m.rng)
+	m.info(rollText(m.rolled))
 	return nil
+}
+
+// rollText is a roll as the status line shows it when there's room:
+// "2d6+2+1d4 = 14 · [5 3] +2 [4]" (DR4, D48).
+func rollText(r dice.Result) string { return r.String() + " · " + r.Breakdown() }
+
+// rollLine fits a roll into width cells. The breakdown is cut first; if
+// even "EXPR = TOTAL" doesn't fit, the expression is cut and the total kept.
+func rollLine(r dice.Result, width int) string {
+	full, head := rollText(r), r.String()
+	switch {
+	case ansi.StringWidth(full) <= width:
+		return full
+	case ansi.StringWidth(head+" · …") <= width:
+		return ansi.Truncate(full, width, "…")
+	case ansi.StringWidth(head) <= width:
+		return head
+	}
+	total := fmt.Sprintf(" = %d", r.Total)
+	return ansi.Truncate(r.Expr.String(), max(1, width-len(total)), "…") + total
 }
 
 func blank(s string) bool {

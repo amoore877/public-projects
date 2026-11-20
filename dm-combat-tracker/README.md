@@ -86,7 +86,7 @@ The log is never rewritten. Undoing something that was logged adds an `Undone: â
 
 ### Dice
 
-`r` opens a roll prompt. Type what the rulebook says and press enter: `4d6+4`, `2d6+2+1d4`, `1d8-1`. `d20` means `1d20`, and spaces and capitals don't matter (`2D6 + d4`). The status line shows the total, `2d6+2+1d4 = 14`. Enter on an empty prompt rolls the last expression again, so a repeated attack is `r` then enter. `:roll 2d6+3` does the same from the command bar, and `:roll` alone repeats.
+`r` opens a roll prompt. Type what the rulebook says and press enter: `4d6+4`, `2d6+2+1d4`, `1d8-1`. `d20` means `1d20`, and spaces and capitals don't matter (`2D6 + d4`). The status line shows the total and then each die, in the order you typed them: `2d6+2+1d4 = 14 Â· [5 3] +2 [4]`. On a narrow terminal the dice are cut off before the total is. Enter on an empty prompt rolls the last expression again, so a repeated attack is `r` then enter. `:roll 2d6+3` does the same from the command bar, and `:roll` alone repeats.
 
 A roll changes nothing: it isn't saved, logged, or undone. Limits are 100 dice in a term, 1000 sides, and 20 terms. Keep/drop (`4d6kh3`), advantage and `d%` aren't supported.
 

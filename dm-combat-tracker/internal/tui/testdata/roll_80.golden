@@ -10,5 +10,5 @@
 │   │ 9 !    │ Bandit Capt… │ NPC  │ 65/65       │                │            │
 │   │ 9      │ ◆ Spirit Gu… │ FX   │             │ 10 rds · 2 ta… │ 3d8 radia… │
 └───┴────────┴──────────────┴──────┴─────────────┴────────────────┴────────────┘
- 2d6+2+1d4 = 10                                                                 
+ 2d6+2+1d4 = 10 · [2 3] +2 [3]                                                  
  n next · p prev · d/h dmg/heal · c/C cond · e effect · : cmd · ? help · q quit 
