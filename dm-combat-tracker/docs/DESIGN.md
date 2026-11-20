@@ -56,6 +56,12 @@ Each entry is a decision made during planning, with what it rules out.
 | D46 | **Grammar: a sum of `NdS` terms and whole numbers, with `+` and `-`.** A bare `d` means `1d`; spaces and case are ignored, but a space inside a term or between two unsigned terms (`2d6 3`) is refused. At most 100 dice in a term, 1000 sides, and 20 terms; a die has at least 2 sides. Parsed by hand in a pure `internal/dice` package. | Covers what's printed in stat blocks and spell text. The limits catch typos (`20d`, `1d2000`) and keep the breakdown short enough to read. Rejected: keep/drop, advantage, `d%` and multiplication (later grammar; see "Not in the roller" in REQUIREMENTS); a third-party dice library (a dependency for a 30-line parser). |
 | D47 | **`r` opens a `Roll:` prompt; Enter on an empty prompt rolls the last expression again; `:roll EXPR` in the command bar.** The last expression lives in the TUI model only. | `r` is free and reads as "roll"; repeating an attack is the common case, and `r` Enter is two keys. Rejected: keeping the prompt open after a roll (the DM usually acts next); saving the last expression in the state file (it isn't fight state). |
 | D48 | **The result is `EXPR = TOTAL · BREAKDOWN` on the status line**, the breakdown in set order: terms as typed, each term's faces in roll order (`[5 3] +2 [4]`), a subtracted dice term as `-[3]`. The breakdown is cut with `…` before the total is. | Set order lets the DM match each bracket to the term that made it. Total first means a narrow terminal never loses the number that matters. Rejected: sorted faces (hides which die was which). |
+| D49 | **Amount prompts and commands take dice** (`d`, `h`, `t`, `D`; `:dmg`, `:heal`, `:temp`, `:nl`); `=N` and max HP stay numbers. A multi-target command rolls once. Revises D45: a roll can now change HP, but only when typed as an amount. | One step per hit instead of `r` then `d`. Rolling once for an area matches how 5e rolls area damage. Rejected: a roll per target (rarely wanted; separate commands do it); dice in `=N` (setting HP to a roll has no use). |
+| D50 | **`*N` and `/N` (rounding down) with the usual precedence and brackets** (DD1). Revises D46, which had only `+` and `-`. | The DM's own reading: `2d6+1d4/2` halves only the 1d4. Accepted cost: halving a whole hit needs brackets, `(2d6+3)/2`. Rejected: applying modifiers left to right to the running total (can't say "half the fire, double the poison"); a modifier ending a part so dice after it start a new one (reads `2d6+1d4/2` as the whole thing halved). |
+| D51 | **Named parts** (DD2): a word names everything since the previous name, and a modifier after the name applies to the part. Names are matched, never interpreted. | Damage of two types needs each type halved, doubled or zeroed on its own, and per target (D53) needs a way to say which part. A name reads better than a position. No damage types are stored or known, so R8 holds. Rejected: numbered parts (`g3[2*0]`). |
+| D52 | **In an amount, bracket groups and parts stop at 0**; the `r` roller doesn't clamp. | Resistance by subtraction (3.5) must not spill from one type into another, and damage can't heal. The roller is plain arithmetic, so `r 1d4-3` can show -2. |
+| D53 | **Per-target modifiers in brackets after the name** (DD4): `g2/2`, `g3[fire*0]`, `mira[/2 poison*2]`. A modifier without a name applies to each part, rounding each part separately; they run left to right after the amount's own. | One command covers a whole area spell with saves and resistances. Per part rounding keeps one rule however resistance and saves are mixed; it can come out one lower per extra part than halving the total, which the DM accepted. Rejected: halving the total for unnamed modifiers (then modifiers can't run in the order typed). |
+| D54 | **The amount prompts keep their own `↑` history, apart from `r`'s last roll; an empty amount is still refused** (DD6). | The usual turn is attack with `r`, damage with `d`; sharing one memory would make the next `r` enter roll damage. An empty enter that dealt damage would be too easy to hit. |
 
 ## Layout
 
@@ -330,7 +336,7 @@ go test -cover ./...          # target: 90% or more in every package
 6. ✅ **Command bar + help overlay.**
 7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
-Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller).
+Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing).
 
 ## Rulesets
 
@@ -535,6 +541,51 @@ func (r Result) Breakdown() string       // "[5 3] +2 [4]"
 
 Later, not designed: dice in the `d`/`h` prompts with resistance, vulnerability and immunity grammar (DR5).
 
+## Dice in damage and healing
+
+Planned as milestones 15a–15c, for [Dice in damage and healing](REQUIREMENTS.md#dice-in-damage-and-healing) (DD1–DD6). The decisions are D49–D54.
+
+### How it works
+
+`internal/dice` moves from a flat list of terms to a small tree, still parsed by hand:
+
+```go
+// amount := part (('+' | '-') part)*           parts are split by names
+// part   := sum [NAME mods]
+// sum    := product (('+' | '-') product)*
+// product:= atom mods
+// atom   := NdS | N | '(' sum ')'
+// mods   := (('*' | '/') N)*
+type Node interface{ ... }   // Dice, Number, Group, Scaled, Sum
+type Part struct {
+    Name string  // "" when unnamed
+    Expr Node
+    Mods []Mod   // after the name
+}
+type Expr struct{ Parts []Part }
+
+func (e Expr) Roll(r *rand.Rand) Result        // faces in roll order, as now
+func (r Result) Amount(m []TargetMod) (int, []int, error) // total and per-part, clamped (D52); error for an unknown name
+```
+
+- **Limits.** As D46, plus brackets nested at most 4 deep, `*N` and `/N` with N from 0 to 100 (`/0` refused), and 8 named parts.
+- **Names.** A word of letters after a term, bracket or the previous name ends a part. `d` then a digit is a die; any other word starting with `d` (`dark`) is a name. Names compare ignoring case; the same name twice is refused.
+- **Clamping.** `Result.Amount` clamps every group and part at 0 (D52); `Result.Total` stays plain arithmetic for `r`.
+- **Breakdown.** The expression with each dice term replaced by its faces, keeping brackets, modifiers and names: `[5 3] +[3]/2`, `([4] +3) fire/2 +[5] poison*2`. With names, the part totals come before the faces: `= 13 · fire 3, poison 10 · …`.
+- **Prompts.** `promptHP` parses the text as an amount unless it starts with `=` (set) or `+` on `t` (add). It rolls, then applies the clamped amount through one `session.Apply`. Each prompt kind keeps a `↑` history of amounts typed, in memory, separate from `lastRoll` (D54).
+- **Commands.** `:dmg`, `:heal`, `:temp` and `:nl` take everything after the targets as the amount. In 15c a target may end in `/N`, `*N` or `[...]`; the bracket is read before name matching (D27), so `goblin 2[fire*0]` still finds Goblin 2. The roll happens once in the TUI and each target's amount is worked out from it before anything changes, so a bad name refuses the whole command (D28).
+- **Undo summary.** Already phrased per event; a multi-target amount reads "Goblin 1 took 29 damage (and 3 more)".
+
+### Build order
+
+| Milestone | Covers | Notes |
+|---|---|---|
+| 15a. Grammar | DD1, DD2 | The tree parser, `*`, `/`, brackets, names, the new breakdown, `Amount` with clamping. `r` and `:roll` show it. Tests: precedence (`2d6+1d4/2`, `(2d6+3)/2`, `2d6+3/2`), rounding, names, every refusal, the D48 output unchanged for plain sums. |
+| 15b. Dice in amounts | DD3, DD5, DD6 | `d`/`h`/`t`/`D` and `:dmg`/`:heal`/`:temp`/`:nl`; the same amount for every target; the status line; `↑` history. E2E: a hit by key, an area by command, undo and redo keep the roll. |
+| 15c. Per-target modifiers | DD4 | Brackets on targets, per-part rounding, per-target splits on the status line. E2E: a two-type area with a save, an immunity and a vulnerability. |
+
+Later: the target picker with saved / resistant / vulnerable / immune keys.
+
 ## Open questions
 
 The end-combat, duration, and condition-list questions were settled as D13, D12, and D14. Open for the ruleset work:
@@ -548,3 +599,5 @@ The end-combat, duration, and condition-list questions were settled as D13, D12,
 For undo and redo, all settled 2026-11-18: no undo history across a restart and no undo past End (D43); undo and redo are marked in the log (D42); the history keeps 100 steps (D40).
 
 For the dice roller, settled 2026-11-19: rolls are not logged (D45); the breakdown is in set order (D48); rolling in the damage prompt waits for resistance grammar (DR5).
+
+For dice in damage, settled 2026-11-19: usual precedence, so `2d6+1d4/2` halves the 1d4 (D50); unnamed per-target modifiers round each part on its own (D53); per-target brackets are worth building before the picker (15c).

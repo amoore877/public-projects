@@ -121,7 +121,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - Encounter templates: preload a prepared set of NPCs before combat starts.
 - ✅ Undo and redo of any change. See [Undo and redo](#undo-and-redo).
 - Dice roller: type an expression like `2d6+2+1d4` and see the total and each die. See [Dice roller](#dice-roller).
-- Dice in the damage and heal prompts: roll and apply in one step, with grammar for resistance, vulnerability and immunity (halving, doubling, zeroing). Not designed yet; see [DR5](#dr5-later-dice-in-the-damage-and-heal-prompts).
+- Dice in damage and healing: roll and apply in one step, with halving, doubling and immunity per damage type and per target. See [Dice in damage and healing](#dice-in-damage-and-healing).
 
 ### Rulesets
 
@@ -277,10 +277,58 @@ Picking dice from a menu is slow at the table. The DM should be able to type wha
 - After the total, the status line shows what each die rolled, in set order: terms in the order they were typed, and each term's dice in the order they were rolled. Flat numbers appear with their sign: `2d6+2+1d4 = 14 · [5 3] +2 [4]`.
 - The total always shows; on a narrow terminal the breakdown is cut short with `…` first.
 
-#### DR5. Later: dice in the damage and heal prompts
+#### DR5. Dice in damage and healing
 
-Typing an expression in the `d` or `h` prompt would roll it and apply the total in one step. That makes dice change HP, and it needs more grammar first: resistance (half, rounded down), vulnerability (double) and immunity (none), per target. Not designed yet.
+Moved to its own section: [Dice in damage and healing](#dice-in-damage-and-healing) (DD1–DD6).
 
 #### Not in the roller
 
-Keep/drop (`4d6kh3`), advantage and disadvantage, `d%`, multiplication, and rolling initiative for combatants. Each could be added to the grammar later without changing DR1–DR4.
+Keep/drop (`4d6kh3`), advantage and disadvantage, `d%`, and rolling initiative for combatants. Each could be added to the grammar later without changing DR1–DR4. (Multiplying, dividing and brackets came with [DD1](#dd1-modifiers).)
+
+### Dice in damage and healing
+
+Rolling with `r` and then typing the total into `d` is two steps for every hit. The amount prompts should take the dice directly. Damage is often not one number, though: a hit can be half fire and half poison, one target saved and another is immune to one of them. The DM should be able to say all of that in the amount they type, without the tracker storing resistances or knowing what fire is (R8).
+
+#### DD1. Modifiers
+
+- `/N` divides, rounding down; `*N` multiplies. `/2` is resistance or a save for half, `*2` is vulnerability, `*0` is immunity.
+- They follow the usual order of arithmetic: a modifier applies to the term just before it, and brackets group. `2d6+1d4/2` is 2d6 plus half of 1d4; `(2d6+3)/2` halves the whole hit; `2d6+3/2` is 2d6+1.
+- Rounding happens where the division is, so `1d6/2+1d6/2` can differ from `(2d6)/2`.
+- The `r` roller reads the same grammar.
+
+#### DD2. Parts
+
+- A word after a term or bracket names a **part**: everything since the previous name, or the start. `1d6+3 fire + 1d6 poison` has a fire part (1d6+3) and a poison part (1d6).
+- A modifier right after a name applies to that whole part: `1d6+3 fire/2 + 1d6 poison*2`.
+- Names are any word of letters (`fire`, `slashing`, `blarg`); the tracker only matches them to each other. `d` followed by a digit is always a die.
+- Without names, the whole amount is one part.
+
+#### DD3. Amounts with dice
+
+- The damage, heal, temp HP and nonlethal prompts (`d`, `h`, `t`, `D`) and their commands (`:dmg`, `:heal`, `:temp`, `:nl`) take an expression wherever they take a number today. A plain number with modifiers works too: `24/2`.
+- In an amount, each bracket group and each part stops at 0, so resistance 10 (`(1d6-10) fire + 1d6 poison`) can't eat into the poison, and an amount is never negative.
+- Setting HP (`=N`, `:hp`) and max HP (`M`, `:maxhp`) stay plain numbers.
+- A command with several targets rolls once, and every target takes the same amount (unless DD4 says otherwise).
+- One amount is one change: one undo step, and redo gives back the same roll.
+
+#### DD4. A different amount for each target
+
+- In a command, each target can carry its own modifiers: `g2/2` for every part, or `g3[fire*0]` for a named part, or both: `mira[/2 poison*2]`.
+- A target's modifiers apply after the amount's own, left to right. A modifier without a name applies to each part separately, and each part rounds down on its own and stops at 0.
+- A name that isn't a part of the amount is refused.
+
+#### DD5. What the DM sees
+
+- The status line says what each target took, then the roll: `Goblin 1 took 14 damage · 2d6+3 = 14 · [5 6] +3`.
+- With several targets: `8d6 = 29 · Goblin 1 29, Goblin 2 14, Goblin 3 0 · [faces]`. With named parts, each target's split follows its number when it differs from the roll's: `Goblin 2 4 (fire 2, poison 2)`.
+- The faces come last, so a narrow terminal cuts them first.
+- Damage and healing stay out of the combat log, as before; the undo summary names what each target took.
+
+#### DD6. Repeating
+
+- Enter on an empty amount prompt is still refused, so a stray key never deals damage.
+- `↑` in an amount prompt brings back earlier amounts. Amounts are kept apart from `r`, so `r` then enter still repeats the attack roll and not the damage.
+
+#### Later
+
+Picking targets on the table and marking each one saved, resistant, vulnerable or immune with a key, instead of typing brackets.
