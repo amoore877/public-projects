@@ -9,7 +9,7 @@ Each entry is a decision made during planning, with what it rules out.
 | # | Decision | Rationale / rejected alternatives |
 |---|---|---|
 | D1 | **Go + Charm stack** ([Bubble Tea](https://github.com/charmbracelet/bubbletea), [Bubbles](https://github.com/charmbracelet/bubbles), [Lip Gloss](https://github.com/charmbracelet/lipgloss)). | The usual choice for Go TUIs: Elm-style update loop, table/textinput components, and a test harness (`teatest`). Rejected: tview (widget-heavy, harder to test), raw tcell (too low-level). |
-| D2 | **Not tied to a game system**, with D&D 5e conditions as the default preset. | Keeps the tool usable for other games. No dice, no rules automation (R8). |
+| D2 | **Not tied to a game system**, with D&D 5e conditions as the default preset. | Keeps the tool usable for other games. No dice, no rules automation (R8). Dice revised by D45: a roller that only shows results. |
 | D3 | **Initiative is a hand-entered decimal**; ties are broken by the DM entering decimals (`15.3 > 15.2 > 15.1`). | Simpler and clearer than an app-managed tie-break list. Rejected: app rolling, a tie-break-by-modifier rule. |
 | D4 | **Initiative is stored as fixed-point** (`int64` thousandths), not `float64`. | Exact comparisons and round-tripping: `15.1` stays `15.1`, and exact-tie detection is reliable. Up to 3 decimal places are accepted. |
 | D5 | **Effects are table rows *and* show up as linked conditions on their targets**, plus an explicit **end/dispel early** control. | The DM sees the effect come up in turn order, and each affected creature shows that it's affected. Linked conditions are *derived* from the effect (never copied), so ending the effect clears everything in one step. |
@@ -52,6 +52,10 @@ Each entry is a decision made during planning, with what it rules out.
 | D42 | **The log stays append-only.** Undoing a step that wrote log lines appends `Undone: <its first line>` (and `+N more` if it wrote several); redoing it appends its lines again, marked `(redone)`. Steps that wrote nothing (Setup changes, HP arithmetic) log nothing either way. | The recap must not show things that didn't happen, and it can't be edited in place (D7). Logging only for logged steps keeps HP fixes as quiet as before. |
 | D43 | **Ending combat is a barrier.** It clears the stack; so does starting `dmct`. | Ending already asks for confirmation, writes an archive and starts a new fight; undoing it would mean renaming the archive back and joining two logs. Restarts are rare mid-fight; persisting the stack would add a second file or bloat the state file (see open questions). |
 | D44 | **Keys `u` (undo) and `U` (redo), plus `:undo` and `:redo`.** Both are free today. The status line says `Undid: Orc took 7 damage · U redoes` or `Nothing to undo`. `ctrl+r` also redoes, for vim habits. | `u`/`ctrl+r` is the vim pair the hotkeys already lean on (`jk`, `gG`). |
+| D45 | **The dice roller is a tool beside the fight, not an operation.** A roll never goes through `session.Apply`: no state change, no autosave, no undo step, no log line. Revises D2's "no dice". | Typing `2d6+2+1d4` is faster than picking dice, and keeping it out of the encounter keeps R8's "no rules automation". Rejected: logging rolls (clutters the recap; the DM logs what matters with `l`); rolling straight into HP for now (needs resistance grammar, DR5). |
+| D46 | **Grammar: a sum of `NdS` terms and whole numbers, with `+` and `-`.** A bare `d` means `1d`; spaces and case are ignored. At most 100 dice in a term, 1000 sides, and 20 terms; a die has at least 2 sides. Parsed by hand in a pure `internal/dice` package. | Covers what's printed in stat blocks and spell text. The limits catch typos (`20d`, `1d2000`) and keep the breakdown short enough to read. Rejected: keep/drop, advantage, `d%` and multiplication (later grammar; see "Not in the roller" in REQUIREMENTS); a third-party dice library (a dependency for a 30-line parser). |
+| D47 | **`r` opens a `Roll:` prompt; Enter on an empty prompt rolls the last expression again; `:roll EXPR` in the command bar.** The last expression lives in the TUI model only. | `r` is free and reads as "roll"; repeating an attack is the common case, and `r` Enter is two keys. Rejected: keeping the prompt open after a roll (the DM usually acts next); saving the last expression in the state file (it isn't fight state). |
+| D48 | **The result is `EXPR = TOTAL · BREAKDOWN` on the status line**, the breakdown in set order: terms as typed, each term's faces in roll order (`[5 3] +2 [4]`), a subtracted dice term as `-[3]`. The breakdown is cut with `…` before the total is. | Set order lets the DM match each bracket to the term that made it. Total first means a narrow terminal never loses the number that matters. Rejected: sorted faces (hides which die was which). |
 
 ## Layout
 
@@ -324,7 +328,7 @@ go test -cover ./...          # target: 90% or more in every package
 6. ✅ **Command bar + help overlay.**
 7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
-Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo).
+Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller).
 
 ## Rulesets
 
@@ -471,6 +475,52 @@ func (s *Session) UndoDepth() (undo, redo int)
 | 13a. ✅ Undo stack | UR1, UR2, UR4, UR5 | `session` stack, `Undo`/`Redo`, log lines and journal re-sync, the barrier at End. Tested in `session` with every kind of operation: apply, undo, redo, compare the encounter JSON byte for byte. |
 | 13b. ✅ Undo in the TUI | UR3 | `journal.Summary`, keys and commands, status line, selection, help overlay, golden screens and an E2E story (undo a group add, a Delay that moved effects, and an ended effect; redo one; a new change drops the redo). |
 
+## Dice roller
+
+Planned as milestones 14a–14b, for [Dice roller](REQUIREMENTS.md#dice-roller) (DR1–DR4). The decisions are D45–D48: a tool beside the fight (D45), the grammar (D46), the keys (D47) and the output (D48).
+
+### How it works
+
+```go
+// internal/dice (pure: no I/O, no global random source)
+type Term struct {
+    Sign  int  // +1 or -1
+    Count int  // 0 for a whole-number term
+    Sides int
+    Value int  // the number, for a whole-number term
+}
+type Expr struct{ Terms []Term }
+
+type Rolled struct {
+    Term  Term
+    Faces []int // in roll order; nil for a whole-number term
+}
+type Result struct {
+    Expr  Expr
+    Total int
+    Terms []Rolled // in the order typed
+}
+
+func Parse(s string) (Expr, error)
+func (e Expr) String() string            // normalised: "d20 + 5" → "1d20+5"
+func (e Expr) Roll(r *rand.Rand) Result  // math/rand/v2
+func (r Result) Breakdown() string       // "[5 3] +2 [4]"
+```
+
+- **Parsing.** Strip spaces, lower-case, then read terms left to right: an optional sign (required after the first term), then digits, then optionally `d` and digits. A missing count before `d` is 1. Errors name what was wrong and where (`missing sides after "4d"`, `100 dice at most in a term`). A plain number with no dice (`7`) is accepted and rolls to itself; it's harmless.
+- **Randomness.** `cmd/dmct` makes one `*rand.Rand` seeded from the clock and hands it to the TUI; tests pass a seeded source and check exact faces. Faces come from `r.IntN(sides)+1`.
+- **TUI.** `r` opens a `Roll:` prompt (D24). Enter parses and rolls; a parse error keeps the prompt open with the reason in the hint line (D25). An empty Enter rolls the last expression, or says "Nothing to roll yet". `:roll EXPR` builds a command kind `Roll` that the TUI handles itself, like `Undo`, without calling `Apply`. The result is a normal status message, so a save or log banner (D31) is unaffected.
+- **Width.** The status line keeps `EXPR = TOTAL` whole and trims the breakdown from the right with `…` (D48). The 100-dice cap keeps the full text under a few hundred characters.
+
+### Build order
+
+| Milestone | Covers | Notes |
+|---|---|---|
+| 14a. Dice roller | DR1, DR2, DR3 | `internal/dice` with `Parse`, `Roll`, `String` and table-driven tests (every refusal, `d` without a count, signs, limits, seeded rolls); `r` prompt, empty-Enter repeat, `:roll`, help overlay and README; golden screen and an E2E story (roll, a refused expression fixed in place, repeat). Status line shows `EXPR = TOTAL`. |
+| 14b. Breakdown | DR4 | `Result.Breakdown`, the `· [5 3] +2 [4]` suffix and its truncation at 80 columns and below; golden screens for a long roll (`20d6`) and a narrow terminal. |
+
+Later, not designed: dice in the `d`/`h` prompts with resistance, vulnerability and immunity grammar (DR5).
+
 ## Open questions
 
 The end-combat, duration, and condition-list questions were settled as D13, D12, and D14. Open for the ruleset work:
@@ -482,3 +532,5 @@ The end-combat, duration, and condition-list questions were settled as D13, D12,
 5. ~~**Delay mechanism (RS10).**~~ Settled as D36.
 
 For undo and redo, all settled 2026-11-18: no undo history across a restart and no undo past End (D43); undo and redo are marked in the log (D42); the history keeps 100 steps (D40).
+
+For the dice roller, settled 2026-11-19: rolls are not logged (D45); the breakdown is in set order (D48); rolling in the damage prompt waits for resistance grammar (DR5).

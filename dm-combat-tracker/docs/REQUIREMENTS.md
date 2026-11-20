@@ -88,7 +88,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 
 ### R8. Ruleset scope
 
-- **The core isn't tied to any one game system.** It tracks HP, temp HP, conditions, round-based durations, and free-text notes. It doesn't roll dice or apply rules.
+- **The core isn't tied to any one game system.** It tracks HP, temp HP, conditions, round-based durations, and free-text notes. It doesn't apply rules, and dice it rolls never change the fight on their own (the [dice roller](#dice-roller) only shows a result).
 - The D&D 5e condition list is the **default preset** for the condition picker (Blinded, Charmed, Deafened, Exhaustion, Frightened, Grappled, Incapacitated, Invisible, Paralyzed, Petrified, Poisoned, Prone, Restrained, Stunned, Unconscious, plus Concentrating). Custom condition names are always allowed.
 
 ## Interaction requirements
@@ -107,7 +107,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 
 ## Out of scope (v1)
 
-- Dice rolling (including initiative).
+- Dice rolling (including initiative). A standalone roller came after v1: see [Dice roller](#dice-roller). Initiative is still entered by hand.
 - Rules automation (concentration checks, death-save tracking, legendary/lair action rules).
 - A player-facing view or masked HP.
 - Multiplayer, networking, syncing.
@@ -120,6 +120,8 @@ Area effects show up as **their own row in the table and as linked conditions on
 - ✅ Rulesets: make the tracker correct for systems other than D&D 5e, starting with D&D 3.5. See [Rulesets](#rulesets).
 - Encounter templates: preload a prepared set of NPCs before combat starts.
 - ✅ Undo and redo of any change. See [Undo and redo](#undo-and-redo).
+- Dice roller: type an expression like `2d6+2+1d4` and see the total and each die. See [Dice roller](#dice-roller).
+- Dice in the damage and heal prompts: roll and apply in one step, with grammar for resistance, vulnerability and immunity (halving, doubling, zeroing). Not designed yet; see [DR5](#dr5-later-dice-in-the-damage-and-heal-prompts).
 
 ### Rulesets
 
@@ -248,3 +250,37 @@ Dice, the dying creature's HP loss and stabilization rolls, 5e death saves, mass
 - Ending combat (already behind a confirmation, and archiving the state file) can't be undone; the undo history starts again with the new fight.
 - `p` keeps its meaning: it steps the turn back and keeps changes made since. Undo is strictly last-in, first-out.
 - The history lasts while `dmct` runs. Quitting and starting again resumes the fight with nothing to undo.
+
+### Dice roller
+
+Picking dice from a menu is slow at the table. The DM should be able to type what the rulebook says (`4d6+4`, `2d6+2+1d4`) and see the result at once, without leaving the tracker. The roller is a tool beside the fight: it rolls and shows, and nothing in the fight changes.
+
+#### DR1. Expressions
+
+- An expression is a sum of dice terms (`NdS`) and whole numbers, joined by `+` or `-`: `4d6+4`, `2d6+2+1d4`, `1d8-1`, `10-1d4`.
+- `d` with no count means one die: `d20+5` is `1d20+5`.
+- Spaces and letter case don't matter: `2D6 + 1d4` works.
+- Input that isn't an expression is refused with the reason, and the text stays so it can be fixed.
+
+#### DR2. Rolling
+
+- One key opens a roll prompt; Enter rolls. Enter on an empty prompt rolls the last expression again.
+- The command bar rolls too (`:roll 2d6+2+1d4`).
+- Rolling works in Setup and in combat, and never changes the fight: no save, no undo step, no log line.
+
+#### DR3. Result
+
+- The status line shows the expression and its total: `2d6+2+1d4 = 14`.
+
+#### DR4. Breakdown
+
+- After the total, the status line shows what each die rolled, in set order: terms in the order they were typed, and each term's dice in the order they were rolled. Flat numbers appear with their sign: `2d6+2+1d4 = 14 · [5 3] +2 [4]`.
+- The total always shows; on a narrow terminal the breakdown is cut short with `…` first.
+
+#### DR5. Later: dice in the damage and heal prompts
+
+Typing an expression in the `d` or `h` prompt would roll it and apply the total in one step. That makes dice change HP, and it needs more grammar first: resistance (half, rounded down), vulnerability (double) and immunity (none), per target. Not designed yet.
+
+#### Not in the roller
+
+Keep/drop (`4d6kh3`), advantage and disadvantage, `d%`, multiplication, and rolling initiative for combatants. Each could be added to the grammar later without changing DR1–DR4.
