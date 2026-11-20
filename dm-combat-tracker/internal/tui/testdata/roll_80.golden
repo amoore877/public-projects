@@ -1,0 +1,14 @@
+ Round 1 ─ Turn: Thorin                                                      5e 
+┌───┬────────┬──────────────┬──────┬─────────────┬────────────────┬────────────┐
+│   │ Init   │ Name         │ Kind │ HP          │ Conditions     │ Note       │
+├───┼────────┼──────────────┼──────┼─────────────┼────────────────┼────────────┤
+│ ▶ │ 18     │ Thorin       │ PC   │ 31/44       │ Blessed (2)    │            │
+│   │ 12.3   │ Goblin 1     │ NPC  │ 7/7         │ ◆ Spirit Guar… │ fleeing    │
+│   │ 12.2   │ Goblin 2     │ NPC  │ DOWN 0/7    │                │            │
+│   │ 12.1   │ Goblin 3     │ NPC  │ 3/7 ▼       │ Prone, ◆ Spir… │            │
+│   │ 9 !    │ Mira         │ PC   │ 22/27 +5    │ Concentrating  │            │
+│   │ 9 !    │ Bandit Capt… │ NPC  │ 65/65       │                │            │
+│   │ 9      │ ◆ Spirit Gu… │ FX   │             │ 10 rds · 2 ta… │ 3d8 radia… │
+└───┴────────┴──────────────┴──────┴─────────────┴────────────────┴────────────┘
+ 2d6+2+1d4 = 10                                                                 
+ n next · p prev · d/h dmg/heal · c/C cond · e effect · : cmd · ? help · q quit 

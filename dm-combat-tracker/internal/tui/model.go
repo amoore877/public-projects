@@ -6,6 +6,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -13,6 +14,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/combat"
+	"github.com/amoore877/public-projects/dm-combat-tracker/internal/dice"
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/session"
 )
 
@@ -49,12 +51,14 @@ type Model struct {
 	offset   int          // first visible row when the table scrolls
 	msg      string
 	level    msgLevel
-	overlay  overlay  // the open prompt, if any; it gets every key
-	chain    overlay  // set by an action to open another prompt when the current one closes
-	history  []string // command-bar lines, oldest first
-	help     bool     // the help screen is showing
-	helpOff  int      // its scroll position
-	quitting bool     // set by the quit confirmation; Update then quits
+	overlay  overlay    // the open prompt, if any; it gets every key
+	chain    overlay    // set by an action to open another prompt when the current one closes
+	history  []string   // command-bar lines, oldest first
+	help     bool       // the help screen is showing
+	helpOff  int        // its scroll position
+	quitting bool       // set by the quit confirmation; Update then quits
+	rng      *rand.Rand // the dice roller's random source
+	lastRoll *dice.Expr // the last expression rolled, for a repeat (D47)
 
 	// Sticky problems shown in the error banner until a later change
 	// succeeds where they failed.
@@ -66,7 +70,7 @@ type Model struct {
 // New returns a model for s. resumedFrom, if non-empty, is shown as a notice
 // that a saved fight was picked up.
 func New(s *session.Session, resumedFrom string) *Model {
-	m := &Model{sess: s, width: defaultWidth, height: defaultHeight}
+	m := &Model{sess: s, width: defaultWidth, height: defaultHeight, rng: newRand()}
 	if resumedFrom != "" {
 		m.info("Resumed from " + resumedFrom)
 	}
@@ -178,6 +182,8 @@ func (m *Model) handleKey(key string) tea.Cmd {
 		m.undo(false)
 	case "U", "ctrl+r":
 		m.undo(true)
+	case "r":
+		m.open(m.promptRoll())
 	case "?":
 		m.help, m.helpOff = true, 0
 	}

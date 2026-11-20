@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -724,9 +726,9 @@ func TestHelpAndTerminalSizes(t *testing.T) {
 	a.do(":add Bandit Captain 9 65 -- has the key"+enter, "has the key")
 	a.do(":cond band restrained 2"+enter, "Restrained (2)")
 
-	a.do("?", " Help", "n / space", "q          quit", "lines 1–22 of")
-	a.do("jjj", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
-	a.do("G", ":next  :prev  :start  :endcombat", ":undo  :redo")
+	a.do("?", " Help", "n / space", "r          roll dice", "lines 1–22 of")
+	a.do("jjjj", "q          quit", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
+	a.do("G", ":next  :prev  :start  :endcombat", ":undo  :redo", ":roll [DICE]")
 	a.do("x", "Setup ─ press S to start combat") // any other key closes help without acting
 	a.see("Bandit Captain")
 
@@ -1110,5 +1112,55 @@ func TestFixedCountEffects(t *testing.T) {
 	lines := strings.Join(logLines(t, filepath.Join(dir, "recap.md")), "\n")
 	if !strings.Contains(lines, "Effect expired: Bless") {
 		t.Errorf("log is missing the expiry:\n%s", lines)
+	}
+}
+
+// Dice typed at the table: a roll shows its total, a typo is fixed in the
+// prompt, enter alone repeats it, and :roll works too. Nothing in the fight,
+// the log or the undo history changes (DR1–DR3, D45).
+func TestDiceRoller(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir, "--log", "recap.md")
+	a.do(":add Mira 15 27 pc"+enter, "27/27")
+	a.do(":start"+enter, "Round 1 ─ Turn: Mira")
+
+	rolled := func(expr string, lo, hi int) {
+		t.Helper()
+		re := regexp.MustCompile(regexp.QuoteMeta(expr) + ` = (-?\d+)`)
+		a.until(func(s string) bool {
+			m := re.FindStringSubmatch(s)
+			if m == nil {
+				return false
+			}
+			n, _ := strconv.Atoi(m[1])
+			return n >= lo && n <= hi
+		}, expr+" rolled between "+strconv.Itoa(lo)+" and "+strconv.Itoa(hi))
+	}
+
+	a.do("r", "Roll:", "e.g. 2d6+2+1d4")
+	a.keys("2d6 + 2 + d4" + enter)
+	rolled("2d6+2+1d4", 5, 18)
+
+	a.do("r4d"+enter, `The number of sides is missing after "4d"`)
+	a.keys("6" + enter)
+	rolled("4d6", 4, 24)
+
+	a.do("r", "enter alone rolls 4d6 again")
+	a.keys(enter)
+	rolled("4d6", 4, 24)
+
+	a.do(":roll d20+5"+enter, "1d20+5 = ")
+	rolled("1d20+5", 6, 25)
+
+	// Undo skips the rolls and takes back the start of combat.
+	a.do("u", "Undid: ")
+	a.see("Setup")
+	a.quit()
+
+	if enc := a.state("dmct-state.json"); enc.Status != combat.Setup || len(enc.Combatants) != 1 {
+		t.Errorf("saved: status %v, %d combatants", enc.Status, len(enc.Combatants))
+	}
+	if log := read(t, filepath.Join(dir, "recap.md")); strings.Contains(log, "d6") || strings.Contains(log, "d20") {
+		t.Errorf("rolls shouldn't be logged:\n%s", log)
 	}
 }

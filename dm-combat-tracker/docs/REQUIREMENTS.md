@@ -259,7 +259,7 @@ Picking dice from a menu is slow at the table. The DM should be able to type wha
 
 - An expression is a sum of dice terms (`NdS`) and whole numbers, joined by `+` or `-`: `4d6+4`, `2d6+2+1d4`, `1d8-1`, `10-1d4`.
 - `d` with no count means one die: `d20+5` is `1d20+5`.
-- Spaces and letter case don't matter: `2D6 + 1d4` works.
+- Spaces and letter case don't matter: `2D6 + 1d4` works. A space that splits a term or joins two terms with no sign (`2d6 3`) is refused, not read as `2d63`.
 - Input that isn't an expression is refused with the reason, and the text stays so it can be fixed.
 
 #### DR2. Rolling

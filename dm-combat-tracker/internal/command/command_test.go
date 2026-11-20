@@ -278,6 +278,14 @@ func TestOtherCommands(t *testing.T) {
 	}
 	parseErr(t, e, ":next 2", "takes no arguments")
 	parseErr(t, e, ":undo 3", ":undo takes no arguments")
+
+	if cmd, err := Parse(e, ":ROLL d20 + 5"); err != nil || cmd.Kind != Roll || cmd.Op != nil || cmd.Dice == nil || cmd.Dice.String() != "1d20+5" {
+		t.Errorf("roll: %+v %v", cmd, err)
+	}
+	if cmd, err := Parse(e, ":roll"); err != nil || cmd.Kind != Roll || cmd.Dice != nil {
+		t.Errorf("roll again: %+v %v", cmd, err)
+	}
+	parseErr(t, e, ":roll 4d", `the number of sides is missing after "4d"`)
 	parseErr(t, e, ":fly g1", "unknown command :fly")
 	parseErr(t, e, ":", "type a command")
 }

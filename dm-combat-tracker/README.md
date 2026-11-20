@@ -4,7 +4,7 @@ A terminal UI, written in Go, for running tabletop combat from the DM's side of 
 
 It tracks initiative order, whose turn it is, hit points, conditions, area effects, and per-combatant notes, and it keeps an append-only Markdown log of the fight that you can use when writing a session recap.
 
-It's built with D&D in mind but isn't tied to any one ruleset: it doesn't roll dice or apply rules.
+It's built with D&D in mind but isn't tied to any one ruleset: it doesn't apply rules. It has a [dice roller](#dice), but a roll never changes the fight by itself.
 
 ```
  Round 1 ─ Turn: Thorin                                                      5e
@@ -83,6 +83,12 @@ You can quit with `q` at any point; everything is already saved.
 `p` is different: it steps the turn back and keeps everything done since, which is what you want when you passed the turn too early.
 
 The log is never rewritten. Undoing something that was logged adds an `Undone: …` line, and redoing it writes its lines again marked `(redone)`. Ending combat can't be undone (it asks first), and quitting clears the undo history.
+
+### Dice
+
+`r` opens a roll prompt. Type what the rulebook says and press enter: `4d6+4`, `2d6+2+1d4`, `1d8-1`. `d20` means `1d20`, and spaces and capitals don't matter (`2D6 + d4`). The status line shows the total, `2d6+2+1d4 = 14`. Enter on an empty prompt rolls the last expression again, so a repeated attack is `r` then enter. `:roll 2d6+3` does the same from the command bar, and `:roll` alone repeats.
+
+A roll changes nothing: it isn't saved, logged, or undone. Limits are 100 dice in a term, 1000 sides, and 20 terms. Keep/drop (`4d6kh3`), advantage and `d%` aren't supported.
 
 ### Rulesets
 
@@ -201,6 +207,7 @@ In `3.5e` an effect stays on the initiative count it began on, as the 3.5 rules 
 | `:ruleset NAME` | `:ruleset 3.5e` | Choose the ruleset (before combat starts) |
 | `:next` `:prev` `:start` `:endcombat` | | Turn controls |
 | `:undo` `:redo` | | Take back the last change / make it again |
+| `:roll [DICE]` | `:roll 2d6+2+1d4` | Roll dice; alone, roll the last again. See [Dice](#dice) |
 
 A command with a mistake stays open with the reason, so you only need to fix the typo. A command on several targets checks all of them before changing anything.
 
@@ -227,6 +234,7 @@ Keys act on the selected row (highlighted), which can differ from the row whose 
 | `N` | Edit the side note |
 | `l` | Write a log entry |
 | `u` / `U` | Undo / redo the last change (`ctrl+r` also redoes). See [Undo](#undo) |
+| `r` | Roll dice; enter alone rolls the last again. See [Dice](#dice) |
 | `:` | Command bar |
 | `?` | Help: every key and command |
 | `S` / `E` | Start / end combat |

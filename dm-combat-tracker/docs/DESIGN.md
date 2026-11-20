@@ -53,7 +53,7 @@ Each entry is a decision made during planning, with what it rules out.
 | D43 | **Ending combat is a barrier.** It clears the stack; so does starting `dmct`. | Ending already asks for confirmation, writes an archive and starts a new fight; undoing it would mean renaming the archive back and joining two logs. Restarts are rare mid-fight; persisting the stack would add a second file or bloat the state file (see open questions). |
 | D44 | **Keys `u` (undo) and `U` (redo), plus `:undo` and `:redo`.** Both are free today. The status line says `Undid: Orc took 7 damage · U redoes` or `Nothing to undo`. `ctrl+r` also redoes, for vim habits. | `u`/`ctrl+r` is the vim pair the hotkeys already lean on (`jk`, `gG`). |
 | D45 | **The dice roller is a tool beside the fight, not an operation.** A roll never goes through `session.Apply`: no state change, no autosave, no undo step, no log line. Revises D2's "no dice". | Typing `2d6+2+1d4` is faster than picking dice, and keeping it out of the encounter keeps R8's "no rules automation". Rejected: logging rolls (clutters the recap; the DM logs what matters with `l`); rolling straight into HP for now (needs resistance grammar, DR5). |
-| D46 | **Grammar: a sum of `NdS` terms and whole numbers, with `+` and `-`.** A bare `d` means `1d`; spaces and case are ignored. At most 100 dice in a term, 1000 sides, and 20 terms; a die has at least 2 sides. Parsed by hand in a pure `internal/dice` package. | Covers what's printed in stat blocks and spell text. The limits catch typos (`20d`, `1d2000`) and keep the breakdown short enough to read. Rejected: keep/drop, advantage, `d%` and multiplication (later grammar; see "Not in the roller" in REQUIREMENTS); a third-party dice library (a dependency for a 30-line parser). |
+| D46 | **Grammar: a sum of `NdS` terms and whole numbers, with `+` and `-`.** A bare `d` means `1d`; spaces and case are ignored, but a space inside a term or between two unsigned terms (`2d6 3`) is refused. At most 100 dice in a term, 1000 sides, and 20 terms; a die has at least 2 sides. Parsed by hand in a pure `internal/dice` package. | Covers what's printed in stat blocks and spell text. The limits catch typos (`20d`, `1d2000`) and keep the breakdown short enough to read. Rejected: keep/drop, advantage, `d%` and multiplication (later grammar; see "Not in the roller" in REQUIREMENTS); a third-party dice library (a dependency for a 30-line parser). |
 | D47 | **`r` opens a `Roll:` prompt; Enter on an empty prompt rolls the last expression again; `:roll EXPR` in the command bar.** The last expression lives in the TUI model only. | `r` is free and reads as "roll"; repeating an attack is the common case, and `r` Enter is two keys. Rejected: keeping the prompt open after a roll (the DM usually acts next); saving the last expression in the state file (it isn't fight state). |
 | D48 | **The result is `EXPR = TOTAL · BREAKDOWN` on the status line**, the breakdown in set order: terms as typed, each term's faces in roll order (`[5 3] +2 [4]`), a subtracted dice term as `-[3]`. The breakdown is cut with `…` before the total is. | Set order lets the DM match each bracket to the term that made it. Total first means a narrow terminal never loses the number that matters. Rejected: sorted faces (hides which die was which). |
 
@@ -277,6 +277,7 @@ Append-only. The file is opened with `O_APPEND|O_CREATE|O_WRONLY` and never read
 | `:` | Command bar |
 | `?` | Help overlay |
 | `S` / `E` | Start combat (from Setup) / end combat (with confirmation) |
+| `r` | Roll dice (D47) |
 | `q` | Quit (state is already saved) |
 
 ### Command bar (D9)
@@ -300,6 +301,7 @@ Targets are matched case-insensitively against names, with spaces optional (`gob
 | `:note TARGET TEXT` | `:note g1 fleeing` |
 | `:log TEXT` | `:log Thorin shoves the goblin off the bridge` |
 | `:next` / `:prev` / `:start` / `:endcombat` | |
+| `:roll [DICE]` | `:roll 2d6+2+1d4` · `:roll` repeats the last |
 
 The parser in `internal/command` only turns text into combat operations; the hotkeys call those same operations, so both input paths behave the same.
 
@@ -477,7 +479,7 @@ func (s *Session) UndoDepth() (undo, redo int)
 
 ## Dice roller
 
-Planned as milestones 14a–14b, for [Dice roller](REQUIREMENTS.md#dice-roller) (DR1–DR4). The decisions are D45–D48: a tool beside the fight (D45), the grammar (D46), the keys (D47) and the output (D48).
+Milestones 14a–14b, for [Dice roller](REQUIREMENTS.md#dice-roller) (DR1–DR4). The decisions are D45–D48: a tool beside the fight (D45), the grammar (D46), the keys (D47) and the output (D48). 14a is built; 14b is next.
 
 ### How it works
 
@@ -507,16 +509,22 @@ func (e Expr) Roll(r *rand.Rand) Result  // math/rand/v2
 func (r Result) Breakdown() string       // "[5 3] +2 [4]"
 ```
 
-- **Parsing.** Strip spaces, lower-case, then read terms left to right: an optional sign (required after the first term), then digits, then optionally `d` and digits. A missing count before `d` is 1. Errors name what was wrong and where (`missing sides after "4d"`, `100 dice at most in a term`). A plain number with no dice (`7`) is accepted and rolls to itself; it's harmless.
-- **Randomness.** `cmd/dmct` makes one `*rand.Rand` seeded from the clock and hands it to the TUI; tests pass a seeded source and check exact faces. Faces come from `r.IntN(sides)+1`.
+- **Parsing.** Lower-case and strip spaces, except that a space between two digits or `d`s (`2d6 3`, `2 d6`) is refused rather than read as `2d63`; then read terms left to right: an optional sign (required after the first term), then digits, then optionally `d` and digits. A missing count before `d` is 1. Errors name what was wrong and where (`missing sides after "4d"`, `100 dice at most in a term`). A plain number with no dice (`7`) is accepted and rolls to itself; it's harmless. A whole-number term is at most 10000.
+- **Randomness.** The TUI model makes one `*rand.Rand` (PCG) seeded from the clock; tests swap in a seeded source and check exact results. Faces come from `r.IntN(sides)+1`.
 - **TUI.** `r` opens a `Roll:` prompt (D24). Enter parses and rolls; a parse error keeps the prompt open with the reason in the hint line (D25). An empty Enter rolls the last expression, or says "Nothing to roll yet". `:roll EXPR` builds a command kind `Roll` that the TUI handles itself, like `Undo`, without calling `Apply`. The result is a normal status message, so a save or log banner (D31) is unaffected.
 - **Width.** The status line keeps `EXPR = TOTAL` whole and trims the breakdown from the right with `…` (D48). The 100-dice cap keeps the full text under a few hundred characters.
+
+### Built so far (milestone 14a)
+
+- `internal/dice`: `Parse`, `Expr.String`, `Expr.Roll`, `Result.String`, with the faces kept for 14b. Tested for every refusal, the limits, signs, a bare `d`, split terms, and seeded rolls.
+- `r` prompt (its hint names the expression enter alone repeats), `:roll [DICE]` (command kind `Roll`), help overlay and README. Like `u`, `r` isn't in the hint line, which is full at 80 columns.
+- Golden screens for the prompt and the result; an E2E story: roll, fix a typo in place, repeat with enter, `:roll`, then check that undo skips the rolls and the log has none.
 
 ### Build order
 
 | Milestone | Covers | Notes |
 |---|---|---|
-| 14a. Dice roller | DR1, DR2, DR3 | `internal/dice` with `Parse`, `Roll`, `String` and table-driven tests (every refusal, `d` without a count, signs, limits, seeded rolls); `r` prompt, empty-Enter repeat, `:roll`, help overlay and README; golden screen and an E2E story (roll, a refused expression fixed in place, repeat). Status line shows `EXPR = TOTAL`. |
+| 14a. ✅ Dice roller | DR1, DR2, DR3 | `internal/dice` with `Parse`, `Roll`, `String` and table-driven tests (every refusal, `d` without a count, signs, limits, seeded rolls); `r` prompt, empty-Enter repeat, `:roll`, help overlay and README; golden screen and an E2E story (roll, a refused expression fixed in place, repeat). Status line shows `EXPR = TOTAL`. |
 | 14b. Breakdown | DR4 | `Result.Breakdown`, the `· [5 3] +2 [4]` suffix and its truncation at 80 columns and below; golden screens for a long roll (`20d6`) and a narrow terminal. |
 
 Later, not designed: dice in the `d`/`h` prompts with resistance, vulnerability and immunity grammar (DR5).

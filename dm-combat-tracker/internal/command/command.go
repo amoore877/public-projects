@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/combat"
+	"github.com/amoore877/public-projects/dm-combat-tracker/internal/dice"
 )
 
 // Op is one domain operation; it has the same shape as session.Op.
@@ -26,6 +27,7 @@ const (
 	EndCombat             // :endcombat: combat ends and the state file is archived
 	Undo                  // :undo: take back the last change (UR1); no Op
 	Redo                  // :redo: make the last undone change again (UR2); no Op
+	Roll                  // :roll: roll Dice, or the last roll when nil (DR2); no Op, nothing changes (D45)
 )
 
 // Command is a parsed command.
@@ -38,6 +40,8 @@ type Command struct {
 	Target combat.RowID
 	// Created, if set, holds the first row Op added once it has run (:add, :fx).
 	Created *combat.RowID
+	// Dice is the expression to roll, for Kind Roll; nil rolls the last one again.
+	Dice *dice.Expr
 }
 
 // Spec documents one command, for the help overlay.
@@ -69,10 +73,11 @@ var Specs = []Spec{
 	{":ruleset NAME", ":ruleset 3.5e", "choose the game ruleset (5e, 3.5e or one from a file); only before combat starts"},
 	{":next  :prev  :start  :endcombat", "", "turn controls"},
 	{":undo  :redo", "", "take back the last change / make it again"},
+	{":roll [DICE]", ":roll 2d6+2+1d4", "roll dice (d20 is 1d20); no dice rolls the last again. Changes nothing"},
 }
 
 // Verbs lists the command names, for completion.
-var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "note", "log", "ruleset", "next", "prev", "start", "endcombat", "undo", "redo"}
+var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "note", "log", "ruleset", "next", "prev", "start", "endcombat", "undo", "redo", "roll"}
 
 var aliases = map[string]string{
 	"remove": "rm", "damage": "dmg", "condition": "cond", "effect": "fx",
@@ -113,6 +118,15 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 		default:
 			return Command{Kind: EndCombat, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.End() }}, nil
 		}
+	case "roll":
+		if rest == "" {
+			return Command{Kind: Roll}, nil
+		}
+		e, err := dice.Parse(rest)
+		if err != nil {
+			return Command{}, err
+		}
+		return Command{Kind: Roll, Dice: &e}, nil
 	case "add":
 		return parseAdd(enc, rest)
 	case "rm":

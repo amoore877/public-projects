@@ -72,6 +72,11 @@ func (m *Model) runCommand(cmd command.Command, p *inputPrompt) (overlay, error)
 	case command.Undo, command.Redo:
 		m.undo(cmd.Kind == command.Redo)
 		return nil, nil
+	case command.Roll:
+		if err := m.roll(cmd.Dice); err != nil {
+			return p, err
+		}
+		return nil, nil
 	}
 	out, err := m.run(session.Op(cmd.Op))
 	if err != nil {
@@ -118,6 +123,7 @@ var keyHelp = [][2]string{
 	{"N", "edit the side note"},
 	{"l", "write a log entry"},
 	{"u / U", "undo / redo the last change (ctrl+r also redoes)"},
+	{"r", "roll dice, e.g. 2d6+2+1d4; enter alone rolls the last again"},
 	{":", "command bar (↑↓ history, tab completes)"},
 	{"S / E", "start / end combat"},
 	{"?", "this help"},
