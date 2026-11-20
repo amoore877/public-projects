@@ -2,10 +2,12 @@ package dice
 
 import (
 	"fmt"
+	"math"
 	"math/rand/v2"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func seeded() *rand.Rand { return rand.New(rand.NewPCG(1, 2)) }
@@ -186,5 +188,77 @@ func TestBreakdown(t *testing.T) {
 	f := r.Terms[0].Faces
 	if want := fmt.Sprintf("[%d %d %d]", f[0], f[1], f[2]); r.Breakdown() != want {
 		t.Errorf("%q, want %q", r.Breakdown(), want)
+	}
+}
+
+// Across many rolls of every common die (and the largest allowed), every
+// face stays within 1..sides, every face comes up, and totals stay in
+// range. This runs on a fixed seed and on the clock-seeded source the app
+// uses; with about 200 of each face expected, a face missing by chance is
+// out of the question (e^-200).
+//
+// The spread check (chi-square against a fair die) runs on the fixed seed
+// only, so the test always gives the same answer.
+func TestRollBoundsAndSpread(t *testing.T) {
+	const perFace = 200 // expected count of each face
+	for _, src := range []struct {
+		name   string
+		r      *rand.Rand
+		spread bool
+	}{
+		{"seeded", seeded(), true},
+		{"clock", rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 1)), false},
+	} {
+		for _, sides := range []int{2, 3, 4, 6, 8, 10, 12, 20, 100, MaxSides} {
+			e := Expr{Terms: []Term{{Sign: 1, Count: MaxDice, Sides: sides}, {Sign: -1, Value: 1}}}
+			counts := make([]int, sides+1)
+			rolls := perFace * sides / MaxDice
+			for range rolls {
+				res := e.Roll(src.r)
+				if lo, hi := MaxDice-1, MaxDice*sides-1; res.Total < lo || res.Total > hi {
+					t.Fatalf("%s %s: total %d outside %d–%d", src.name, e, res.Total, lo, hi)
+				}
+				for _, f := range res.Terms[0].Faces {
+					if f < 1 || f > sides {
+						t.Fatalf("%s d%d: face %d out of range", src.name, sides, f)
+					}
+					counts[f]++
+				}
+			}
+			n := float64(rolls * MaxDice)
+			want := n / float64(sides)
+			chi := 0.0
+			for f := 1; f <= sides; f++ {
+				if counts[f] == 0 {
+					t.Errorf("%s d%d: face %d never came up in %.0f rolls", src.name, sides, f, n)
+				}
+				d := float64(counts[f]) - want
+				chi += d * d / want
+			}
+			if limit := chiSquareLimit(sides - 1); src.spread && chi > limit {
+				t.Errorf("%s d%d: chi-square %.1f over %.1f, faces look uneven: %v", src.name, sides, chi, limit, counts[1:])
+			}
+		}
+	}
+}
+
+// chiSquareLimit is roughly the value a fair die's chi-square exceeds one
+// time in ten million (z = 5.2), by the Wilson–Hilferty approximation. It
+// errs high for few degrees of freedom (33.6 against the exact 28.4 for
+// one), which only makes the check more lenient.
+func chiSquareLimit(df int) float64 {
+	k := float64(df)
+	c := 2 / (9 * k)
+	return k * math.Pow(1-c+5.2*math.Sqrt(c), 3)
+}
+
+// The approximation is never stricter than the exact one-in-ten-million
+// point (so a fair die can't fail more often than that), and not much looser.
+// Exact values computed from the regularized incomplete gamma function.
+func TestChiSquareLimit(t *testing.T) {
+	for df, exact := range map[int]float64{1: 28.37, 2: 32.24, 5: 40.86, 11: 54.39, 19: 69.78, 99: 190.23, 999: 1249.01} {
+		if got := chiSquareLimit(df); got < exact || got > exact*1.2 {
+			t.Errorf("df %d: %.2f, want %.2f–%.2f", df, got, exact, exact*1.2)
+		}
 	}
 }
