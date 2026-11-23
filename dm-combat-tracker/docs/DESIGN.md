@@ -71,6 +71,8 @@ Each entry is a decision made during planning, with what it rules out.
 | D61 | **The pass sets initiative directly without triggering Delay or move-effects prompts** (QI3). | Bulk re-rolling or fixing initiatives in Active combat isn't a single-creature Delay; single-row `i` / `:init` keeps Delay and `FixedAnchor` prompts. |
 | D62 | **Fuzzy jump (`/`) is a TUI-only overlay that moves selection live as you type and restores the prior selection on `esc`** (FJ1–FJ3). | Navigation shouldn't touch combat state, autosave, or undo. Live jumping lets the DM see the row's HP and conditions before pressing `enter` to act on it. |
 | D63 | **Three-tier case-insensitive matching: prefix, substring, subsequence (fuzzy)**, preserving table order within each tier (FJ1). | Predictable for plain prefixes (`gob`), forgiving for middle words (`cap`), and fast for initials/numbers (`g3`, `sg`), with zero external dependencies. |
+| D64 | **Rename (`R` / `:rename`) works on both combatants and effects, and logs during Active combat** (RN1–RN3). | Effects and conditions link by `RowID`, so renaming updates every reference automatically. Logging active renames keeps the Markdown recap readable when a hidden enemy is revealed; Setup stays quiet (D20). |
+| D65 | **Cloning is skipped.** | Per user preference; adding another creature with `a` or `:add` already covers extra combatants without extra UI surface. |
 
 ## Layout
 
@@ -345,7 +347,7 @@ go test -cover ./...          # target: 90% or more in every package
 6. ✅ **Command bar + help overlay.**
 7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
-Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights); 17 is [Quick initiative pass](#quick-initiative-pass); 18 is [Fuzzy jump](#fuzzy-jump).
+Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights); 17 is [Quick initiative pass](#quick-initiative-pass); 18 is [Fuzzy jump](#fuzzy-jump); 19 is [Rename](#rename).
 
 ## Rulesets
 
@@ -665,6 +667,26 @@ Built as milestone 18, for [Fuzzy jump](REQUIREMENTS.md#fuzzy-jump) (FJ1–FJ3).
 |---|---|---|
 | 18. ✅ Fuzzy jump | FJ1–FJ3 | `internal/tui/jump.go` (`jumpPrompt`, `matchRows`), `/` hotkey in `model.go`, help/README, unit tests (`jump_test.go`), golden help update, and E2E story (jump to a goblin, cycle matches, cancel restores selection, jump to an effect row). |
 
+## Rename
+
+Planned as milestone 19, for [Rename](REQUIREMENTS.md#rename) (RN1–RN3). The decisions are D64–D65.
+
+### How it works
+
+- **Domain (`internal/combat`).**
+  - Event: `RowRenamed{EventMeta, ID RowID, From, To string}`.
+  - Method: `func (e *Encounter) Rename(id RowID, name string) ([]Event, error)` in `combatants.go`. Validates `checkEditable()`, finds row via `e.row(id)`, trims `name` (refusing empty with `ErrInvalid`), returns `nil, nil` when `name == old`, updates `c.Name` or `fx.Name`, and emits `RowRenamed`.
+- **Journal (`internal/journal`).** `logText` formats `RowRenamed` as `"<From> renamed to <To>"` (so Active renames are logged and `Summary` automatically reuses the same wording).
+- **Undo (`internal/tui/undo.go`).** `eventRowID` returns `e.ID` for `RowRenamed`.
+- **Command bar (`internal/command`).** Verb `:rename TARGET NEWNAME` uses `splitTarget(enc, words, anyRow, 1)` (requiring 1 target and at least 1 word for the new name), returning `Command{Focus: id, Op: ...}`.
+- **TUI (`internal/tui`).** Hotkey `R` opens `promptRename()`, prefilled with `r.Name()`. Help overlay (`keyHelp`), `command.Specs`, and README updated.
+
+### Build order
+
+| Milestone | Covers | Notes |
+|---|---|---|
+| 19. Rename | RN1–RN3 | `Encounter.Rename`, `RowRenamed`, journal logging & summary, `undo.go` focus, `:rename`, `R` prompt, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (rename combatant and effect mid-fight, check linked condition updates, log line, undo/redo). |
+
 ## Open questions
 
 The end-combat, duration, and condition-list questions were settled as D13, D12, and D14. Open for the ruleset work:
@@ -686,6 +708,8 @@ For carrying over PCs, settled 2026-11-22: carry over HP, max HP, nonlethal, tem
 For quick initiative pass, settled 2026-11-22: works in Setup and Active (combatants only), applies & sorts live on each Enter, empty Enter skips, `esc` stops keeping edits so far, and the whole pass merges into one undo step (D59–D61).
 
 For fuzzy jump, settled 2026-11-22: live jump as you type across all rows including effects, `tab`/`↓`/`↑` cycle matches, `enter` keeps selection, `esc` restores prior selection (D62–D63).
+
+For rename, settled 2026-11-22: skip cloning and ship rename only (`R` / `:rename`) across combatants and effects, logged in Active combat (D64–D65).
 
 ## Future features
 

@@ -125,6 +125,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - ✅ Carry over PCs between fights: keep the party's state when ending combat instead of re-entering them every encounter. See [Carry over PCs between fights](#carry-over-pcs-between-fights).
 - ✅ Quick initiative pass: step through every combatant entering initiatives back-to-back without repeated navigation. See [Quick initiative pass](#quick-initiative-pass).
 - ✅ Fuzzy jump: jump table selection by typing part of a row's name. See [Fuzzy jump](#fuzzy-jump).
+- Rename: rename a combatant or effect in place mid-fight. See [Rename](#rename).
 
 ### Rulesets
 
@@ -415,6 +416,27 @@ In large fights with fifteen or more rows (combatants and area effects), tapping
 - `enter` closes the prompt and keeps the selected row.
 - `esc` (or `ctrl+c`) closes the prompt and restores the selection and scroll position from before `/` was pressed.
 - Jumping changes no combat state: no save, no log line, no undo step.
+
+### Rename
+
+When a disguised enemy reveals its identity ("Hooded Figure" → "Strahd"), a goblin gets a distinguishing label ("Goblin 2" → "Goblin Boss"), or a name was mistyped, the DM should be able to rename the row in place without removing and re-adding it. The design is in [DESIGN.md](DESIGN.md#rename).
+
+#### RN1. Scope
+
+- Works on any row (combatant or area effect) in Setup or Active combat.
+- Blank names are refused. Entering the exact same name is a no-op (no event, no log, no undo step).
+- Because linked conditions and condition sources reference rows by ID, renaming automatically updates every linked effect and sourced condition across the table.
+
+#### RN2. Controls
+
+- Hotkey `R` opens a `Rename <name>:` prompt prefilled with the row's current name.
+- Command `:rename TARGET NEWNAME` renames a single matching row (combatant or effect).
+
+#### RN3. Log and undo
+
+- During Active combat, renaming is written to the combat log (`Hooded Figure renamed to Strahd`) so later recap entries stay coherent. During Setup, it stays unlogged (D20).
+- Fully undoable and redoable as one step (`u` / `U`), moving selection back to the renamed row.
+
 
 
 
