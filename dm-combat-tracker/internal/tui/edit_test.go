@@ -435,6 +435,76 @@ func TestEndCombatKeepPCsAndNoPCs(t *testing.T) {
 	}
 }
 
+func TestQuickInitiativePass(t *testing.T) {
+	// Empty encounter warns and does nothing.
+	mEmpty := New(newSession(t), "")
+	press(mEmpty, "I")
+	if mEmpty.overlay != nil || !strings.Contains(mEmpty.msg, "No combatants") {
+		t.Fatalf("empty pass: overlay=%v msg=%q", mEmpty.overlay, mEmpty.msg)
+	}
+
+	// Setup pass: skip one with empty Enter, edit two, live sort, undo whole pass in one step.
+	s := newSession(t,
+		add("Thorin", combat.PC, "0", 44),
+		add("Mira", combat.PC, "0", 27),
+		add("Goblin", combat.NPC, "12", 7),
+	)
+	m := sized(New(s, ""), 80, 24)
+	press(m, "I")
+	if sc := screen(m); !strings.Contains(sc, "Initiative (1/3) Goblin (now 12):") {
+		t.Fatalf("expected Goblin first:\n%s", sc)
+	}
+	press(m, "enter") // skip Goblin (keeps 12)
+	if sc := screen(m); !strings.Contains(sc, "Initiative (2/3) Thorin (now 0):") {
+		t.Fatalf("expected Thorin second:\n%s", sc)
+	}
+	typeText(m, "bad")
+	press(m, "enter") // stays open on invalid input
+	if m.overlay == nil || !strings.Contains(screen(m), "Initiative (2/3) Thorin") {
+		t.Fatalf("should stay open on bad init:\n%s", screen(m))
+	}
+	special(m, "ctrl+u")
+	typeText(m, "18")
+	press(m, "enter")
+	if sc := screen(m); !strings.Contains(sc, "Initiative (3/3) Mira (now 0):") {
+		t.Fatalf("expected Mira third:\n%s", sc)
+	}
+	typeText(m, "14.5")
+	press(m, "enter")
+	if m.overlay != nil {
+		t.Fatal("pass should close after last combatant")
+	}
+	if m.msg != "Updated 2 initiatives" {
+		t.Errorf("msg = %q", m.msg)
+	}
+	order := s.Encounter().Order()
+	if order[0].Name() != "Thorin" || order[1].Name() != "Mira" || order[2].Name() != "Goblin" {
+		t.Fatalf("order after pass: %s, %s, %s", order[0].Name(), order[1].Name(), order[2].Name())
+	}
+	// One undo reverts both edits at once.
+	press(m, "u")
+	for _, c := range s.Encounter().Combatants {
+		want := "0"
+		if c.Name == "Goblin" {
+			want = "12"
+		}
+		if c.Initiative.String() != want {
+			t.Errorf("after single undo, %s init = %s, want %s", c.Name, c.Initiative, want)
+		}
+	}
+
+	// Command :initall + esc stops early keeping edits made so far.
+	runCmd(m, "initall")
+	if m.overlay == nil {
+		t.Fatal(":initall should open the pass")
+	}
+	typeText(m, "15")
+	press(m, "enter", "esc")
+	if m.overlay != nil || m.msg != "Updated 1 initiative" {
+		t.Errorf("after esc: overlay=%v msg=%q", m.overlay, m.msg)
+	}
+}
+
 func TestLineEditing(t *testing.T) {
 	s := newSession(t, add("Thorin", combat.PC, "18", 44))
 	m := New(s, "")

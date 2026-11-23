@@ -297,6 +297,71 @@ func (m *Model) promptInitiative() overlay {
 	return p
 }
 
+// promptInitPass walks every combatant in the table order at start of the
+// pass, prompting only for initiative (QI1–QI4, D59–D61).
+func (m *Model) promptInitPass() overlay {
+	var ids []combat.RowID
+	for _, r := range m.sess.Encounter().Order() {
+		if r.Combatant != nil {
+			ids = append(ids, r.ID())
+		}
+	}
+	if len(ids) == 0 {
+		m.warn("No combatants")
+		return nil
+	}
+	changed := 0
+	finish := func(m *Model) {
+		if changed > 0 && m.msg == "" {
+			m.info("Updated " + plural(changed, "initiative", "initiatives"))
+		}
+	}
+	var step func(idx int) overlay
+	step = func(idx int) overlay {
+		for idx < len(ids) {
+			c, ok := m.sess.Encounter().Combatant(ids[idx])
+			if !ok {
+				idx++
+				continue
+			}
+			id := c.ID
+			cur := c.Initiative
+			m.selected = id
+			m.syncSelection()
+			p := &inputPrompt{
+				label:    fmt.Sprintf("Initiative (%d/%d) %s (now %s):", idx+1, len(ids), c.Name, cur),
+				help:     "enter alone keeps " + cur.String() + " · decimals break ties",
+				onCancel: finish,
+			}
+			p.submit = func(m *Model, text string) (overlay, error) {
+				if strings.TrimSpace(text) == "" {
+					return step(idx + 1), nil
+				}
+				v, err := combat.ParseInitiative(text)
+				if err != nil {
+					return p, err
+				}
+				if v != cur {
+					out, err := m.runMerged(func(e *combat.Encounter) ([]combat.Event, error) {
+						return e.SetInitiativeDirect(id, v)
+					}, changed > 0)
+					if err != nil {
+						return p, err
+					}
+					if len(out.Events) > 0 {
+						changed++
+					}
+				}
+				return step(idx + 1), nil
+			}
+			return p
+		}
+		finish(m)
+		return nil
+	}
+	return step(0)
+}
+
 // setInitiative changes a row's initiative. In a ruleset that pins effects
 // to their counts, moving their source first asks whether they move too
 // (D33): yes for a mistyped initiative, no for Delay or Ready.

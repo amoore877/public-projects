@@ -202,6 +202,7 @@ In `3.5e` an effect stays on the initiative count it began on, as the 3.5 rules 
 | `:fxadd FX TARGETS` / `:fxrm FX TARGETS` | `:fxrm spirit g1` | Change an effect's targets |
 | `:end FX [-- REASON]` | `:end spirit -- concentration broken` | End an effect early |
 | `:init TARGET VALUE` | `:init g2 12.35` | Set initiative |
+| `:initall` | | Quick initiative pass over every combatant |
 | `:note TARGET TEXT` | `:note g1 fleeing` | Set the side note (blank clears it) |
 | `:log TEXT` | `:log Thorin shoves the goblin off the bridge` | Write a log entry |
 | `:ruleset NAME` | `:ruleset 3.5e` | Choose the ruleset (before combat starts) |
@@ -230,7 +231,7 @@ Keys act on the selected row (highlighted), which can differ from the row whose 
 | `c` / `C` | Add / remove a condition |
 | `e` | New effect |
 | `T` | Change an effect's targets |
-| `i` | Edit initiative |
+| `i` / `I` | Edit initiative / quick pass over all combatants |
 | `N` | Edit the side note |
 | `l` | Write a log entry |
 | `u` / `U` | Undo / redo the last change (`ctrl+r` also redoes). See [Undo](#undo) |

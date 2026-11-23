@@ -37,11 +37,19 @@ func snapshot(enc *combat.Encounter) []byte {
 }
 
 // record keeps a step for undo. A change that ends combat clears the
-// history instead (D43).
-func (s *Session) record(st step, ended bool) {
+// history instead (D43). When merge is true and a prior step exists, the new
+// events and after-snapshot fold into it (D59).
+func (s *Session) record(st step, ended, merge bool) {
 	s.redo = nil
 	if ended {
 		s.undo = nil
+		return
+	}
+	if merge && len(s.undo) > 0 {
+		top := &s.undo[len(s.undo)-1]
+		top.after = st.after
+		top.events = append(top.events, st.events...)
+		top.logged = append(top.logged, st.logged...)
 		return
 	}
 	s.undo = append(s.undo, st)

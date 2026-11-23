@@ -113,6 +113,18 @@ type Op func(*combat.Encounter) ([]combat.Event, error)
 // the change is kept for Undo, and, if combat ended, the state file is
 // archived and a new encounter begins.
 func (s *Session) Apply(op Op) (Outcome, error) {
+	return s.apply(op, false)
+}
+
+// ApplyMerged behaves like Apply, but merges the change into the most recent
+// undo step when one exists (D59). Used by multi-step flows such as the quick
+// initiative pass so every step still autosaves while one Undo takes the
+// whole pass back.
+func (s *Session) ApplyMerged(op Op) (Outcome, error) {
+	return s.apply(op, true)
+}
+
+func (s *Session) apply(op Op, merge bool) (Outcome, error) {
 	logAt := journal.ResumeFor(s.enc)
 	before := snapshot(s.enc)
 	evs, err := op(s.enc)
@@ -145,7 +157,7 @@ func (s *Session) Apply(op Op) (Outcome, error) {
 	if out.Logged {
 		st.logged = journal.Texts(evs)
 	}
-	s.record(st, ended)
+	s.record(st, ended, merge)
 
 	if ended {
 		s.closeLog()

@@ -1205,3 +1205,25 @@ func TestCarryOverPCs(t *testing.T) {
 	a.gone("Thorin", "Mira")
 	a.quit()
 }
+
+// Quick initiative pass (`I`) walks every combatant in order, skips on empty
+// Enter, sorts live, and collapses the whole pass into one undo step (QI1–QI4).
+func TestQuickInitiativePass(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir)
+	a.do(":add Thorin 0 44 pc"+enter, "Thorin")
+	a.do(":add Mira 0 27 pc"+enter, "Mira")
+	a.do(":add Goblin 12 7"+enter, "Goblin")
+
+	a.do("I", "Initiative (1/3) Goblin (now 12):")
+	a.do(enter, "Initiative (2/3) Thorin (now 0):")
+	a.do("18"+enter, "Initiative (3/3) Mira (now 0):")
+	a.do("15"+enter, "Updated 2 initiatives")
+	a.gone("0 !")
+
+	// Single undo puts both PCs back to 0.
+	a.do("u", "Undid:", "0 !")
+	a.do("U", "Redid:")
+	a.gone("0 !")
+	a.quit()
+}

@@ -28,6 +28,7 @@ const (
 	Undo                  // :undo: take back the last change (UR1); no Op
 	Redo                  // :redo: make the last undone change again (UR2); no Op
 	Roll                  // :roll: roll Dice, or the last roll when nil (DR2); no Op, nothing changes (D45)
+	InitAll               // :initall: start the quick initiative pass (QI1); no Op
 )
 
 // Command is a parsed command.
@@ -71,6 +72,7 @@ var Specs = []Spec{
 	{":fxrm FX TARGETS", ":fxrm spirit g1", "remove effect targets"},
 	{":end FX [-- REASON]", ":end spirit -- concentration broken", "end an effect early"},
 	{":init TARGET VALUE", ":init g2 12.35", "set initiative"},
+	{":initall", "", "quick initiative pass over every combatant"},
 	{":note TARGET TEXT", ":note g1 fleeing", "set the side note (blank clears)"},
 	{":log TEXT", ":log Thorin shoves the goblin", "write a log entry"},
 	{":ruleset NAME", ":ruleset 3.5e", "choose the game ruleset (5e, 3.5e or one from a file); only before combat starts"},
@@ -80,7 +82,7 @@ var Specs = []Spec{
 }
 
 // Verbs lists the command names, for completion.
-var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "note", "log", "ruleset", "next", "prev", "start", "endcombat", "undo", "redo", "roll"}
+var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "initall", "note", "log", "ruleset", "next", "prev", "start", "endcombat", "undo", "redo", "roll"}
 
 var aliases = map[string]string{
 	"remove": "rm", "damage": "dmg", "condition": "cond", "effect": "fx",
@@ -103,7 +105,7 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 	switch verb {
 	case "":
 		return Command{}, errors.New("type a command, e.g. :dmg g1 7")
-	case "next", "prev", "start", "undo", "redo":
+	case "next", "prev", "start", "undo", "redo", "initall":
 		if rest != "" {
 			return Command{}, fmt.Errorf(":%s takes no arguments", verb)
 		}
@@ -112,6 +114,8 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 			return Command{Kind: Undo}, nil
 		case "redo":
 			return Command{Kind: Redo}, nil
+		case "initall":
+			return Command{Kind: InitAll}, nil
 		case "next":
 			return Command{Kind: Turn, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.Next() }}, nil
 		case "prev":

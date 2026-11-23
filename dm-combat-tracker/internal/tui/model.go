@@ -171,6 +171,8 @@ func (m *Model) handleKey(key string) tea.Cmd {
 		m.open(m.promptRemoveCondition())
 	case "i":
 		m.open(m.promptInitiative())
+	case "I":
+		m.open(m.promptInitPass())
 	case "N":
 		m.open(m.promptNote())
 	case "l":
@@ -227,8 +229,21 @@ func (m *Model) apply(op session.Op) bool {
 // run applies op and reports save and log problems, leaving a refused
 // operation's error to the caller.
 func (m *Model) run(op session.Op) (session.Outcome, error) {
+	return m.runMerged(op, false)
+}
+
+// runMerged is like run, merging into the top undo step when merge is true (D59).
+func (m *Model) runMerged(op session.Op, merge bool) (session.Outcome, error) {
 	m.msg = ""
-	out, err := m.sess.Apply(op)
+	var (
+		out session.Outcome
+		err error
+	)
+	if merge {
+		out, err = m.sess.ApplyMerged(op)
+	} else {
+		out, err = m.sess.Apply(op)
+	}
 	if err != nil {
 		return out, err
 	}

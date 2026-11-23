@@ -77,6 +77,8 @@ func (m *Model) runCommand(cmd command.Command, p *inputPrompt) (overlay, error)
 			return p, err
 		}
 		return nil, nil
+	case command.InitAll:
+		return m.promptInitPass(), nil
 	}
 	out, err := m.run(session.Op(cmd.Op))
 	if err != nil {
@@ -119,7 +121,7 @@ var keyHelp = [][2]string{
 	{"c / C", "add / remove a condition"},
 	{"e", "new effect (source: the selected combatant)"},
 	{"T", "change an effect's targets"},
-	{"i", "edit initiative"},
+	{"i / I", "edit initiative / quick pass over all combatants"},
 	{"N", "edit the side note"},
 	{"l", "write a log entry"},
 	{"u / U", "undo / redo the last change (ctrl+r also redoes)"},

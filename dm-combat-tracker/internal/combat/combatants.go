@@ -341,6 +341,25 @@ func (e *Encounter) SetInitiative(id RowID, v Initiative, move SourceMove) ([]Ev
 	return evs, nil
 }
 
+// SetInitiativeDirect changes a combatant's initiative without triggering
+// Delay turn-passing or FixedAnchor move-effects prompts (QI3, D61). Used by
+// the quick initiative pass. Setting the same value is a no-op.
+func (e *Encounter) SetInitiativeDirect(id RowID, v Initiative) ([]Event, error) {
+	if err := e.checkEditable(); err != nil {
+		return nil, err
+	}
+	c, err := e.mustCombatant(id)
+	if err != nil {
+		return nil, err
+	}
+	if c.Initiative == v {
+		return nil, nil
+	}
+	from := c.Initiative
+	c.Initiative = v
+	return []Event{InitiativeChanged{EventMeta: e.meta(), ID: c.ID, Name: c.Name, From: from, To: v}}, nil
+}
+
 // SetNote sets a row's side note.
 func (e *Encounter) SetNote(id RowID, note string) ([]Event, error) {
 	if err := e.checkEditable(); err != nil {

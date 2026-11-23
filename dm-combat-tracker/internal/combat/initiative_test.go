@@ -85,3 +85,32 @@ func TestGroupFill(t *testing.T) {
 		t.Error("n=1000: want error")
 	}
 }
+
+func TestSetInitiativeDirect(t *testing.T) {
+	e := newEnc()
+	must(t)(e.SetRuleset("3.5e"))
+	mira := add(t, e, "Mira", "15", 27)
+	orc := add(t, e, "Orc", "10", 15)
+	fx, _, err := e.AddEffect(EffectSpec{Name: "Fog", SourceID: mira, Rounds: rounds(3), Targets: []RowID{orc}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	must(t)(e.Start())
+	must(t)(e.Next()) // advance past pinned Fog effect to Mira's turn
+
+	// Same value is a no-op.
+	evs := must(t)(e.SetInitiativeDirect(mira, ini(t, "15")))
+	if len(evs) != 0 {
+		t.Fatalf("same value should emit nothing, got %v", evs)
+	}
+	// Moving turn holder past Orc does NOT Delay and does NOT ask about effects (D61).
+	evs = must(t)(e.SetInitiativeDirect(mira, ini(t, "5")))
+	wantKinds(t, evs, "InitiativeChanged")
+	if e.Current != mira || len(e.Delayed) != 0 {
+		t.Errorf("turn should stay on Mira without Delay: current=%d delayed=%v", e.Current, e.Delayed)
+	}
+	// Effect rows are refused.
+	if _, err := e.SetInitiativeDirect(fx, ini(t, "12")); err == nil {
+		t.Error("expected ErrNotCombatant for effect row")
+	}
+}

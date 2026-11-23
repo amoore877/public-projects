@@ -621,7 +621,7 @@ Built as milestone 16, for [Carry over PCs between fights](REQUIREMENTS.md#carry
 
 ## Quick initiative pass
 
-Planned as milestone 17, for [Quick initiative pass](REQUIREMENTS.md#quick-initiative-pass) (QI1–QI4). The decisions are D59–D61.
+Built as milestone 17, for [Quick initiative pass](REQUIREMENTS.md#quick-initiative-pass) (QI1–QI4). The decisions are D59–D61.
 
 ### How it works
 
@@ -640,7 +640,7 @@ Planned as milestone 17, for [Quick initiative pass](REQUIREMENTS.md#quick-initi
 
 | Milestone | Covers | Notes |
 |---|---|---|
-| 17. Quick initiative pass | QI1–QI4 | `SetInitiativeDirect`, `Session.ApplyMerged`, `:initall` verb/kind, `I` pass overlay, help/README, unit tests across `combat`/`session`/`command`/`tui`, and E2E story (carry over PCs → `I` pass with skip and edit → live sort → single `u` undo reverts the whole pass). |
+| 17. ✅ Quick initiative pass | QI1–QI4 | `SetInitiativeDirect`, `Session.ApplyMerged`, `:initall` verb/kind, `I` pass overlay, help/README, unit tests across `combat`/`session`/`command`/`tui`, and E2E story (carry over PCs → `I` pass with skip and edit → live sort → single `u` undo reverts the whole pass). |
 
 ## Open questions
 
@@ -669,7 +669,7 @@ Candidate features that fit the tracker's scope (keyboard-first 80×24 TUI, sing
 ### Planned next (in order)
 
 1. ✅ **Carry over PCs between fights.** On ending combat, optionally carry the PCs into the next fight's Setup (preserving HP, temp HP, and any chosen ongoing state, while clearing initiative for the new fight).
-2. **Quick initiative pass.** Step through every combatant row in sequence prompting only for initiative, avoiding repeated navigation between fights.
+2. ✅ **Quick initiative pass.** Step through every combatant row in sequence prompting only for initiative, avoiding repeated navigation between fights.
 3. **Fuzzy jump (`/`).** Jump table selection by typing a name prefix or substring in large fights.
 4. **Rename (`R`, `:rename`).** Rename a combatant mid-fight (cloning skipped by choice).
 5. **Counters / pips ("Resources").** Generic per-combatant named counters (e.g. `LA 2/3`, `LR 1/3`, `Rxn 1/1`, death saves, ammo) with optional auto-reset at the start of that creature's turn.

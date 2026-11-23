@@ -221,6 +221,53 @@ func TestUndoBarriers(t *testing.T) {
 	}
 }
 
+func TestApplyMerged(t *testing.T) {
+	_, cfg := setup(t)
+	s, _ := open(t, cfg)
+	apply(t, s, addOp("Thorin", 0, 44))
+	apply(t, s, addOp("Mira", 0, 27))
+	apply(t, s, addOp("Orc", 0, 15))
+	baseDepth, _ := s.UndoDepth()
+
+	setInit := func(idx int, v int) Op {
+		return func(e *combat.Encounter) ([]combat.Event, error) {
+			return e.SetInitiativeDirect(e.Combatants[idx].ID, combat.InitiativeFromInt(v))
+		}
+	}
+	if _, err := s.Apply(setInit(0, 18)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ApplyMerged(setInit(1, 14)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ApplyMerged(setInit(2, 9)); err != nil {
+		t.Fatal(err)
+	}
+	if u, _ := s.UndoDepth(); u != baseDepth+1 {
+		t.Fatalf("merged pass should add 1 undo step, got %d (base %d)", u, baseDepth)
+	}
+	out, err := s.Undo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Events) != 3 {
+		t.Errorf("undid %d events, want 3", len(out.Events))
+	}
+	for _, c := range s.Encounter().Combatants {
+		if c.Initiative != 0 {
+			t.Errorf("%s initiative = %s after undo, want 0", c.Name, c.Initiative)
+		}
+	}
+	if _, err := s.Redo(); err != nil {
+		t.Fatal(err)
+	}
+	if s.Encounter().Combatants[0].Initiative != combat.InitiativeFromInt(18) ||
+		s.Encounter().Combatants[1].Initiative != combat.InitiativeFromInt(14) ||
+		s.Encounter().Combatants[2].Initiative != combat.InitiativeFromInt(9) {
+		t.Errorf("redo didn't restore all initiatives")
+	}
+}
+
 // The log stays append-only: an undone step that wrote lines gets an
 // "Undone" line, a redo writes them again marked, and quiet steps stay
 // quiet (D42).

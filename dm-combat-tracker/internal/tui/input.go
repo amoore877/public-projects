@@ -117,6 +117,8 @@ type inputPrompt struct {
 	// submit handles enter. An error keeps the prompt open and is shown in
 	// the hint line; otherwise the returned overlay (or nil) comes next.
 	submit func(m *Model, text string) (overlay, error)
+	// onCancel, if set, runs when esc or ctrl+c closes the prompt.
+	onCancel func(m *Model)
 
 	// history, if set, is browsed with up/down (the command bar).
 	history *[]string
@@ -130,6 +132,9 @@ type inputPrompt struct {
 func (p *inputPrompt) update(m *Model, k tea.KeyPressMsg) overlay {
 	switch k.String() {
 	case "esc", "ctrl+c":
+		if p.onCancel != nil {
+			p.onCancel(m)
+		}
 		return nil
 	case "enter":
 		next, err := p.submit(m, p.ed.String())
