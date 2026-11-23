@@ -126,6 +126,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - ✅ Quick initiative pass: step through every combatant entering initiatives back-to-back without repeated navigation. See [Quick initiative pass](#quick-initiative-pass).
 - ✅ Fuzzy jump: jump table selection by typing part of a row's name. See [Fuzzy jump](#fuzzy-jump).
 - ✅ Rename: rename a combatant or effect in place mid-fight. See [Rename](#rename).
+- Counters / pips (resources): attach lightweight named counters to combatants (Legendary Actions, Reactions, Legendary Resistances, ammo) with optional turn-start reset. See [Counters and resources](#counters-and-resources).
 
 ### Rulesets
 
@@ -436,6 +437,38 @@ When a disguised enemy reveals its identity ("Hooded Figure" → "Strahd"), a go
 
 - During Active combat, renaming is written to the combat log (`Hooded Figure renamed to Strahd`) so later recap entries stay coherent. During Setup, it stays unlogged (D20).
 - Fully undoable and redoable as one step (`u` / `U`), moving selection back to the renamed row.
+
+### Counters and resources
+
+Bosses and PCs often have per-turn or limited-use resources — Legendary Actions, Reactions, Legendary Resistances, ki points, spell slots, or arrows — that currently have to be scribbled into the free-text note. Generic named counters let the DM track any resource without baking system-specific rules into the tracker (R8). The design is in [DESIGN.md](DESIGN.md#counters-and-resources).
+
+#### RP1. Bounded and unbounded counters
+
+- Any combatant can hold any number of named counters (`Resources`), matched case-insensitively by name.
+- A counter is either:
+  - **Bounded** (`cur/max`, e.g. `LA 2/3`), clamped to `[0, max]`, with an optional **reset on turn start** flag (resets `cur` to `max` at the start of that combatant's turn).
+  - **Unbounded** (`cur`, e.g. `Arrows 14`), clamped to `≥ 0`.
+- Turn-start resets are recorded in `TurnRecord` so `p` (previous turn) restores the pre-reset value, and Delay (`Delayed`) skips resetting a second time in the same round.
+
+#### RP2. Display
+
+- Counters appear inline at the end of the **Conditions** column in compact brackets — `[LA 2/3↻]` (with `↻` when turn-reset is enabled), `[LR 3/3]`, `[Arrows 14]` — keeping the 80×24 column layout intact.
+- When truncated in a narrow cell, the status line spells them out when the row is selected, just like conditions.
+
+#### RP3. Controls
+
+- Hotkey `P` on a selected combatant opens a single `Resource on <name>:` prompt (tab completes existing counter names on that row):
+  - `NAME CUR/MAX [reset]` (or `NAME /MAX [reset]` starting full): create or update a bounded counter (`r` accepted as shorthand for `reset`).
+  - `NAME N`: create an unbounded counter, or set an existing bounded counter's current value to `N`.
+  - `NAME +N` / `NAME -N`: adjust an existing counter up or down.
+  - `NAME rm`: remove an existing counter.
+- Command bar `:res TARGET …` takes the same syntax after the target.
+
+#### RP4. Carry-over, log, and undo
+
+- When PCs carry over between fights (`E` → `k` or `:endcombat`), their counters carry over too: normal counters keep their current value, and turn-reset counters reset to their max.
+- Counter edits are quiet like HP arithmetic (not written to the Markdown log), but fully undoable/redoable (`u`/`U`) with clear status summaries.
+
 
 
 

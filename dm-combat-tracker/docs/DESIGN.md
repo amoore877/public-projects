@@ -73,6 +73,9 @@ Each entry is a decision made during planning, with what it rules out.
 | D63 | **Three-tier case-insensitive matching: prefix, substring, subsequence (fuzzy)**, preserving table order within each tier (FJ1). | Predictable for plain prefixes (`gob`), forgiving for middle words (`cap`), and fast for initials/numbers (`g3`, `sg`), with zero external dependencies. |
 | D64 | **Rename (`R` / `:rename`) works on both combatants and effects, and logs during Active combat** (RN1–RN3). | Effects and conditions link by `RowID`, so renaming updates every reference automatically. Logging active renames keeps the Markdown recap readable when a hidden enemy is revealed; Setup stays quiet (D20). |
 | D65 | **Cloning is skipped.** | Per user preference; adding another creature with `a` or `:add` already covers extra combatants without extra UI surface. |
+| D66 | **Counters (`Combatant.Resources`) are generic named values — bounded (`cur/max`, optional `resetOnTurn`) or unbounded (`cur`) — rendered inline in the Conditions column as `[LA 2/3↻]` / `[Arrows 14]`** (RP1, RP2). | Covers Legendary Actions, Reactions, Legendary Resistances, death saves, slots, and ammo with zero system-specific rules (R8). Rendering inline avoids adding another column to 80×24 and reuses existing status-line truncation overflow. |
+| D67 | **Turn-start resets hook into `tick` and `TurnRecord`** (RP1). | Rewinding a turn with `p` restores pre-reset values, Delay won't reset twice in one round, and opening-turn `Start` doesn't reset (matching D15). |
+| D68 | **Carried-over PCs keep their counters, resetting `resetOnTurn` counters to max** (RP4). | Spell slots, arrows, and charges naturally persist across fights while per-turn resources (Reaction, etc.) start fresh in the next Setup. Counter changes stay out of the combat log like HP arithmetic. |
 
 ## Layout
 
@@ -347,7 +350,7 @@ go test -cover ./...          # target: 90% or more in every package
 6. ✅ **Command bar + help overlay.**
 7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
-Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights); 17 is [Quick initiative pass](#quick-initiative-pass); 18 is [Fuzzy jump](#fuzzy-jump); 19 is [Rename](#rename).
+Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights); 17 is [Quick initiative pass](#quick-initiative-pass); 18 is [Fuzzy jump](#fuzzy-jump); 19 is [Rename](#rename); 20 is [Counters and resources](#counters-and-resources).
 
 ## Rulesets
 
@@ -687,6 +690,35 @@ Built as milestone 19, for [Rename](REQUIREMENTS.md#rename) (RN1–RN3). The dec
 |---|---|---|
 | 19. ✅ Rename | RN1–RN3 | `Encounter.Rename`, `RowRenamed`, journal logging & summary, `undo.go` focus, `:rename`, `R` prompt, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (rename combatant and effect mid-fight, check linked condition updates, log line, undo/redo). |
 
+## Counters and resources
+
+Planned as milestone 20, for [Counters and resources](REQUIREMENTS.md#counters-and-resources) (RP1–RP4). The decisions are D66–D68.
+
+### How it works
+
+- **Domain (`internal/combat`).**
+  - `Resource{Name string, Current int, Max *int, ResetOnTurn bool}` stored on `Combatant.Resources []*Resource` (`json:"resources,omitempty"` — backward-compatible with schema v2).
+  - Events: `ResourceChanged{EventMeta, ID, Target, Name, Current, Max *int, ResetOnTurn bool}` and `ResourceRemoved{EventMeta, ID, Target, Name}`.
+  - Methods in `internal/combat/resources.go`:
+    - `SetResource(id, name, cur, maxVal, resetOnTurn)`: creates or updates (case-insensitive by name); if `maxVal == nil` and `resetOnTurn` is true, refuses with `ErrInvalid`; clamps `cur` to `[0, *maxVal]` (or `≥ 0` when unbounded).
+    - `SetResourceCurrent(id, name, cur)`: if an existing resource matches, keeps its `Max`/`ResetOnTurn` and clamps `cur`; otherwise creates an unbounded resource at `cur`.
+    - `AdjustResource(id, name, delta)`: finds existing resource, adds `delta` clamped to `[0, *Max]` (or `≥ 0`), no-op if unchanged.
+    - `RemoveResource(id, name)`: removes matching resource or returns `ErrNotFound`.
+  - `tick` in `turns.go`: resets `res.ResetOnTurn && res.Max != nil` counters on the turn-starting combatant back to `*res.Max`, saving `ResetResource{OwnerID, Name, Prev}` in `TurnRecord.ResetResources` so `Previous()` restores them (D67).
+  - `NextEncounter(true)` in `encounter.go`: copies each PC's `Resources`, resetting `ResetOnTurn` ones to `*Max` and preserving current values on the rest (D68).
+- **Journal & Undo.** `ResourceChanged` and `ResourceRemoved` are skipped by `logText` (not logged) and formatted in `journal.Summary` (`"Strahd LA 2/3"`, `"Thorin Arrows 14"`, `"LA removed from Strahd"`). `tui/undo.go`'s `eventRow` returns `e.ID`.
+- **Shared spec parser (`internal/command`).** Parse resource actions (`NAME CUR/MAX [reset|r]`, `NAME /MAX [reset|r]`, `NAME N`, `NAME +N|-N`, `NAME rm`) in one helper used by both `:res TARGET …` and the TUI `P` prompt.
+- **TUI (`internal/tui`).**
+  - `conditionsText` in `table.go` appends `[Name Cur/Max↻]`, `[Name Cur/Max]`, or `[Name Cur]` after linked effects (D66).
+  - Hotkey `P` opens `promptResource()` on the selected combatant with tab completion of existing resource names.
+  - Help overlay, `command.Specs`, and README updated.
+
+### Build order
+
+| Milestone | Covers | Notes |
+|---|---|---|
+| 20. Counters and resources | RP1–RP4 | `Resource` model, `resources.go` ops, `tick`/`Previous` turn-reset & rewind, PC carry-over, `journal.Summary`, `undo.go`, `:res`, `P` prompt, `table.go` inline display, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (bounded turn-reset LA, unbounded arrows, spend, turn-start reset, `p` rewind, carry-over on End). |
+
 ## Open questions
 
 The end-combat, duration, and condition-list questions were settled as D13, D12, and D14. Open for the ruleset work:
@@ -710,6 +742,8 @@ For quick initiative pass, settled 2026-11-22: works in Setup and Active (combat
 For fuzzy jump, settled 2026-11-22: live jump as you type across all rows including effects, `tab`/`↓`/`↑` cycle matches, `enter` keeps selection, `esc` restores prior selection (D62–D63).
 
 For rename, settled 2026-11-22: skip cloning and ship rename only (`R` / `:rename`) across combatants and effects, logged in Active combat (D64–D65).
+
+For counters and resources, settled 2026-11-22: display inline in the Conditions column (`[LA 2/3↻]`), support both bounded (with optional turn-start reset) and unbounded counters, and carry PC counters over on End resetting turn-reset ones to max (D66–D68).
 
 ## Future features
 
