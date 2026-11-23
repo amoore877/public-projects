@@ -123,6 +123,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - Dice roller: type an expression like `2d6+2+1d4` and see the total and each die. See [Dice roller](#dice-roller).
 - Dice in damage and healing: roll and apply in one step, with halving, doubling and immunity per damage type and per target. See [Dice in damage and healing](#dice-in-damage-and-healing).
 - ✅ Carry over PCs between fights: keep the party's state when ending combat instead of re-entering them every encounter. See [Carry over PCs between fights](#carry-over-pcs-between-fights).
+- Quick initiative pass: step through every combatant entering initiatives back-to-back without repeated navigation. See [Quick initiative pass](#quick-initiative-pass).
 
 ### Rulesets
 
@@ -362,4 +363,32 @@ In a dungeon crawl or multi-encounter session, re-entering four to six PCs (with
 - When PCs are carried over, the new Setup encounter (with the same ruleset and carried-over PCs) is saved to the state file immediately after archiving so quitting right away doesn't lose the party.
 - When starting empty (`c` or `:endcombat clear`, or when no PCs existed), no new state file is written until the first Setup edit, as before.
 - Ending combat remains an undo barrier (UR5): the undo stack starts fresh for the new Setup.
+
+### Quick initiative pass
+
+When PCs carry over at initiative `0`, or at the start of a new round in systems that re-roll initiative, pressing `j`, `i`, number, Enter for every row is slow. A single key should walk down the roster prompting only for each combatant's initiative. The design is in [DESIGN.md](DESIGN.md#quick-initiative-pass).
+
+#### QI1. Scope and order
+
+- Available in both Setup and Active combat, via hotkey `I` or command `:initall`.
+- Visits every **combatant** row (skipping effect rows) in the table order at the moment the pass begins, so live re-sorting never skips or repeats a combatant.
+- If there are no combatants, warns and does nothing.
+
+#### QI2. Stepping through combatants
+
+- As each combatant is prompted, the table selection highlights that row and the prompt shows progress and current initiative, e.g. `Initiative (1/4) Thorin (now 0):`.
+- Pressing Enter with a new value applies it immediately and re-sorts the table live before advancing to the next combatant.
+- Pressing Enter on an empty prompt (or entering the same value) keeps the combatant's current initiative unchanged and advances to the next.
+- An invalid value keeps the prompt open with the reason so it can be fixed in place.
+
+#### QI3. Stopping early and Active combat
+
+- Pressing `esc` (or `ctrl+c`) stops the pass and keeps every initiative already entered.
+- During Active combat, the pass updates initiatives directly without triggering Delay turn-passing or per-row move-effects prompts; the current turn stays on the same row.
+
+#### QI4. Undo and persistence
+
+- Each applied value autosaves immediately as usual (D6).
+- All changes made during one pass collapse into a **single undo step** (UR1): pressing `u` once restores every combatant edited during the pass, and `U` puts all of them back.
+
 

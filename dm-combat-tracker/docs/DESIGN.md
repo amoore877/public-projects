@@ -66,6 +66,9 @@ Each entry is a decision made during planning, with what it rules out.
 | D56 | **Carried-over PCs start with initiative 0** (CP2). | Keeps `Initiative` simple with no new "unset" sentinel. Two or more PCs at 0 immediately trigger the existing `!` tie warning, reminding the DM to enter new initiatives (and pairing directly with Quick initiative pass). Rejected: an explicit `—` unset state that blocks `Start`. |
 | D57 | **`E` offers keep-PCs or clear-all when PCs exist; `:endcombat` keeps PCs by default** (CP3). | With PCs present, `E` shows `[k] keep PCs · [c] clear all · esc cancel`; with no PCs, it stays `[y]/[n]`. `:endcombat` keeps PCs (matching the common multi-fight flow) and `:endcombat clear` starts an empty Setup. |
 | D58 | **A carried-over Setup is saved immediately after archiving** (CP4). | Ending with clear leaves no state file until the first Setup edit (as before). Ending with keep-PCs writes the new Setup right after archiving the finished fight, so quitting immediately afterward keeps the party. Undo still resets at End (D43). |
+| D59 | **Quick initiative pass (`I` / `:initall`) snapshots the combatant ID list in table order, applies each Enter live, and merges the whole pass into one undo step** (QI1–QI4). | Live sorting lets the DM watch the order take shape and spot ties immediately; a fixed ID snapshot ensures sorting never skips or repeats a row. Merging into one undo step via `Session.ApplyMerged` keeps crash-safe autosave on every Enter while letting one `u` revert the whole pass. |
+| D60 | **Empty Enter skips; `esc` stops and keeps edits made so far** (QI2, QI3). | Skipping unchanged rows takes one key, and backing out after entering 3 of 5 PCs doesn't throw away work (and `u` reverts all 3 at once if desired). |
+| D61 | **The pass sets initiative directly without triggering Delay or move-effects prompts** (QI3). | Bulk re-rolling or fixing initiatives in Active combat isn't a single-creature Delay; single-row `i` / `:init` keeps Delay and `FixedAnchor` prompts. |
 
 ## Layout
 
@@ -340,7 +343,7 @@ go test -cover ./...          # target: 90% or more in every package
 6. ✅ **Command bar + help overlay.**
 7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
-Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights).
+Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights); 17 is [Quick initiative pass](#quick-initiative-pass).
 
 ## Rulesets
 
@@ -616,6 +619,29 @@ Built as milestone 16, for [Carry over PCs between fights](REQUIREMENTS.md#carry
 |---|---|---|
 | 16. ✅ Carry over PCs | CP1–CP4 | `Encounter.NextEncounter`, `EndWith` / `CombatEnded.KeepPCs`, `session.Apply` immediate save after archive, `:endcombat [clear]`, `E` choice prompt, help/README, unit tests across `combat`/`session`/`command`/`tui`, and E2E story (end combat keeping PCs, verify state persists across restart, and `:endcombat clear`). |
 
+## Quick initiative pass
+
+Planned as milestone 17, for [Quick initiative pass](REQUIREMENTS.md#quick-initiative-pass) (QI1–QI4). The decisions are D59–D61.
+
+### How it works
+
+- **Domain (`internal/combat`).** Add `func (e *Encounter) SetInitiativeDirect(id RowID, v Initiative) ([]Event, error)` for combatants: if `v == c.Initiative`, returns `nil, nil` (no-op); otherwise updates `c.Initiative` and emits `InitiativeChanged` without triggering Delay turn-passing or `FixedAnchor` move-effects errors (D61).
+- **Session (`internal/session`).** Add `func (s *Session) ApplyMerged(op Op) (Outcome, error)` (or a `merge bool` helper shared with `Apply`). It runs `op`, saves, logs, and if `s.undo` is non-empty, updates the top step's `after` snapshot and appends `events`/`logged` instead of pushing a new step; if `s.undo` is empty it pushes a step normally. This keeps every Enter autosaved while collapsing the entire pass into one undoable step (D59).
+- **Command bar (`internal/command`).** Add command kind `InitAll` and verb `:initall` (no arguments), wired in `internal/tui/commandbar.go` to open the same initiative-pass overlay as `I`.
+- **TUI (`internal/tui`).**
+  - Hotkey `I` (and `:initall`) collects all combatant `RowID`s from `enc.Order()` in display order. If none exist, warns `"No combatants to set initiative for"`.
+  - Uses a small recursive `inputPrompt` step builder tracking `ids`, `idx`, and `changed` (count of rows actually updated). Before showing step `idx`, selects `ids[idx]` and calls `syncSelection()` so the row is highlighted and scrolled into view.
+  - Label: `Initiative (1/4) Thorin (now 0):`; hint: `enter alone keeps 0 · decimals break ties`.
+  - Empty Enter or entering the same value advances to `idx+1` with no session call.
+  - A new valid initiative calls `m.runMerged(op, changed > 0)` (first change pushes a new undo step, subsequent changes merge into it), increments `changed`, and advances to `idx+1`.
+  - Finishing or pressing `esc` closes the overlay, leaves the table sorted, and reports `"Updated N initiatives"` (when `changed > 0`) on the status line.
+
+### Build order
+
+| Milestone | Covers | Notes |
+|---|---|---|
+| 17. Quick initiative pass | QI1–QI4 | `SetInitiativeDirect`, `Session.ApplyMerged`, `:initall` verb/kind, `I` pass overlay, help/README, unit tests across `combat`/`session`/`command`/`tui`, and E2E story (carry over PCs → `I` pass with skip and edit → live sort → single `u` undo reverts the whole pass). |
+
 ## Open questions
 
 The end-combat, duration, and condition-list questions were settled as D13, D12, and D14. Open for the ruleset work:
@@ -634,6 +660,8 @@ For dice in damage, settled 2026-11-19: usual precedence, so `2d6+1d4/2` halves 
 
 For carrying over PCs, settled 2026-11-22: carry over HP, max HP, nonlethal, temp HP, indefinite conditions and notes, dropping timed conditions and effects (D55); reset carried-over initiative to 0 (D56); `E` offers `[k]` keep / `[c]` clear when PCs exist and `:endcombat` keeps PCs by default with `:endcombat clear` to start empty (D57).
 
+For quick initiative pass, settled 2026-11-22: works in Setup and Active (combatants only), applies & sorts live on each Enter, empty Enter skips, `esc` stops keeping edits so far, and the whole pass merges into one undo step (D59–D61).
+
 ## Future features
 
 Candidate features that fit the tracker's scope (keyboard-first 80×24 TUI, single static binary, zero rules automation, atomic state + append-only Markdown log).
@@ -643,7 +671,7 @@ Candidate features that fit the tracker's scope (keyboard-first 80×24 TUI, sing
 1. ✅ **Carry over PCs between fights.** On ending combat, optionally carry the PCs into the next fight's Setup (preserving HP, temp HP, and any chosen ongoing state, while clearing initiative for the new fight).
 2. **Quick initiative pass.** Step through every combatant row in sequence prompting only for initiative, avoiding repeated navigation between fights.
 3. **Fuzzy jump (`/`).** Jump table selection by typing a name prefix or substring in large fights.
-4. **Clone and rename (`:clone`, `:rename`).** Duplicate a combatant (for summons or splitting creatures) and rename a combatant mid-fight.
+4. **Rename (`R`, `:rename`).** Rename a combatant mid-fight (cloning skipped by choice).
 5. **Counters / pips ("Resources").** Generic per-combatant named counters (e.g. `LA 2/3`, `LR 1/3`, `Rxn 1/1`, death saves, ammo) with optional auto-reset at the start of that creature's turn.
 6. **Round / turn countdowns.** Standalone deferred reminders not tied to targets (e.g. reinforcements arriving in 3 rounds or a hazard on round 5) with a header/table countdown and an alert + log entry when due.
 7. **End-of-turn duration option.** Optional end-of-turn duration anchor (e.g. `1e`, ticking when `n` leaves the anchor's turn) alongside the default start-of-turn countdown (D12).
