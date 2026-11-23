@@ -69,6 +69,8 @@ Each entry is a decision made during planning, with what it rules out.
 | D59 | **Quick initiative pass (`I` / `:initall`) snapshots the combatant ID list in table order, applies each Enter live, and merges the whole pass into one undo step** (QI1–QI4). | Live sorting lets the DM watch the order take shape and spot ties immediately; a fixed ID snapshot ensures sorting never skips or repeats a row. Merging into one undo step via `Session.ApplyMerged` keeps crash-safe autosave on every Enter while letting one `u` revert the whole pass. |
 | D60 | **Empty Enter skips; `esc` stops and keeps edits made so far** (QI2, QI3). | Skipping unchanged rows takes one key, and backing out after entering 3 of 5 PCs doesn't throw away work (and `u` reverts all 3 at once if desired). |
 | D61 | **The pass sets initiative directly without triggering Delay or move-effects prompts** (QI3). | Bulk re-rolling or fixing initiatives in Active combat isn't a single-creature Delay; single-row `i` / `:init` keeps Delay and `FixedAnchor` prompts. |
+| D62 | **Fuzzy jump (`/`) is a TUI-only overlay that moves selection live as you type and restores the prior selection on `esc`** (FJ1–FJ3). | Navigation shouldn't touch combat state, autosave, or undo. Live jumping lets the DM see the row's HP and conditions before pressing `enter` to act on it. |
+| D63 | **Three-tier case-insensitive matching: prefix, substring, subsequence (fuzzy)**, preserving table order within each tier (FJ1). | Predictable for plain prefixes (`gob`), forgiving for middle words (`cap`), and fast for initials/numbers (`g3`, `sg`), with zero external dependencies. |
 
 ## Layout
 
@@ -343,7 +345,7 @@ go test -cover ./...          # target: 90% or more in every package
 6. ✅ **Command bar + help overlay.**
 7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
-Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights); 17 is [Quick initiative pass](#quick-initiative-pass).
+Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights); 17 is [Quick initiative pass](#quick-initiative-pass); 18 is [Fuzzy jump](#fuzzy-jump).
 
 ## Rulesets
 
@@ -642,6 +644,27 @@ Built as milestone 17, for [Quick initiative pass](REQUIREMENTS.md#quick-initiat
 |---|---|---|
 | 17. ✅ Quick initiative pass | QI1–QI4 | `SetInitiativeDirect`, `Session.ApplyMerged`, `:initall` verb/kind, `I` pass overlay, help/README, unit tests across `combat`/`session`/`command`/`tui`, and E2E story (carry over PCs → `I` pass with skip and edit → live sort → single `u` undo reverts the whole pass). |
 
+## Fuzzy jump
+
+Planned as milestone 18, for [Fuzzy jump](REQUIREMENTS.md#fuzzy-jump) (FJ1–FJ3). The decisions are D62–D63.
+
+### How it works
+
+- **Purely in `internal/tui` (`jump.go`).** Implements `overlay` (`jumpPrompt`) using `lineEdit`, keeping the 2-line bottom layout (D24).
+- **Matcher (`matchRows(rows, query)`).** Lowercases `query` (ignoring spaces) and ranks rows into 3 buckets, keeping table order inside each bucket:
+  1. Prefix match against the row's lowercased name (or space-stripped name).
+  2. Substring match against the row's lowercased name (or space-stripped name).
+  3. Subsequence match (every rune of `query` appears in order in the lowercased name).
+  Empty query yields no matches and keeps the original selection.
+- **Keys.** Typing edits the query, recomputes matches, resets match index to 0, and sets `m.selected = matches[0]` + `m.syncSelection()`. `tab`/`down`/`ctrl+n` and `shift+tab`/`up`/`ctrl+p` cycle `idx` modulo `len(matches)` and jump live. `enter` closes keeping `m.selected`. `esc`/`ctrl+c` restores the saved `origSelected` and `origOffset` and closes.
+- **Help & README.** Hotkey `/` added to `keyHelp` and README.
+
+### Build order
+
+| Milestone | Covers | Notes |
+|---|---|---|
+| 18. Fuzzy jump | FJ1–FJ3 | `internal/tui/jump.go` (`jumpPrompt`, `matchRows`), `/` hotkey in `model.go`, help/README, unit tests (`jump_test.go`), golden help update, and E2E story (jump to a goblin, cycle matches, cancel restores selection, jump to an effect row). |
+
 ## Open questions
 
 The end-combat, duration, and condition-list questions were settled as D13, D12, and D14. Open for the ruleset work:
@@ -661,6 +684,8 @@ For dice in damage, settled 2026-11-19: usual precedence, so `2d6+1d4/2` halves 
 For carrying over PCs, settled 2026-11-22: carry over HP, max HP, nonlethal, temp HP, indefinite conditions and notes, dropping timed conditions and effects (D55); reset carried-over initiative to 0 (D56); `E` offers `[k]` keep / `[c]` clear when PCs exist and `:endcombat` keeps PCs by default with `:endcombat clear` to start empty (D57).
 
 For quick initiative pass, settled 2026-11-22: works in Setup and Active (combatants only), applies & sorts live on each Enter, empty Enter skips, `esc` stops keeping edits so far, and the whole pass merges into one undo step (D59–D61).
+
+For fuzzy jump, settled 2026-11-22: live jump as you type across all rows including effects, `tab`/`↓`/`↑` cycle matches, `enter` keeps selection, `esc` restores prior selection (D62–D63).
 
 ## Future features
 

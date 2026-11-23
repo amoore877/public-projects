@@ -124,6 +124,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - Dice in damage and healing: roll and apply in one step, with halving, doubling and immunity per damage type and per target. See [Dice in damage and healing](#dice-in-damage-and-healing).
 - ✅ Carry over PCs between fights: keep the party's state when ending combat instead of re-entering them every encounter. See [Carry over PCs between fights](#carry-over-pcs-between-fights).
 - ✅ Quick initiative pass: step through every combatant entering initiatives back-to-back without repeated navigation. See [Quick initiative pass](#quick-initiative-pass).
+- Fuzzy jump: jump table selection by typing part of a row's name. See [Fuzzy jump](#fuzzy-jump).
 
 ### Rulesets
 
@@ -390,5 +391,30 @@ When PCs carry over at initiative `0`, or at the start of a new round in systems
 
 - Each applied value autosaves immediately as usual (D6).
 - All changes made during one pass collapse into a **single undo step** (UR1): pressing `u` once restores every combatant edited during the pass, and `U` puts all of them back.
+
+### Fuzzy jump
+
+In large fights with fifteen or more rows (combatants and area effects), tapping `j` or `k` to reach a target is slow. Pressing `/` should let the DM jump straight to any row by typing part of its name. The design is in [DESIGN.md](DESIGN.md#fuzzy-jump).
+
+#### FJ1. Matching
+
+- Works in both Setup and Active combat, across every row in the table (combatants and effects).
+- Matching is case-insensitive and ranked in three tiers, keeping table order within each tier:
+  1. Prefix match (ignoring spaces, so `band` matches Bandit Captain).
+  2. Substring match (`cap` matches Bandit Captain, `guard` matches Spirit Guardians).
+  3. Subsequence (fuzzy) match (`bc` matches Bandit Captain, `g3` matches Goblin 3).
+
+#### FJ2. Live navigation
+
+- Selection jumps live to the best match as each character is typed, scrolling the table to keep it visible.
+- `tab` / `↓` (`ctrl+n`) cycle to the next match; `shift+tab` / `↑` (`ctrl+p`) cycle to the previous match.
+- The hint line shows the current match index and total (`1/3`), or `No match` when nothing matches (leaving selection on the starting row).
+
+#### FJ3. Accepting and cancelling
+
+- `enter` closes the prompt and keeps the selected row.
+- `esc` (or `ctrl+c`) closes the prompt and restores the selection and scroll position from before `/` was pressed.
+- Jumping changes no combat state: no save, no log line, no undo step.
+
 
 
