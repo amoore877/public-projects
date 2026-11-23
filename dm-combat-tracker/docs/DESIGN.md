@@ -62,6 +62,10 @@ Each entry is a decision made during planning, with what it rules out.
 | D52 | **In an amount, bracket groups and parts stop at 0**; the `r` roller doesn't clamp. | Resistance by subtraction (3.5) must not spill from one type into another, and damage can't heal. The roller is plain arithmetic, so `r 1d4-3` can show -2. |
 | D53 | **Per-target modifiers in brackets after the name** (DD4): `g2/2`, `g3[fire*0]`, `mira[/2 poison*2]`. A modifier without a name applies to each part, rounding each part separately; they run left to right after the amount's own. | One command covers a whole area spell with saves and resistances. Per part rounding keeps one rule however resistance and saves are mixed; it can come out one lower per extra part than halving the total, which the DM accepted. Rejected: halving the total for unnamed modifiers (then modifiers can't run in the order typed). |
 | D54 | **The amount prompts keep their own `↑` history, apart from `r`'s last roll; an empty amount is still refused** (DD6). | The usual turn is attack with `r`, damage with `d`; sharing one memory would make the next `r` enter roll damage. An empty enter that dealt damage would be too easy to hit. |
+| D55 | **Carry-over keeps persistent PC state only** (CP1): HP, max HP, nonlethal, temp HP, indefinite conditions (with `SourceID` cleared) and notes. Timed conditions, area effects, and NPCs are dropped. | Lingering conditions (Exhaustion, Cursed, Poisoned), temp HP, and notes often span fights; round-based conditions and area spells almost never do. All PCs carry over, including downed/dead ones, in their previous `AddedSeq` order. |
+| D56 | **Carried-over PCs start with initiative 0** (CP2). | Keeps `Initiative` simple with no new "unset" sentinel. Two or more PCs at 0 immediately trigger the existing `!` tie warning, reminding the DM to enter new initiatives (and pairing directly with Quick initiative pass). Rejected: an explicit `—` unset state that blocks `Start`. |
+| D57 | **`E` offers keep-PCs or clear-all when PCs exist; `:endcombat` keeps PCs by default** (CP3). | With PCs present, `E` shows `[k] keep PCs · [c] clear all · esc cancel`; with no PCs, it stays `[y]/[n]`. `:endcombat` keeps PCs (matching the common multi-fight flow) and `:endcombat clear` starts an empty Setup. |
+| D58 | **A carried-over Setup is saved immediately after archiving** (CP4). | Ending with clear leaves no state file until the first Setup edit (as before). Ending with keep-PCs writes the new Setup right after archiving the finished fight, so quitting immediately afterward keeps the party. Undo still resets at End (D43). |
 
 ## Layout
 
@@ -336,7 +340,7 @@ go test -cover ./...          # target: 90% or more in every package
 6. ✅ **Command bar + help overlay.**
 7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
-Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing).
+Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights).
 
 ## Rulesets
 
@@ -586,6 +590,32 @@ func (r Result) Amount(m []TargetMod) (int, []int, error) // total and per-part,
 
 Later: the target picker with saved / resistant / vulnerable / immune keys.
 
+## Carry over PCs between fights
+
+Planned as milestone 16, for [Carry over PCs between fights](REQUIREMENTS.md#carry-over-pcs-between-fights) (CP1–CP4). The decisions are D55–D58.
+
+### How it works
+
+- **Domain (`internal/combat`).** Add `func (e *Encounter) NextEncounter(keepPCs bool) *Encounter` (pure, no I/O). It returns a new `Setup` encounter using `e.clock` with the same `Ruleset`. When `keepPCs` is true, it copies every `Combatant` with `Kind == PC` in ascending `AddedSeq` order, assigning fresh IDs and `AddedSeq`, setting `Initiative` to `0`, keeping `Name`, `Kind`, `HP`, `MaxHP`, `TempHP`, `Nonlethal`, `Note`, and copying each `Condition` with `Remaining == nil` (with a fresh ID and `SourceID: 0`). Also add `func (e *Encounter) HasPCs() bool` for the UI prompt.
+- **Event.** `CombatEnded` gains a `KeepPCs bool` field (or `EndWith(keepPCs bool)` alongside `End()`, which defaults to `KeepPCs: false` so existing direct callers stay unchanged). The combat log ignores `KeepPCs` — ending combat still logs `Combat ended after N rounds`.
+- **Session (`internal/session`).** When `Apply` sees `CombatEnded`:
+  1. Save and archive the ended encounter as before (D13).
+  2. Build `next := s.enc.NextEncounter(keepPCs)` and set `s.enc = next`.
+  3. If `len(next.Combatants) > 0` and archiving succeeded, call `store.Save(s.cfg.StatePath, s.enc)` immediately so quitting right away keeps the carried-over party (D58). If that save fails, report it in `Outcome.SaveErr` so the sticky red banner appears.
+  4. Undo/redo stacks remain cleared at End (D43).
+- **Command bar (`internal/command`).** `:endcombat` accepts an optional `clear` argument (case-insensitive; any other argument is refused). `Command` carries `Clear bool` (false by default, so `:endcombat` keeps PCs and `:endcombat clear` starts empty, D57).
+- **TUI (`internal/tui`).**
+  - `E`: when `enc.HasPCs()` is true, opens a `choicePrompt` with `[k] keep PCs` and `[c] clear all` (plus `esc` cancels). When no PCs are present, keeps the existing `[y]/[n]` confirmation.
+  - `:endcombat` / `:endcombat clear`: calls `m.endCombat(!cmd.Clear)`.
+  - Status line after ending with carried-over PCs: `Combat ended · N PCs carried over · archived as <file>` (or `1 PC carried over`). Selection lands on the first carried-over PC (row 0) when any remain.
+  - Help overlay and README updated for `:endcombat [clear]` and `E`.
+
+### Build order
+
+| Milestone | Covers | Notes |
+|---|---|---|
+| 16. Carry over PCs | CP1–CP4 | `Encounter.NextEncounter`, `EndKeepPCs` / `CombatEnded.KeepPCs`, `session.Apply` immediate save after archive, `:endcombat [clear]`, `E` choice prompt, help/README, unit tests across `combat`/`session`/`command`/`tui`, and E2E story (end combat keeping PCs, verify state persists across restart, and `:endcombat clear`). |
+
 ## Open questions
 
 The end-combat, duration, and condition-list questions were settled as D13, D12, and D14. Open for the ruleset work:
@@ -601,6 +631,8 @@ For undo and redo, all settled 2026-11-18: no undo history across a restart and 
 For the dice roller, settled 2026-11-19: rolls are not logged (D45); the breakdown is in set order (D48); rolling in the damage prompt waits for resistance grammar (DR5).
 
 For dice in damage, settled 2026-11-19: usual precedence, so `2d6+1d4/2` halves the 1d4 (D50); unnamed per-target modifiers round each part on its own (D53); per-target brackets are worth building before the picker (15c).
+
+For carrying over PCs, settled 2026-11-22: carry over HP, max HP, nonlethal, temp HP, indefinite conditions and notes, dropping timed conditions and effects (D55); reset carried-over initiative to 0 (D56); `E` offers `[k]` keep / `[c]` clear when PCs exist and `:endcombat` keeps PCs by default with `:endcombat clear` to start empty (D57).
 
 ## Future features
 

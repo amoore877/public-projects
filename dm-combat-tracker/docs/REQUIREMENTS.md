@@ -122,6 +122,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - ✅ Undo and redo of any change. See [Undo and redo](#undo-and-redo).
 - Dice roller: type an expression like `2d6+2+1d4` and see the total and each die. See [Dice roller](#dice-roller).
 - Dice in damage and healing: roll and apply in one step, with halving, doubling and immunity per damage type and per target. See [Dice in damage and healing](#dice-in-damage-and-healing).
+- Carry over PCs between fights: keep the party's state when ending combat instead of re-entering them every encounter. See [Carry over PCs between fights](#carry-over-pcs-between-fights).
 
 ### Rulesets
 
@@ -332,3 +333,33 @@ Rolling with `r` and then typing the total into `d` is two steps for every hit. 
 #### Later
 
 Picking targets on the table and marking each one saved, resistant, vulnerable or immune with a key, instead of typing brackets.
+
+### Carry over PCs between fights
+
+In a dungeon crawl or multi-encounter session, re-entering four to six PCs (with their remaining HP, temp HP, and lingering conditions) at the start of every fight is tedious. Ending combat should let the DM carry the party straight into the next fight's Setup. The design is in [DESIGN.md](DESIGN.md#carry-over-pcs-between-fights).
+
+#### CP1. What carries over
+
+- Only combatants with kind `PC` carry over. NPCs and area effects are dropped.
+- Every PC carries over, including downed or dead ones, preserving their previous `AddedSeq` order.
+- Each carried-over PC keeps its `Name`, `Kind`, `HP`, `MaxHP`, `TempHP`, `Nonlethal` (for rulesets that track it), `Note`, and **indefinite conditions** (those with no round duration, with any `SourceID` cleared).
+- Timed conditions (those with a remaining round count) are dropped.
+
+#### CP2. Initiative
+
+- Every carried-over PC starts the new Setup with initiative `0`.
+- Existing exact-tie warnings (`!`) highlight multiple PCs at `0` so the DM remembers to enter fresh initiatives before starting combat.
+
+#### CP3. Ending combat
+
+- When the fight has at least one PC, `E` asks whether to keep PCs or clear everything: `[k] keep PCs`, `[c] clear all`, `esc` cancel.
+- When there are no PCs in the fight, `E` stays a plain `[y]/[n]` confirmation.
+- In the command bar, `:endcombat` carries PCs over by default; `:endcombat clear` ends combat and starts an empty Setup.
+
+#### CP4. Persistence and undo
+
+- The finished fight is still archived as before (`dmct-state-YYYYMMDD-HHMMSS.json`).
+- When PCs are carried over, the new Setup encounter (with the same ruleset and carried-over PCs) is saved to the state file immediately after archiving so quitting right away doesn't lose the party.
+- When starting empty (`c` or `:endcombat clear`, or when no PCs existed), no new state file is written until the first Setup edit, as before.
+- Ending combat remains an undo barrier (UR5): the undo stack starts fresh for the new Setup.
+
