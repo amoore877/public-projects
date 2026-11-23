@@ -601,3 +601,33 @@ For undo and redo, all settled 2026-11-18: no undo history across a restart and 
 For the dice roller, settled 2026-11-19: rolls are not logged (D45); the breakdown is in set order (D48); rolling in the damage prompt waits for resistance grammar (DR5).
 
 For dice in damage, settled 2026-11-19: usual precedence, so `2d6+1d4/2` halves the 1d4 (D50); unnamed per-target modifiers round each part on its own (D53); per-target brackets are worth building before the picker (15c).
+
+## Future features
+
+Candidate features that fit the tracker's scope (keyboard-first 80×24 TUI, single static binary, zero rules automation, atomic state + append-only Markdown log).
+
+### Planned next (in order)
+
+1. **Carry over PCs between fights.** On ending combat, optionally carry the PCs into the next fight's Setup (preserving HP, temp HP, and any chosen ongoing state, while clearing initiative for the new fight).
+2. **Quick initiative pass.** Step through every combatant row in sequence prompting only for initiative, avoiding repeated navigation between fights.
+3. **Fuzzy jump (`/`).** Jump table selection by typing a name prefix or substring in large fights.
+4. **Clone and rename (`:clone`, `:rename`).** Duplicate a combatant (for summons or splitting creatures) and rename a combatant mid-fight.
+5. **Counters / pips ("Resources").** Generic per-combatant named counters (e.g. `LA 2/3`, `LR 1/3`, `Rxn 1/1`, death saves, ammo) with optional auto-reset at the start of that creature's turn.
+6. **Round / turn countdowns.** Standalone deferred reminders not tied to targets (e.g. reinforcements arriving in 3 rounds or a hazard on round 5) with a header/table countdown and an alert + log entry when due.
+7. **End-of-turn duration option.** Optional end-of-turn duration anchor (e.g. `1e`, ticking when `n` leaves the anchor's turn) alongside the default start-of-turn countdown (D12).
+
+### Backlog
+
+- **Effect- and range-based command targets.** Target ranges (`g1-4`), active effects (`@spirit` for every current target of *Spirit Guardians*), and kind selectors (`@pcs`, `@npcs`) in `:` commands.
+- **Staged / hidden combatants.** Pre-entered ambush or reinforcement rows kept off the active initiative order until toggled in with one key.
+- **In-place condition editing.** Adjust a condition's remaining rounds (`+1`/`-1`) or note without removing and re-adding it.
+- **Row detail / inspect view (`enter`).** Swap the table area (like `?` help) for a full card showing the selected row's HP breakdown, all conditions with sources/durations/notes, linked effects, and full side note.
+- **Watch-mode player display (`dmct --watch`).** A read-only second terminal following the atomic state file with masked NPC HP descriptors, no DM notes or hidden rows, and clear current / on-deck turn highlighting.
+- **Encounter and party files (`:load`).** Reusable JSON files for the party (`party.json`) and prepared encounters or reinforcement waves, mirroring the `rulesets` folder convention.
+- **In-table multi-target picker beyond effects.** Reuse the D26 checklist pattern for AoE damage (with saved/resistant/vulnerable/immune keys), multi-target healing, and multi-target conditions.
+- **Named dice macros.** Reusable aliases (`:macro fb 8d6 fire` or via config) accepted by `r` and amount prompts.
+- **Post-combat Markdown summary.** Append a compact recap block on End: elapsed wall-clock time, final survivor/down/dead/removed roster, and a grouped list of the fight's 📝 manual notes.
+- **In-app log tail (`L`).** Read-only scrollable overlay showing the current fight's log lines inside `dmct`.
+- **Optional pacing timer.** Toggleable elapsed combat clock and/or current-turn clock in the header.
+- **Archive CLI subcommands (`dmct list` / `dmct show`).** Inspect archived `dmct-state-*.json` fights or seed a new Setup from a previous archive.
+
