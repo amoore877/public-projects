@@ -155,6 +155,7 @@ type (
 		Target    string
 		Condition string
 		Remaining *int
+		EndOfTurn bool
 		Note      string
 		Source    string // name of the creature that caused it; empty if none
 	}
@@ -177,6 +178,7 @@ type (
 		Name      string
 		Source    string // "" for environmental effects
 		Remaining *int
+		EndOfTurn bool
 		Targets   []string
 	}
 	EffectTargetsChanged struct {

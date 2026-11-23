@@ -635,6 +635,45 @@ func TestTimersUI(t *testing.T) {
 	}
 }
 
+func TestEndOfTurnUI(t *testing.T) {
+	s := newSession(t,
+		add("Mira", combat.PC, "18", 27),
+		add("Goblin", combat.NPC, "12", 7),
+		func(e *combat.Encounter) ([]combat.Event, error) { return e.Start() },
+	)
+	m := sized(New(s, ""), 100, 24)
+	// Add 1e condition on Goblin via c hotkey (anchored to Goblin, not Mira).
+	selectRow(t, m, "Goblin")
+	press(m, "c")
+	typeText(m, "Stunned")
+	press(m, "enter")
+	typeText(m, "1e")
+	press(m, "enter")
+	press(m, "n") // count on Goblin's turn
+	press(m, "enter") // blank note
+	if !strings.Contains(screen(m), "Stunned (1e)") {
+		t.Fatalf("expected Stunned (1e):\n%s", screen(m))
+	}
+
+	// Add 2e effect from Mira via e hotkey.
+	selectRow(t, m, "Mira")
+	press(m, "e")
+	typeText(m, "Shield")
+	press(m, "enter")
+	press(m, "s") // source Mira
+	typeText(m, "2e")
+	press(m, "enter")
+	press(m, "enter") // pick no targets
+	if !strings.Contains(screen(m), "2e rds") {
+		t.Fatalf("expected 2e rds on effect row:\n%s", screen(m))
+	}
+	// Passing Mira's turn ticks Shield 2e -> 1e.
+	press(m, "n")
+	if !strings.Contains(screen(m), "1e rd") {
+		t.Fatalf("expected 1e rd after Mira ends turn:\n%s", screen(m))
+	}
+}
+
 func TestLineEditing(t *testing.T) {
 	s := newSession(t, add("Thorin", combat.PC, "18", 44))
 	m := New(s, "")

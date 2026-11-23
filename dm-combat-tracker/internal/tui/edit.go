@@ -135,27 +135,29 @@ func (m *Model) promptAddCondition() overlay {
 	id, target := c.ID, c.Name
 	var name string
 	var rounds *int
+	var endOfTurn bool
 	var source combat.RowID
 
 	note := &inputPrompt{help: "optional, e.g. DC 14 CON save ends"}
 	note.submit = func(m *Model, text string) (overlay, error) {
 		m.apply(func(e *combat.Encounter) ([]combat.Event, error) {
-			_, evs, err := e.AddConditionFrom(id, name, rounds, source, text)
+			_, evs, err := e.AddConditionEnd(id, name, rounds, endOfTurn, source, text)
 			return evs, err
 		})
 		return nil, nil
 	}
 
-	dur := &inputPrompt{help: "rounds; blank = until removed"}
+	dur := &inputPrompt{help: "rounds (e.g. 2 or 1e for end of turn); blank = until removed"}
 	dur.submit = func(m *Model, text string) (overlay, error) {
 		text = strings.TrimSpace(text)
 		rounds = nil
+		endOfTurn = false
 		if text != "" {
-			n, err := strconv.Atoi(text)
-			if err != nil || n < 1 {
-				return dur, fmt.Errorf("%q isn't a number of rounds (1 or more)", text)
+			n, eot, err := combat.ParseDuration(text)
+			if err != nil {
+				return dur, err
 			}
-			rounds = &n
+			rounds, endOfTurn = &n, eot
 		}
 		note.label = fmt.Sprintf("%s on %s · note:", name, target)
 		return m.askConditionSource(id, target, rounds, &source, note), nil

@@ -757,7 +757,7 @@ Built as milestone 21, for [Round countdowns](REQUIREMENTS.md#round-countdowns) 
 
 ## End-of-turn durations
 
-Planned as milestone 22, for [End-of-turn durations](REQUIREMENTS.md#end-of-turn-durations) (ET1–ET4). The decisions are D72–D74.
+Built as milestone 22, for [End-of-turn durations](REQUIREMENTS.md#end-of-turn-durations) (ET1–ET4). The decisions are D72–D74.
 
 ### How it works
 
@@ -780,7 +780,7 @@ Planned as milestone 22, for [End-of-turn durations](REQUIREMENTS.md#end-of-turn
 
 | Milestone | Covers | Notes |
 |---|---|---|
-| 22. End-of-turn durations | ET1–ET4 | `EndOfTurn` on `Condition`/`Effect`/`EffectSpec`/events, `ParseDuration`, `tickEnd` in `Next` (including unsourced effect self-expiry & Delay non-ticking), `Previous` rewind, journal wording, `:cond`/`:fx`, `c`/`e` prompts, `table.go` rendering, README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (end-of-turn condition & effect, expiry on leaving turn, log stamp, `p` rewind). |
+| 22. ✅ End-of-turn durations | ET1–ET4 | `EndOfTurn` on `Condition`/`Effect`/`EffectSpec`/events, `ParseDuration`, `tickEnd` in `Next` (including unsourced effect self-expiry & Delay non-ticking), `Previous` rewind, journal wording, `:cond`/`:fx`, `c`/`e` prompts, `table.go` rendering, README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (end-of-turn condition & effect, expiry on leaving turn, log stamp, `p` rewind). |
 
 ## Open questions
 
@@ -824,7 +824,7 @@ Candidate features that fit the tracker's scope (keyboard-first 80×24 TUI, sing
 4. ✅ **Rename (`R`, `:rename`).** Rename a combatant mid-fight (cloning skipped by choice).
 5. ✅ **Counters / pips ("Resources").** Generic per-combatant named counters (e.g. `LA 2/3`, `LR 1/3`, `Rxn 1/1`, death saves, ammo) with optional auto-reset at the start of that creature's turn.
 6. ✅ **Round / turn countdowns.** Standalone deferred reminders not tied to targets (e.g. reinforcements arriving in 3 rounds or a hazard on round 5) with a header/table countdown and an alert + log entry when due.
-7. **End-of-turn duration option.** Optional end-of-turn duration anchor (e.g. `1e`, ticking when `n` leaves the anchor's turn) alongside the default start-of-turn countdown (D12).
+7. ✅ **End-of-turn duration option.** Optional end-of-turn duration anchor (e.g. `1e`, ticking when `n` leaves the anchor's turn) alongside the default start-of-turn countdown (D12).
 
 ### Backlog
 

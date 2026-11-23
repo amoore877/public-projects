@@ -111,6 +111,9 @@ type Condition struct {
 	ID        RowID  `json:"id"`
 	Name      string `json:"name"`
 	Remaining *int   `json:"remaining,omitempty"`
+	// EndOfTurn makes a timed condition count down when Next leaves its
+	// anchor's turn instead of at the start of the turn (ET1–ET2, D72–D73).
+	EndOfTurn bool   `json:"endOfTurn,omitempty"`
 	Note      string `json:"note,omitempty"`
 	// SourceID is the creature that caused the condition (RS7, G8). When set,
 	// the duration counts down on the source's turn instead of the bearer's.
@@ -125,6 +128,7 @@ type Effect struct {
 	SourceID   RowID      `json:"sourceId,omitempty"`
 	Initiative Initiative `json:"initiative"`
 	Remaining  *int       `json:"remaining,omitempty"`
+	EndOfTurn  bool       `json:"endOfTurn,omitempty"`
 	Targets    []RowID    `json:"targets"`
 	Note       string     `json:"note,omitempty"`
 	AddedSeq   int        `json:"addedSeq"`

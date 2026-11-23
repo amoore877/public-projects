@@ -250,7 +250,11 @@ func logText(ev combat.Event) (string, bool) {
 	case combat.ConditionApplied:
 		var extra []string
 		if e.Remaining != nil {
-			extra = append(extra, plural(*e.Remaining, "round"))
+			dur := plural(*e.Remaining, "round")
+			if e.EndOfTurn {
+				dur += ", end of turn"
+			}
+			extra = append(extra, dur)
 		}
 		if e.Note != "" {
 			extra = append(extra, e.Note)
@@ -271,7 +275,11 @@ func logText(ev combat.Event) (string, bool) {
 			extra = append(extra, e.Source)
 		}
 		if e.Remaining != nil {
-			extra = append(extra, plural(*e.Remaining, "round"))
+			dur := plural(*e.Remaining, "round")
+			if e.EndOfTurn {
+				dur += ", end of turn"
+			}
+			extra = append(extra, dur)
 		}
 		text := "Effect started: " + e.Name + paren(strings.Join(extra, ", "))
 		if len(e.Targets) > 0 {

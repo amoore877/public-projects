@@ -78,8 +78,9 @@ func (e *Encounter) EndWith(keepPCs bool) ([]Event, error) {
 	return []Event{CombatEnded{EventMeta: m, Rounds: e.Round, KeepPCs: keepPCs}}, nil
 }
 
-// Next advances to the next row, wrapping into a new round, and counts down
-// the durations anchored to the row whose turn is starting (D12).
+// Next advances to the next row, wrapping into a new round. End-of-turn
+// durations anchored to the leaving row count down first (D73), then
+// start-of-turn durations anchored to the incoming row count down (D12).
 func (e *Encounter) Next() ([]Event, error) {
 	if e.Status != Active {
 		return nil, ErrNotActive
@@ -87,7 +88,25 @@ func (e *Encounter) Next() ([]Event, error) {
 	order := e.Order()
 	idx := indexOf(order, e.Current)
 	rec := e.newRecord()
-	evs := e.advance(order, idx, &rec)
+	var evs []Event
+	if e.Current != 0 {
+		evs = append(evs, e.tickEnd(e.Current, &rec)...)
+	}
+	newOrder := e.Order()
+	if curIdx := indexOf(newOrder, e.Current); curIdx >= 0 {
+		evs = append(evs, e.advance(newOrder, curIdx, &rec)...)
+	} else {
+		// The leaving row (an unsourced end-of-turn effect) expired; continue
+		// from the first surviving row that followed it, or wrap into the next round.
+		startIdx := len(newOrder) - 1
+		for j := idx + 1; j < len(order); j++ {
+			if k := indexOf(newOrder, order[j].ID()); k >= 0 {
+				startIdx = k - 1
+				break
+			}
+		}
+		evs = append(evs, e.advance(newOrder, startIdx, &rec)...)
+	}
 	e.pushHistory(rec)
 	return evs, nil
 }
@@ -139,14 +158,9 @@ func (e *Encounter) advance(order []Row, idx int, rec *TurnRecord) []Event {
 	}
 }
 
-// tick counts down everything anchored to row id, recording into rec: for a
-// combatant, its own conditions that have no source, the conditions it caused
-// on others, and the effects it is the source of; for an effect row, the
-// effect itself if it has no source (D12, RS7). Under a FixedAnchor ruleset
-// every effect counts down on its own row instead (D32).
+// tick counts down start-of-turn durations and resets turn-reset resources
+// anchored to row id (D12, RS7, D32, D67).
 func (e *Encounter) tick(id RowID, rec *TurnRecord) []Event {
-	var evs []Event
-	fixed := e.Rules().FixedAnchor
 	if cur, ok := e.Combatant(id); ok {
 		for _, res := range cur.Resources {
 			if res.ResetOnTurn && res.Max != nil && res.Current != *res.Max {
@@ -154,25 +168,41 @@ func (e *Encounter) tick(id RowID, rec *TurnRecord) []Event {
 				res.Current = *res.Max
 			}
 		}
+	}
+	return e.tickAnchored(id, false, rec)
+}
+
+// tickEnd counts down end-of-turn durations anchored to row id as Next leaves
+// its turn (ET2, D73).
+func (e *Encounter) tickEnd(id RowID, rec *TurnRecord) []Event {
+	return e.tickAnchored(id, true, rec)
+}
+
+func (e *Encounter) tickAnchored(id RowID, endOfTurn bool, rec *TurnRecord) []Event {
+	var evs []Event
+	fixed := e.Rules().FixedAnchor
+	if _, ok := e.Combatant(id); ok {
 		for _, c := range e.Combatants {
-			evs = append(evs, e.tickConditions(c, id, rec)...)
+			evs = append(evs, e.tickConditions(c, id, endOfTurn, rec)...)
 		}
 		if !fixed {
 			for _, fx := range e.EffectsFrom(id) {
-				evs = append(evs, e.tickEffect(fx, rec)...)
+				if fx.EndOfTurn == endOfTurn {
+					evs = append(evs, e.tickEffect(fx, rec)...)
+				}
 			}
 		}
 		return evs
 	}
-	if fx, ok := e.Effect(id); ok && (fx.SourceID == 0 || fixed) {
+	if fx, ok := e.Effect(id); ok && (fx.SourceID == 0 || fixed) && fx.EndOfTurn == endOfTurn {
 		evs = e.tickEffect(fx, rec)
 	}
 	return evs
 }
 
-// tickConditions counts down c's timed conditions anchored to row anchor: its
-// unsourced ones when c is the anchor, otherwise those whose source it is.
-func (e *Encounter) tickConditions(c *Combatant, anchor RowID, rec *TurnRecord) []Event {
+// tickConditions counts down c's timed conditions anchored to row anchor with
+// matching endOfTurn timing.
+func (e *Encounter) tickConditions(c *Combatant, anchor RowID, endOfTurn bool, rec *TurnRecord) []Event {
 	var evs []Event
 	kept := c.Conditions[:0:0]
 	for i, cond := range c.Conditions {
@@ -180,7 +210,7 @@ func (e *Encounter) tickConditions(c *Combatant, anchor RowID, rec *TurnRecord) 
 		if owner == 0 {
 			owner = c.ID
 		}
-		if cond.Remaining == nil || owner != anchor {
+		if cond.Remaining == nil || cond.EndOfTurn != endOfTurn || owner != anchor {
 			kept = append(kept, cond)
 			continue
 		}
@@ -228,7 +258,18 @@ func (e *Encounter) Previous() ([]Event, error) {
 		return nil, ErrNothingToUndo
 	}
 	rec := e.History[len(e.History)-1]
-	if _, ok := e.row(rec.PrevCurrent); !ok {
+	prevExists := false
+	if _, ok := e.row(rec.PrevCurrent); ok {
+		prevExists = true
+	} else {
+		for _, fx := range rec.ExpiredEffects {
+			if fx.ID == rec.PrevCurrent {
+				prevExists = true
+				break
+			}
+		}
+	}
+	if !prevExists {
 		e.History = nil
 		return nil, fmt.Errorf("%w: that row has been removed", ErrNothingToUndo)
 	}

@@ -65,9 +65,9 @@ var Specs = []Spec{
 	{":temp TARGETS [+]N", ":temp mira +5", "set temp HP; +N adds to it"},
 	{":nl TARGETS [=]N", ":nl orc 6", "nonlethal damage; =N sets the total (rulesets that track it)"},
 	{":maxhp TARGET N", ":maxhp orc 24", "set max HP; a lower max brings HP down"},
-	{":cond TARGETS NAME [ROUNDS] [by SOURCE] [-- NOTE]", ":cond g3 dazed 1 by mira", "add a condition; with a source it counts down on the source's turn"},
+	{":cond TARGETS NAME [ROUNDS[e]] [by SOURCE] [-- NOTE]", ":cond g3 dazed 1e by mira", "add a condition (trailing e = end of turn; with a source counts on source's turn)"},
 	{":uncond TARGET NAME", ":uncond g3 prone", "remove a condition"},
-	{":fx NAME [ROUNDS] [from SOURCE] [at INIT] [on TARGETS]", ":fx Spirit Guardians 10 from mira on g1,g3", "start an effect"},
+	{":fx NAME [ROUNDS[e]] [from SOURCE] [at INIT] [on TARGETS]", ":fx Spirit Guardians 10 from mira on g1,g3", "start an effect (trailing e = end of turn)"},
 	{":fxadd FX TARGETS", ":fxadd spirit g2", "add effect targets"},
 	{":fxrm FX TARGETS", ":fxrm spirit g1", "remove effect targets"},
 	{":end FX [-- REASON]", ":end spirit -- concentration broken", "end an effect early"},
@@ -477,17 +477,18 @@ func parseCond(enc *combat.Encounter, rest string) (Command, error) {
 		}
 	}
 	var rounds *int
+	endOfTurn := false
 	if len(nameWords) > 1 {
-		if n, err := strconv.Atoi(nameWords[len(nameWords)-1]); err == nil {
-			if n < 1 {
-				return Command{}, errors.New("duration must be at least 1 round")
-			}
-			rounds, nameWords = &n, nameWords[:len(nameWords)-1]
+		last := nameWords[len(nameWords)-1]
+		if n, eot, err := combat.ParseDuration(last); err == nil {
+			rounds, endOfTurn, nameWords = &n, eot, nameWords[:len(nameWords)-1]
+		} else if _, err := strconv.Atoi(strings.TrimRight(last, "eE")); err == nil {
+			return Command{}, errors.New("duration must be at least 1 round")
 		}
 	}
 	name := enc.Rules().CanonicalCondition(strings.Join(nameWords, " "))
 	op := each(ids, func(e *combat.Encounter, id combat.RowID) ([]combat.Event, error) {
-		_, evs, err := e.AddConditionFrom(id, name, rounds, source, note)
+		_, evs, err := e.AddConditionEnd(id, name, rounds, endOfTurn, source, note)
 		return evs, err
 	})
 	return Command{Focus: ids[0], Op: op}, nil
@@ -542,11 +543,11 @@ func parseFX(enc *combat.Encounter, words []string) (Command, error) {
 	}
 	spec := combat.EffectSpec{}
 	if len(nameWords) > 1 {
-		if n, err := strconv.Atoi(nameWords[len(nameWords)-1]); err == nil {
-			if n < 1 {
-				return Command{}, errors.New("duration must be at least 1 round")
-			}
-			spec.Rounds, nameWords = &n, nameWords[:len(nameWords)-1]
+		last := nameWords[len(nameWords)-1]
+		if n, eot, err := combat.ParseDuration(last); err == nil {
+			spec.Rounds, spec.EndOfTurn, nameWords = &n, eot, nameWords[:len(nameWords)-1]
+		} else if _, err := strconv.Atoi(strings.TrimRight(last, "eE")); err == nil {
+			return Command{}, errors.New("duration must be at least 1 round")
 		}
 	}
 	spec.Name = strings.Join(nameWords, " ")

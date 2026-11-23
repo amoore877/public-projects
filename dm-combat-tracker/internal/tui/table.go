@@ -84,7 +84,11 @@ func conditionsText(enc *combat.Encounter, c *combat.Combatant) string {
 	for _, cond := range c.Conditions {
 		var extra []string
 		if cond.Remaining != nil {
-			extra = append(extra, fmt.Sprint(*cond.Remaining))
+			dur := fmt.Sprint(*cond.Remaining)
+			if cond.EndOfTurn {
+				dur += "e"
+			}
+			extra = append(extra, dur)
 		}
 		if src, ok := enc.Combatant(cond.SourceID); ok && cond.SourceID != 0 {
 			extra = append(extra, "by "+src.Name)
@@ -118,7 +122,15 @@ func formatResource(r *combat.Resource) string {
 func effectSummary(fx *combat.Effect) string {
 	var parts []string
 	if fx.Remaining != nil {
-		parts = append(parts, plural(*fx.Remaining, "rd", "rds"))
+		if fx.EndOfTurn {
+			unit := "rds"
+			if *fx.Remaining == 1 {
+				unit = "rd"
+			}
+			parts = append(parts, fmt.Sprintf("%de %s", *fx.Remaining, unit))
+		} else {
+			parts = append(parts, plural(*fx.Remaining, "rd", "rds"))
+		}
 	}
 	parts = append(parts, plural(len(fx.Targets), "target", "targets"))
 	return strings.Join(parts, " · ")

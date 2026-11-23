@@ -1325,3 +1325,34 @@ func TestRoundCountdowns(t *testing.T) {
 		t.Errorf("timer lines missing from log:\n%s", log)
 	}
 }
+
+// End-of-turn durations (`1e`, `2e`) work on both conditions and area effects,
+// tick when leaving the anchor's turn, log cleanly, and restore on `p` rewind
+// (ET1–ET4, D72–D74).
+func TestEndOfTurnDurations(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir, "--log", "recap.md")
+	a.do(":add Mira 18 27 pc"+enter, "Mira")
+	a.do(":add Goblin 12 7"+enter, "Goblin")
+	a.do("S", "Round 1 ─ Turn: Mira")
+
+	a.do(":cond goblin stunned 1e"+enter, "Stunned (1e)")
+	a.do(":fx Shield 1e from mira on mira"+enter, "1e rd")
+	// Mira finishes her turn: Shield expires at end of Mira's turn; Stunned stays for Goblin's turn.
+	a.do("n", "Round 1 ─ Turn: Goblin", "Stunned (1e)")
+	a.gone("Shield")
+	// Goblin finishes its turn: Stunned expires at end of Goblin's turn!
+	a.do("n", "Round 2 ─ Turn: Mira")
+	a.gone("Stunned")
+	// Rewind brings Stunned (1e) back.
+	a.do("p", "Round 1 ─ Turn: Goblin", "Stunned (1e)")
+	a.quit()
+
+	log := read(t, filepath.Join(dir, "recap.md"))
+	if !strings.Contains(log, "Stunned applied to Goblin (1 round, end of turn)") ||
+		!strings.Contains(log, "Effect started: Shield (Mira, 1 round, end of turn) on Mira") ||
+		!strings.Contains(log, "**[R1 · Mira]** Effect expired: Shield") ||
+		!strings.Contains(log, "**[R1 · Goblin]** Stunned expired on Goblin") {
+		t.Errorf("end-of-turn log lines missing:\n%s", log)
+	}
+}

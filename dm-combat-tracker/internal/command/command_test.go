@@ -348,6 +348,21 @@ func TestOtherCommands(t *testing.T) {
 	parseErr(t, e, ":timer 0 Bad", "number of rounds")
 	parseErr(t, e, ":timer r0 Bad", "round number")
 	parseErr(t, e, ":timer rm ghost", "no timer matching")
+
+	// End-of-turn durations on :cond and :fx (ET1).
+	run(t, e, ":cond g1 stunned 2e by mira")
+	g1, _ := e.Combatant(find(t, e, "Goblin 1"))
+	lastCond := g1.Conditions[len(g1.Conditions)-1]
+	if lastCond.Name != "Stunned" || *lastCond.Remaining != 2 || !lastCond.EndOfTurn || lastCond.SourceID != find(t, e, "Mira") {
+		t.Fatalf(":cond 2e: %+v", lastCond)
+	}
+	run(t, e, ":fx Shield 1e from mira on mira")
+	lastFX := e.Effects[len(e.Effects)-1]
+	if lastFX.Name != "Shield" || *lastFX.Remaining != 1 || !lastFX.EndOfTurn {
+		t.Fatalf(":fx 1e: %+v", lastFX)
+	}
+	parseErr(t, e, ":cond g1 stunned 0e", "duration must be at least 1 round")
+	parseErr(t, e, ":fx Shield 0e from mira", "duration must be at least 1 round")
 }
 
 func TestEveryVerbIsDocumented(t *testing.T) {

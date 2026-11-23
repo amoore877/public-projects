@@ -11,6 +11,7 @@ type EffectSpec struct {
 	SourceID   RowID       // zero for environmental/lair effects
 	Initiative *Initiative // defaults to the source's initiative; required without a source
 	Rounds     *int        // nil for indefinite
+	EndOfTurn  bool        // count down when Next leaves the anchor's turn (ET1, D72)
 	Targets    []RowID
 	Note       string
 }
@@ -51,12 +52,14 @@ func (e *Encounter) AddEffect(spec EffectSpec) (RowID, []Event, error) {
 	if err != nil {
 		return 0, nil, err
 	}
+	endOfTurn := spec.EndOfTurn && spec.Rounds != nil
 	fx := &Effect{
 		ID:         e.newID(),
 		Name:       name,
 		SourceID:   spec.SourceID,
 		Initiative: init,
 		Remaining:  copyIntPtr(spec.Rounds),
+		EndOfTurn:  endOfTurn,
 		Targets:    targets,
 		Note:       strings.TrimSpace(spec.Note),
 		AddedSeq:   e.newSeq(),
@@ -64,7 +67,7 @@ func (e *Encounter) AddEffect(spec EffectSpec) (RowID, []Event, error) {
 	e.Effects = append(e.Effects, fx)
 	return fx.ID, []Event{EffectStarted{
 		EventMeta: e.meta(), ID: fx.ID, Name: fx.Name, Source: sourceName,
-		Remaining: copyIntPtr(fx.Remaining), Targets: names,
+		Remaining: copyIntPtr(fx.Remaining), EndOfTurn: endOfTurn, Targets: names,
 	}}, nil
 }
 

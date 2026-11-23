@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -143,16 +142,17 @@ func (m *Model) promptNewEffect() overlay {
 		return spec.Name + " (" + source + ")"
 	}
 
-	dur := &inputPrompt{help: "rounds; blank = until ended"}
+	dur := &inputPrompt{help: "rounds (e.g. 10 or 1e for end of turn); blank = until ended"}
 	dur.submit = func(m *Model, text string) (overlay, error) {
 		text = strings.TrimSpace(text)
 		spec.Rounds = nil
+		spec.EndOfTurn = false
 		if text != "" {
-			n, err := strconv.Atoi(text)
-			if err != nil || n < 1 {
-				return dur, fmt.Errorf("%q isn't a number of rounds (1 or more)", text)
+			n, eot, err := combat.ParseDuration(text)
+			if err != nil {
+				return dur, err
 			}
-			spec.Rounds = &n
+			spec.Rounds, spec.EndOfTurn = &n, eot
 		}
 		return newTargetPicker(m, who()+" · pick targets", nil, finish), nil
 	}

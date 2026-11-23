@@ -57,6 +57,8 @@ func TestSummary(t *testing.T) {
 		{[]combat.Event{combat.ResourceRemoved{EventMeta: m, Target: "Orc", Name: "LA"}}, "LA removed from Orc"},
 		{[]combat.Event{combat.HealthStateChanged{EventMeta: m, Name: "Orc", To: "dying", HP: -3}}, "Orc is dying (-3 HP)"},
 		{[]combat.Event{combat.ConditionApplied{EventMeta: m, Target: "Orc", Condition: "Dazed", Remaining: &two, Source: "Mira"}}, "Dazed applied to Orc by Mira (2 rounds)"},
+		{[]combat.Event{combat.ConditionApplied{EventMeta: m, Target: "Orc", Condition: "Stunned", Remaining: &two, EndOfTurn: true}}, "Stunned applied to Orc (2 rounds, end of turn)"},
+		{[]combat.Event{combat.EffectStarted{EventMeta: m, Name: "Shield", Source: "Mira", Remaining: &two, EndOfTurn: true, Targets: []string{"Mira"}}}, "Effect started: Shield (Mira, 2 rounds, end of turn) on Mira"},
 		{[]combat.Event{combat.ConditionRemoved{EventMeta: m, Target: "Orc", Condition: "Prone"}}, "Prone removed from Orc"},
 		{[]combat.Event{combat.EffectStarted{EventMeta: m, Name: "Fog", Targets: []string{"Orc"}}}, "Effect started: Fog on Orc"},
 		{[]combat.Event{combat.EffectTargetsChanged{EventMeta: m, Name: "Fog", Added: []string{"Wolf"}}}, "Fog now also on Wolf"},
