@@ -646,7 +646,7 @@ Built as milestone 17, for [Quick initiative pass](REQUIREMENTS.md#quick-initiat
 
 ## Fuzzy jump
 
-Planned as milestone 18, for [Fuzzy jump](REQUIREMENTS.md#fuzzy-jump) (FJ1–FJ3). The decisions are D62–D63.
+Built as milestone 18, for [Fuzzy jump](REQUIREMENTS.md#fuzzy-jump) (FJ1–FJ3). The decisions are D62–D63.
 
 ### How it works
 
@@ -663,7 +663,7 @@ Planned as milestone 18, for [Fuzzy jump](REQUIREMENTS.md#fuzzy-jump) (FJ1–FJ3
 
 | Milestone | Covers | Notes |
 |---|---|---|
-| 18. Fuzzy jump | FJ1–FJ3 | `internal/tui/jump.go` (`jumpPrompt`, `matchRows`), `/` hotkey in `model.go`, help/README, unit tests (`jump_test.go`), golden help update, and E2E story (jump to a goblin, cycle matches, cancel restores selection, jump to an effect row). |
+| 18. ✅ Fuzzy jump | FJ1–FJ3 | `internal/tui/jump.go` (`jumpPrompt`, `matchRows`), `/` hotkey in `model.go`, help/README, unit tests (`jump_test.go`), golden help update, and E2E story (jump to a goblin, cycle matches, cancel restores selection, jump to an effect row). |
 
 ## Open questions
 
@@ -695,7 +695,7 @@ Candidate features that fit the tracker's scope (keyboard-first 80×24 TUI, sing
 
 1. ✅ **Carry over PCs between fights.** On ending combat, optionally carry the PCs into the next fight's Setup (preserving HP, temp HP, and any chosen ongoing state, while clearing initiative for the new fight).
 2. ✅ **Quick initiative pass.** Step through every combatant row in sequence prompting only for initiative, avoiding repeated navigation between fights.
-3. **Fuzzy jump (`/`).** Jump table selection by typing a name prefix or substring in large fights.
+3. ✅ **Fuzzy jump (`/`).** Jump table selection by typing a name prefix or substring in large fights.
 4. **Rename (`R`, `:rename`).** Rename a combatant mid-fight (cloning skipped by choice).
 5. **Counters / pips ("Resources").** Generic per-combatant named counters (e.g. `LA 2/3`, `LR 1/3`, `Rxn 1/1`, death saves, ammo) with optional auto-reset at the start of that creature's turn.
 6. **Round / turn countdowns.** Standalone deferred reminders not tied to targets (e.g. reinforcements arriving in 3 rounds or a hazard on round 5) with a header/table countdown and an alert + log entry when due.

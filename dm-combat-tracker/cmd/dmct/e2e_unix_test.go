@@ -727,7 +727,7 @@ func TestHelpAndTerminalSizes(t *testing.T) {
 	a.do(":cond band restrained 2"+enter, "Restrained (2)")
 
 	a.do("?", " Help", "n / space", "r          roll dice", "lines 1–22 of")
-	a.do("jjjj", "q          quit", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
+	a.do("jjjjj", "q          quit", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
 	a.do("G", ":next  :prev  :start  :endcombat", ":undo  :redo", ":roll [DICE]")
 	a.do("x", "Setup ─ press S to start combat") // any other key closes help without acting
 	a.see("Bandit Captain")
@@ -1225,5 +1225,27 @@ func TestQuickInitiativePass(t *testing.T) {
 	a.do("u", "Undid:", "0 !")
 	a.do("U", "Redid:")
 	a.gone("0 !")
+	a.quit()
+}
+
+// Fuzzy jump (`/`) moves selection live across combatants and effects, cycles
+// matches with tab, keeps selection on enter, and restores it on esc (FJ1–FJ3).
+func TestFuzzyJump(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir)
+	a.do(":add Thorin 18 44 pc"+enter, "Thorin")
+	a.do(":add Goblin x3 12 7"+enter, "Goblin 3")
+	a.do(":add Bandit Captain 9 65"+enter, "Bandit Captain")
+	a.do(":fx Spirit Guardians 10 from thorin on g1"+enter, "Spirit Guardians")
+
+	// Jump to Goblin 2 via prefix + tab, then deal damage to confirm selection moved.
+	a.do("/gob", "1/3")
+	a.do("\t", "2/3")
+	a.do(enter+"d4"+enter, "3/7 ▼")
+
+	// Fuzzy match ("sg") jumps to the effect row; esc cancels back to Goblin 2.
+	a.do("/sg", "1/1")
+	a.do("\x1b", "a add · S start")
+	a.do("Nhit"+enter, "hit")
 	a.quit()
 }

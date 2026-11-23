@@ -222,6 +222,7 @@ Keys act on the selected row (highlighted), which can differ from the row whose 
 | `p` | Previous turn |
 | `↑↓` / `j k` | Move the selection |
 | `g` / `G` | First / last row |
+| `/` | Jump to a row by name (live fuzzy search; `tab`/`↑↓` cycle, `esc` cancels) |
 | `a` | Add a combatant or group |
 | `x` | Remove the combatant (asks first) / end the effect early |
 | `d` / `h` | Damage / heal (`=N` sets HP) |

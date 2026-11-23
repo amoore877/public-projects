@@ -114,8 +114,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.handleKey(msg.String())
 	case tea.PasteMsg:
-		if p, ok := m.overlay.(*inputPrompt); ok {
+		switch p := m.overlay.(type) {
+		case *inputPrompt:
 			p.paste(msg.Content)
+		case *jumpPrompt:
+			p.paste(m, msg.Content)
 		}
 	}
 	return m, nil
@@ -145,6 +148,8 @@ func (m *Model) handleKey(key string) tea.Cmd {
 		m.moveTo(0)
 	case "end", "G":
 		m.moveTo(len(m.sess.Encounter().Order()) - 1)
+	case "/":
+		m.open(m.promptJump())
 	case "n", "space":
 		m.turnOp(func(e *combat.Encounter) ([]combat.Event, error) { return e.Next() })
 	case "p":

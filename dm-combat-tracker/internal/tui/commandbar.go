@@ -112,6 +112,7 @@ var keyHelp = [][2]string{
 	{"p", "previous turn (restores durations, not other edits)"},
 	{"↑↓ / j k", "move the selection"},
 	{"g / G", "first / last row"},
+	{"/", "jump to a row by name"},
 	{"a", "add a combatant, or a group: Goblin x4"},
 	{"x", "remove the combatant / end the effect early"},
 	{"d / h", "damage / heal (=N sets HP)"},

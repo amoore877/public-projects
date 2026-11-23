@@ -4,6 +4,7 @@
    p          previous turn (restores durations, not other edits)               
    ↑↓ / j k   move the selection                                                
    g / G      first / last row                                                  
+   /          jump to a row by name                                             
    a          add a combatant, or a group: Goblin x4                            
    x          remove the combatant / end the effect early                       
    d / h      damage / heal (=N sets HP)                                        
@@ -20,5 +21,4 @@
    r          roll dice, e.g. 2d6+2+1d4; enter alone rolls the last again       
    :          command bar (↑↓ history, tab completes)                           
    S / E      start / end combat                                                
-   ?          this help                                                         
- ↑↓/jk scroll · lines 1–22 of 69 · any other key closes                         
+ ↑↓/jk scroll · lines 1–22 of 70 · any other key closes                         
