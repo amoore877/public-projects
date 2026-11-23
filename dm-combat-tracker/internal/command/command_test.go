@@ -296,6 +296,16 @@ func TestOtherCommands(t *testing.T) {
 	parseErr(t, e, ":roll 4d", `the number of sides is missing after "4d"`)
 	parseErr(t, e, ":fly g1", "unknown command :fly")
 	parseErr(t, e, ":", "type a command")
+
+	g2 := find(t, e, "Goblin 2")
+	if cmd := run(t, e, ":rename g2 Goblin Boss"); cmd.Focus != g2 {
+		t.Errorf("rename focus = %d, want %d", cmd.Focus, g2)
+	}
+	if c, _ := e.Combatant(g2); c.Name != "Goblin Boss" {
+		t.Errorf("renamed name = %q", c.Name)
+	}
+	parseErr(t, e, ":rename g1", "usage: :rename TARGET NEWNAME")
+	parseErr(t, e, ":rename g1,g3 Boss", ":rename takes one target")
 }
 
 func TestEveryVerbIsDocumented(t *testing.T) {

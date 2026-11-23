@@ -669,7 +669,7 @@ Built as milestone 18, for [Fuzzy jump](REQUIREMENTS.md#fuzzy-jump) (FJ1–FJ3).
 
 ## Rename
 
-Planned as milestone 19, for [Rename](REQUIREMENTS.md#rename) (RN1–RN3). The decisions are D64–D65.
+Built as milestone 19, for [Rename](REQUIREMENTS.md#rename) (RN1–RN3). The decisions are D64–D65.
 
 ### How it works
 
@@ -685,7 +685,7 @@ Planned as milestone 19, for [Rename](REQUIREMENTS.md#rename) (RN1–RN3). The d
 
 | Milestone | Covers | Notes |
 |---|---|---|
-| 19. Rename | RN1–RN3 | `Encounter.Rename`, `RowRenamed`, journal logging & summary, `undo.go` focus, `:rename`, `R` prompt, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (rename combatant and effect mid-fight, check linked condition updates, log line, undo/redo). |
+| 19. ✅ Rename | RN1–RN3 | `Encounter.Rename`, `RowRenamed`, journal logging & summary, `undo.go` focus, `:rename`, `R` prompt, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (rename combatant and effect mid-fight, check linked condition updates, log line, undo/redo). |
 
 ## Open questions
 
@@ -720,7 +720,7 @@ Candidate features that fit the tracker's scope (keyboard-first 80×24 TUI, sing
 1. ✅ **Carry over PCs between fights.** On ending combat, optionally carry the PCs into the next fight's Setup (preserving HP, temp HP, and any chosen ongoing state, while clearing initiative for the new fight).
 2. ✅ **Quick initiative pass.** Step through every combatant row in sequence prompting only for initiative, avoiding repeated navigation between fights.
 3. ✅ **Fuzzy jump (`/`).** Jump table selection by typing a name prefix or substring in large fights.
-4. **Rename (`R`, `:rename`).** Rename a combatant mid-fight (cloning skipped by choice).
+4. ✅ **Rename (`R`, `:rename`).** Rename a combatant mid-fight (cloning skipped by choice).
 5. **Counters / pips ("Resources").** Generic per-combatant named counters (e.g. `LA 2/3`, `LR 1/3`, `Rxn 1/1`, death saves, ammo) with optional auto-reset at the start of that creature's turn.
 6. **Round / turn countdowns.** Standalone deferred reminders not tied to targets (e.g. reinforcements arriving in 3 rounds or a hazard on round 5) with a header/table countdown and an alert + log entry when due.
 7. **End-of-turn duration option.** Optional end-of-turn duration anchor (e.g. `1e`, ticking when `n` leaves the anchor's turn) alongside the default start-of-turn countdown (D12).

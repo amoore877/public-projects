@@ -125,7 +125,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - ✅ Carry over PCs between fights: keep the party's state when ending combat instead of re-entering them every encounter. See [Carry over PCs between fights](#carry-over-pcs-between-fights).
 - ✅ Quick initiative pass: step through every combatant entering initiatives back-to-back without repeated navigation. See [Quick initiative pass](#quick-initiative-pass).
 - ✅ Fuzzy jump: jump table selection by typing part of a row's name. See [Fuzzy jump](#fuzzy-jump).
-- Rename: rename a combatant or effect in place mid-fight. See [Rename](#rename).
+- ✅ Rename: rename a combatant or effect in place mid-fight. See [Rename](#rename).
 
 ### Rulesets
 

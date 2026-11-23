@@ -222,6 +222,8 @@ func logText(ev combat.Event) (string, bool) {
 		return fmt.Sprintf("%s joined at initiative %s (%d/%d HP)", e.Name, e.Initiative, e.HP, e.MaxHP), true
 	case combat.CombatantRemoved:
 		return e.Name + " removed from combat", true
+	case combat.RowRenamed:
+		return fmt.Sprintf("%s renamed to %s", e.From, e.To), true
 	case combat.HealthStateChanged:
 		switch e.To {
 		case "":

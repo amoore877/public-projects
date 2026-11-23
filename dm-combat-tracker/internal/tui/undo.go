@@ -74,6 +74,8 @@ func eventRow(ev combat.Event) combat.RowID {
 		return e.ID
 	case combat.RowNoteSet:
 		return e.ID
+	case combat.RowRenamed:
+		return e.ID
 	case combat.Damaged:
 		return e.ID
 	case combat.Healed:

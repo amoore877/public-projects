@@ -39,6 +39,7 @@ func TestSummary(t *testing.T) {
 		{[]combat.Event{combat.InitiativeChanged{EventMeta: m, Name: "Mira", From: init("15"), To: init("4")}, combat.TurnStarted{EventMeta: m, Name: "Orc"}}, "Mira initiative 15 → 4"},
 		{[]combat.Event{combat.RowNoteSet{EventMeta: m, Name: "Orc", Note: "fleeing"}}, "Note on Orc: fleeing"},
 		{[]combat.Event{combat.RowNoteSet{EventMeta: m, Name: "Orc"}}, "Note on Orc cleared"},
+		{[]combat.Event{combat.RowRenamed{EventMeta: m, From: "Hooded Figure", To: "Strahd"}}, "Hooded Figure renamed to Strahd"},
 		{[]combat.Event{
 			combat.Damaged{EventMeta: m, Name: "Orc", Amount: 7},
 			combat.HealthStateChanged{EventMeta: m, Name: "Orc", To: "down"},

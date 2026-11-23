@@ -378,6 +378,32 @@ func (e *Encounter) SetNote(id RowID, note string) ([]Event, error) {
 	return []Event{RowNoteSet{EventMeta: e.meta(), ID: id, Name: r.Name(), Note: note}}, nil
 }
 
+// Rename changes a combatant's or effect's name in place (RN1–RN3, D64).
+// Entering the exact same name is a no-op.
+func (e *Encounter) Rename(id RowID, name string) ([]Event, error) {
+	if err := e.checkEditable(); err != nil {
+		return nil, err
+	}
+	r, ok := e.row(id)
+	if !ok {
+		return nil, fmt.Errorf("%w: %d", ErrNotFound, id)
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("%w: name is required", ErrInvalid)
+	}
+	from := r.Name()
+	if name == from {
+		return nil, nil
+	}
+	if r.Combatant != nil {
+		r.Combatant.Name = name
+	} else {
+		r.Effect.Name = name
+	}
+	return []Event{RowRenamed{EventMeta: e.meta(), ID: id, From: from, To: name}}, nil
+}
+
 // LogNote records a manual one-line log entry. It doesn't change state, and
 // is allowed in any status.
 func (e *Encounter) LogNote(text string) ([]Event, error) {

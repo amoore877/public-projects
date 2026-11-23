@@ -505,6 +505,47 @@ func TestQuickInitiativePass(t *testing.T) {
 	}
 }
 
+func TestRename(t *testing.T) {
+	// Empty selection warns.
+	mEmpty := New(newSession(t), "")
+	press(mEmpty, "R")
+	if mEmpty.overlay != nil || !strings.Contains(mEmpty.msg, "Nothing selected") {
+		t.Fatalf("empty rename: overlay=%v msg=%q", mEmpty.overlay, mEmpty.msg)
+	}
+
+	s := newSession(t, fight()...)
+	m := sized(New(s, ""), 80, 24)
+	selectRow(t, m, "Goblin 2")
+	press(m, "R")
+	if got := promptText(t, m); got != "Goblin 2" {
+		t.Fatalf("prefill = %q, want Goblin 2", got)
+	}
+	// Blank is refused and stays open.
+	special(m, "ctrl+u")
+	press(m, "enter")
+	if m.overlay == nil || !strings.Contains(screen(m), "Enter a name") {
+		t.Fatalf("blank rename should stay open:\n%s", screen(m))
+	}
+	typeText(m, "Goblin Boss")
+	press(m, "enter")
+	if m.overlay != nil {
+		t.Fatal("rename prompt should close")
+	}
+	if !strings.Contains(screen(m), "Goblin Boss") {
+		t.Fatalf("screen missing renamed row:\n%s", screen(m))
+	}
+	// Undo restores the old name and focuses the row.
+	press(m, "u")
+	if !strings.Contains(m.msg, "Undid: Goblin 2 renamed to Goblin Boss") {
+		t.Errorf("undo msg = %q", m.msg)
+	}
+	// Command :rename works on effects too.
+	runCmd(m, "rename spirit Radiant Aura")
+	if !strings.Contains(screen(m), "Radiant Aura") {
+		t.Fatalf("renamed effect missing:\n%s", screen(m))
+	}
+}
+
 func TestLineEditing(t *testing.T) {
 	s := newSession(t, add("Thorin", combat.PC, "18", 44))
 	m := New(s, "")

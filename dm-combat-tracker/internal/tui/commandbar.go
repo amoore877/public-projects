@@ -123,7 +123,7 @@ var keyHelp = [][2]string{
 	{"e", "new effect (source: the selected combatant)"},
 	{"T", "change an effect's targets"},
 	{"i / I", "edit initiative / quick pass over all combatants"},
-	{"N", "edit the side note"},
+	{"N / R", "edit the side note / rename row"},
 	{"l", "write a log entry"},
 	{"u / U", "undo / redo the last change (ctrl+r also redoes)"},
 	{"r", "roll dice, e.g. 2d6+2+1d4; enter alone rolls the last again"},

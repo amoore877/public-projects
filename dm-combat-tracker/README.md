@@ -204,6 +204,7 @@ In `3.5e` an effect stays on the initiative count it began on, as the 3.5 rules 
 | `:init TARGET VALUE` | `:init g2 12.35` | Set initiative |
 | `:initall` | | Quick initiative pass over every combatant |
 | `:note TARGET TEXT` | `:note g1 fleeing` | Set the side note (blank clears it) |
+| `:rename TARGET NEWNAME` | `:rename g2 Goblin Boss` | Rename a combatant or effect |
 | `:log TEXT` | `:log Thorin shoves the goblin off the bridge` | Write a log entry |
 | `:ruleset NAME` | `:ruleset 3.5e` | Choose the ruleset (before combat starts) |
 | `:next` `:prev` `:start` `:endcombat [clear]` | `:endcombat clear` | Turn controls (`:endcombat` carries PCs over unless `clear` is given) |
@@ -233,7 +234,7 @@ Keys act on the selected row (highlighted), which can differ from the row whose 
 | `e` | New effect |
 | `T` | Change an effect's targets |
 | `i` / `I` | Edit initiative / quick pass over all combatants |
-| `N` | Edit the side note |
+| `N` / `R` | Edit the side note / rename the selected row |
 | `l` | Write a log entry |
 | `u` / `U` | Undo / redo the last change (`ctrl+r` also redoes). See [Undo](#undo) |
 | `r` | Roll dice; enter alone rolls the last again. See [Dice](#dice) |

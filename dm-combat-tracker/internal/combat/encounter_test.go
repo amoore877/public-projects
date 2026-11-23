@@ -283,3 +283,39 @@ func TestNextEncounterCarryOverPCs(t *testing.T) {
 		t.Errorf("mutating next changed old encounter HP to %d", orig.HP)
 	}
 }
+
+func TestRename(t *testing.T) {
+	e := newEnc()
+	fig := add(t, e, "Hooded Figure", "15", 50)
+	fx, _, err := e.AddEffect(EffectSpec{Name: "Mist", SourceID: fig, Rounds: rounds(5), Targets: []RowID{fig}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Same name is a no-op.
+	if evs := must(t)(e.Rename(fig, " Hooded Figure ")); len(evs) != 0 {
+		t.Fatalf("same name should emit nothing, got %v", evs)
+	}
+	// Rename combatant.
+	evs := must(t)(e.Rename(fig, " Strahd "))
+	wantKinds(t, evs, "RowRenamed")
+	rn := evs[0].(RowRenamed)
+	if rn.ID != fig || rn.From != "Hooded Figure" || rn.To != "Strahd" {
+		t.Errorf("event = %+v", rn)
+	}
+	c, _ := e.Combatant(fig)
+	if c.Name != "Strahd" {
+		t.Errorf("name = %q", c.Name)
+	}
+	// Rename effect.
+	evs = must(t)(e.Rename(fx, "Fog Cloud"))
+	wantKinds(t, evs, "RowRenamed")
+	f, _ := e.Effect(fx)
+	if f.Name != "Fog Cloud" {
+		t.Errorf("effect name = %q", f.Name)
+	}
+	// Blank or unknown refused.
+	_, err = e.Rename(fig, "  ")
+	wantErr(t, err, ErrInvalid)
+	_, err = e.Rename(999, "Ghost")
+	wantErr(t, err, ErrNotFound)
+}

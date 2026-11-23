@@ -180,6 +180,8 @@ func (m *Model) handleKey(key string) tea.Cmd {
 		m.open(m.promptInitPass())
 	case "N":
 		m.open(m.promptNote())
+	case "R":
+		m.open(m.promptRename())
 	case "l":
 		m.open(m.promptLog())
 	case "E":

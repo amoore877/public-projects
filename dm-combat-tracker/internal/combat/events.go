@@ -78,6 +78,11 @@ type (
 		Name string
 		Note string
 	}
+	RowRenamed struct {
+		EventMeta
+		ID       RowID
+		From, To string
+	}
 
 	Damaged struct {
 		EventMeta

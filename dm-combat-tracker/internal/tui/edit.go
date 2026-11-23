@@ -444,6 +444,26 @@ func (m *Model) promptNote() overlay {
 	return p
 }
 
+func (m *Model) promptRename() overlay {
+	r, ok := m.sess.Encounter().Row(m.selected)
+	if !ok {
+		m.warn("Nothing selected")
+		return nil
+	}
+	id := r.ID()
+	p := &inputPrompt{label: "Rename " + r.Name() + ":", ed: newLineEdit(r.Name()), help: "new name for this row"}
+	p.submit = func(m *Model, text string) (overlay, error) {
+		if strings.TrimSpace(text) == "" {
+			return p, errors.New("Enter a name")
+		}
+		if _, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return e.Rename(id, text) }); err != nil {
+			return p, err
+		}
+		return nil, nil
+	}
+	return p
+}
+
 func (m *Model) promptLog() overlay {
 	p := &inputPrompt{label: "Log:", help: "a line for the combat log"}
 	p.submit = func(m *Model, text string) (overlay, error) {

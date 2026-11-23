@@ -1249,3 +1249,26 @@ func TestFuzzyJump(t *testing.T) {
 	a.do("Nhit"+enter, "hit")
 	a.quit()
 }
+
+// Rename (`R` and `:rename`) updates combatants and effects in place, updates
+// linked conditions automatically, logs during Active combat, and undoes
+// cleanly (RN1–RN3, D64).
+func TestRename(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir, "--log", "recap.md")
+	a.do(":add Hooded Figure 15 50"+enter, "Hooded Figure")
+	a.do(":fx Dark Mist 5 from hooded on hooded"+enter, "Dark Mist")
+	a.do("S", "Round 1 ─ Turn: Hooded Figure")
+
+	a.do("R", "Rename Hooded Figure:")
+	a.do("\x15Strahd"+enter, "Round 1 ─ Turn: Strahd", "Strahd")
+	a.do(":rename dark Fog Cloud"+enter, "Fog Cloud")
+	a.do("u", "Undid: Dark Mist renamed to Fog Cloud")
+	a.do("U", "Redid: Dark Mist renamed to Fog Cloud")
+	a.quit()
+
+	log := read(t, filepath.Join(dir, "recap.md"))
+	if !strings.Contains(log, "Hooded Figure renamed to Strahd") || !strings.Contains(log, "Dark Mist renamed to Fog Cloud") {
+		t.Errorf("renames missing from log:\n%s", log)
+	}
+}

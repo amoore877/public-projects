@@ -74,6 +74,7 @@ var Specs = []Spec{
 	{":init TARGET VALUE", ":init g2 12.35", "set initiative"},
 	{":initall", "", "quick initiative pass over every combatant"},
 	{":note TARGET TEXT", ":note g1 fleeing", "set the side note (blank clears)"},
+	{":rename TARGET NEWNAME", ":rename g2 Goblin Boss", "rename a combatant or effect"},
 	{":log TEXT", ":log Thorin shoves the goblin", "write a log entry"},
 	{":ruleset NAME", ":ruleset 3.5e", "choose the game ruleset (5e, 3.5e or one from a file); only before combat starts"},
 	{":next  :prev  :start  :endcombat [clear]", "", "turn controls; :endcombat keeps PCs unless clear is given"},
@@ -82,7 +83,7 @@ var Specs = []Spec{
 }
 
 // Verbs lists the command names, for completion.
-var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "initall", "note", "log", "ruleset", "next", "prev", "start", "endcombat", "undo", "redo", "roll"}
+var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "initall", "note", "rename", "log", "ruleset", "next", "prev", "start", "endcombat", "undo", "redo", "roll"}
 
 var aliases = map[string]string{
 	"remove": "rm", "damage": "dmg", "condition": "cond", "effect": "fx",
@@ -198,6 +199,19 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 		}
 		id, note := ids[0], strings.Join(restWords, " ")
 		return Command{Focus: id, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.SetNote(id, note) }}, nil
+	case "rename":
+		if len(words) < 2 {
+			return Command{}, errors.New("usage: :rename TARGET NEWNAME")
+		}
+		ids, restWords, err := splitTarget(enc, words, anyRow, 1)
+		if err != nil {
+			return Command{}, err
+		}
+		if len(ids) != 1 {
+			return Command{}, errors.New(":rename takes one target")
+		}
+		id, name := ids[0], strings.Join(restWords, " ")
+		return Command{Focus: id, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.Rename(id, name) }}, nil
 	case "log":
 		if rest == "" {
 			return Command{}, errors.New("usage: :log TEXT")
