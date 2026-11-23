@@ -217,4 +217,21 @@ type (
 		Target string
 		Name   string
 	}
+
+	TimerAdded struct {
+		EventMeta
+		ID        RowID
+		Name      string
+		Remaining int
+	}
+	TimerRemoved struct {
+		EventMeta
+		ID   RowID
+		Name string
+	}
+	TimerExpired struct {
+		EventMeta
+		ID   RowID
+		Name string
+	}
 )

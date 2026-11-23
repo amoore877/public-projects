@@ -186,6 +186,8 @@ func (m *Model) handleKey(key string) tea.Cmd {
 		m.open(m.promptRename())
 	case "l":
 		m.open(m.promptLog())
+	case "A":
+		m.open(m.promptTimer())
 	case "E":
 		m.open(m.promptEndCombat())
 	case ":":
@@ -257,6 +259,17 @@ func (m *Model) runMerged(op session.Op, merge bool) (session.Outcome, error) {
 		return out, err
 	}
 	m.track(out)
+	if m.msg == "" {
+		var fired []string
+		for _, ev := range out.Events {
+			if te, ok := ev.(combat.TimerExpired); ok {
+				fired = append(fired, te.Name)
+			}
+		}
+		if len(fired) > 0 {
+			m.warn("⏱ " + strings.Join(fired, " · "))
+		}
+	}
 	if m.msg == "" && out.Logged {
 		// A manual note changes nothing on screen, so say where it went
 		// (the same for the l key and :log).
@@ -309,11 +322,26 @@ func (m *Model) banner() string {
 	return ""
 }
 
-func (m *Model) bannerLines() int {
-	if m.banner() != "" {
-		return 1
+func (m *Model) timerBanner(enc *combat.Encounter) string {
+	if len(enc.Timers) == 0 {
+		return ""
 	}
-	return 0
+	parts := make([]string, len(enc.Timers))
+	for i, t := range enc.Timers {
+		parts[i] = fmt.Sprintf("%s (%s)", t.Name, plural(t.Remaining, "rd", "rds"))
+	}
+	return " ⏱ " + strings.Join(parts, " · ")
+}
+
+func (m *Model) bannerLines() int {
+	n := 0
+	if m.banner() != "" {
+		n++
+	}
+	if len(m.sess.Encounter().Timers) > 0 {
+		n++
+	}
+	return n
 }
 
 // tooSmall reports whether the terminal can't fit the table.
@@ -456,6 +484,9 @@ func (m *Model) render() string {
 	b.WriteString("\n")
 	if text := m.banner(); text != "" {
 		b.WriteString(styleBanner.Render(fit(text, m.width)) + "\n")
+	}
+	if text := m.timerBanner(enc); text != "" {
+		b.WriteString(styleTie.Render(fit(text, m.width)) + "\n")
 	}
 	b.WriteString(l.border("┌", "┬", "┐") + "\n")
 	b.WriteString(l.line(func(c column) string { return headers[c] }, func(_ column, s string) string { return styleHeader.Render(s) }) + "\n")

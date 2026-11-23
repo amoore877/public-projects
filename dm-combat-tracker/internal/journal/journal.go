@@ -297,6 +297,13 @@ func logText(ev combat.Event) (string, bool) {
 	case combat.NoteLogged:
 		return "📝 " + e.Text, true
 
+	case combat.TimerAdded:
+		return fmt.Sprintf("Timer set: %s (%s)", e.Name, plural(e.Remaining, "round")), true
+	case combat.TimerRemoved:
+		return "Timer cancelled: " + e.Name, true
+	case combat.TimerExpired:
+		return "⏱ " + e.Name, true
+
 		// Not logged: TurnStarted (the turn holder is on every line), HP
 		// arithmetic (Damaged, Healed, HPSet, TempHPSet, NonlethalDamaged,
 		// NonlethalSet; changes of state are logged via HealthStateChanged),

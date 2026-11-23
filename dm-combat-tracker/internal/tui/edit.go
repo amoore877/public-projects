@@ -516,6 +516,39 @@ func (m *Model) promptLog() overlay {
 	return p
 }
 
+func (m *Model) promptTimer() overlay {
+	p := &inputPrompt{
+		label: "Timer:",
+		help:  "N TEXT (in N rds) · rN TEXT (at round N) · rm NAME",
+		suggest: func(text string) []string {
+			lower := strings.ToLower(text)
+			if !strings.HasPrefix(lower, "rm ") {
+				return nil
+			}
+			prefix := strings.TrimSpace(lower[3:])
+			var out []string
+			for _, t := range m.sess.Encounter().Timers {
+				if strings.HasPrefix(strings.ToLower(t.Name), prefix) {
+					out = append(out, "rm "+t.Name)
+				}
+			}
+			return out
+		},
+	}
+	p.submit = func(m *Model, text string) (overlay, error) {
+		words := strings.Fields(text)
+		op, err := command.ParseTimerOp(m.sess.Encounter(), words)
+		if err != nil {
+			return p, err
+		}
+		if _, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return op(e) }); err != nil {
+			return p, err
+		}
+		return nil, nil
+	}
+	return p
+}
+
 // --- adding ---------------------------------------------------------------
 
 // groupName matches "Goblin x4" / "Goblin ×4".

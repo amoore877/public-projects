@@ -12,6 +12,14 @@ type TurnRecord struct {
 	ExpiredConditions []ExpiredCondition `json:"expiredConditions,omitempty"`
 	ExpiredEffects    []Effect           `json:"expiredEffects,omitempty"`
 	ResetResources    []ResetResource    `json:"resetResources,omitempty"`
+	TickedTimers      []RowID            `json:"tickedTimers,omitempty"`
+	ExpiredTimers     []ExpiredTimer     `json:"expiredTimers,omitempty"`
+}
+
+// ExpiredTimer is a standalone round countdown removed on expiry, kept for rewind (D69).
+type ExpiredTimer struct {
+	Index int   `json:"index"`
+	Timer Timer `json:"timer"`
 }
 
 // ResetResource records a turn-start resource reset so Previous can restore it (D67).
@@ -112,6 +120,7 @@ func (e *Encounter) advance(order []Row, idx int, rec *TurnRecord) []Event {
 			e.Delayed = nil
 			e.Current = order[0].ID()
 			evs = append(evs, RoundStarted{EventMeta: e.meta()})
+			evs = append(evs, e.tickTimers(rec)...)
 		}
 		e.Current = order[next].ID()
 		if containsID(e.Delayed, e.Current) {
@@ -270,6 +279,16 @@ func (e *Encounter) Previous() ([]Event, error) {
 				res.Current = x.Prev
 			}
 		}
+	}
+	for _, id := range rec.TickedTimers {
+		if t, ok := e.Timer(id); ok {
+			t.Remaining++
+		}
+	}
+	for _, x := range rec.ExpiredTimers {
+		tm := x.Timer
+		at := min(x.Index, len(e.Timers))
+		e.Timers = append(e.Timers[:at], append([]*Timer{&tm}, e.Timers[at:]...)...)
 	}
 
 	e.Current = rec.PrevCurrent

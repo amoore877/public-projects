@@ -76,6 +76,7 @@ var Specs = []Spec{
 	{":note TARGET TEXT", ":note g1 fleeing", "set the side note (blank clears)"},
 	{":rename TARGET NEWNAME", ":rename g2 Goblin Boss", "rename a combatant or effect"},
 	{":res TARGET NAME VAL [reset]", ":res boss LA 3/3 reset", "set, adjust (+N/-N), or remove (rm) a counter/resource"},
+	{":timer N|rN TEXT | rm NAME", ":timer 3 Bridge collapses", "add a round countdown (in N rounds or at round rN) or cancel one"},
 	{":log TEXT", ":log Thorin shoves the goblin", "write a log entry"},
 	{":ruleset NAME", ":ruleset 3.5e", "choose the game ruleset (5e, 3.5e or one from a file); only before combat starts"},
 	{":next  :prev  :start  :endcombat [clear]", "", "turn controls; :endcombat keeps PCs unless clear is given"},
@@ -84,7 +85,7 @@ var Specs = []Spec{
 }
 
 // Verbs lists the command names, for completion.
-var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "initall", "note", "rename", "res", "log", "ruleset", "next", "prev", "start", "endcombat", "undo", "redo", "roll"}
+var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "initall", "note", "rename", "res", "timer", "log", "ruleset", "next", "prev", "start", "endcombat", "undo", "redo", "roll"}
 
 var aliases = map[string]string{
 	"remove": "rm", "damage": "dmg", "condition": "cond", "effect": "fx",
@@ -229,6 +230,12 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 			return Command{}, err
 		}
 		return Command{Focus: ids[0], Op: op}, nil
+	case "timer":
+		op, err := ParseTimerOp(enc, words)
+		if err != nil {
+			return Command{}, err
+		}
+		return Command{Op: op}, nil
 	case "log":
 		if rest == "" {
 			return Command{}, errors.New("usage: :log TEXT")
@@ -322,6 +329,72 @@ func ParseResourceOp(id combat.RowID, words []string) (Op, error) {
 	return func(e *combat.Encounter) ([]combat.Event, error) {
 		return e.SetResourceCurrent(id, name, n)
 	}, nil
+}
+
+// ParseTimerOp parses a timer expression ("N TEXT", "rN TEXT", "@N TEXT", or
+// "rm NAME") into a combat Op. Shared by `:timer` and the TUI `A` prompt (RC3).
+func ParseTimerOp(enc *combat.Encounter, words []string) (Op, error) {
+	if len(words) < 2 {
+		return nil, errors.New("usage: N TEXT (in N rds), rN TEXT (at round N), or rm NAME")
+	}
+	first := words[0]
+	rest := strings.TrimSpace(strings.Join(words[1:], " "))
+	if strings.EqualFold(first, "rm") {
+		id, err := resolveTimer(enc, rest)
+		if err != nil {
+			return nil, err
+		}
+		return func(e *combat.Encounter) ([]combat.Event, error) { return e.RemoveTimer(id) }, nil
+	}
+	if strings.HasPrefix(strings.ToLower(first), "r") || strings.HasPrefix(first, "@") {
+		r, err := strconv.Atoi(first[1:])
+		if err != nil || r < 1 || strings.HasPrefix(first[1:], "+") {
+			return nil, fmt.Errorf("%q isn't a round number (e.g. r4 Reinforcements)", first)
+		}
+		return func(e *combat.Encounter) ([]combat.Event, error) {
+			_, evs, err := e.AddTimerAtRound(rest, r)
+			return evs, err
+		}, nil
+	}
+	n, err := strconv.Atoi(first)
+	if err != nil || n < 1 || strings.HasPrefix(first, "+") {
+		return nil, fmt.Errorf("%q isn't a number of rounds (1 or more, or rN for target round)", first)
+	}
+	return func(e *combat.Encounter) ([]combat.Event, error) {
+		_, evs, err := e.AddTimer(rest, n)
+		return evs, err
+	}, nil
+}
+
+func resolveTimer(enc *combat.Encounter, query string) (combat.RowID, error) {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return 0, errors.New("name the timer to cancel")
+	}
+	var exact, prefix []*combat.Timer
+	for _, t := range enc.Timers {
+		n := strings.ToLower(t.Name)
+		if n == q {
+			exact = append(exact, t)
+		} else if strings.HasPrefix(n, q) {
+			prefix = append(prefix, t)
+		}
+	}
+	matches := exact
+	if len(matches) == 0 {
+		matches = prefix
+	}
+	if len(matches) == 0 {
+		return 0, fmt.Errorf("no timer matching %q", query)
+	}
+	if len(matches) > 1 {
+		names := make([]string, len(matches))
+		for i, t := range matches {
+			names[i] = t.Name
+		}
+		return 0, fmt.Errorf("%q matches more than one timer: %s", query, strings.Join(names, ", "))
+	}
+	return matches[0].ID, nil
 }
 
 func parseHP(enc *combat.Encounter, verb string, words []string) (Command, error) {

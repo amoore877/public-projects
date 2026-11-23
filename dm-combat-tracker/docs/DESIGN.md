@@ -724,7 +724,7 @@ Built as milestone 20, for [Counters and resources](REQUIREMENTS.md#counters-and
 
 ## Round countdowns
 
-Planned as milestone 21, for [Round countdowns](REQUIREMENTS.md#round-countdowns) (RC1–RC4). The decisions are D69–D71.
+Built as milestone 21, for [Round countdowns](REQUIREMENTS.md#round-countdowns) (RC1–RC4). The decisions are D69–D71.
 
 ### How it works
 
@@ -750,7 +750,7 @@ Planned as milestone 21, for [Round countdowns](REQUIREMENTS.md#round-countdowns
 
 | Milestone | Covers | Notes |
 |---|---|---|
-| 21. Round countdowns | RC1–RC4 | `Timer` model, `timers.go` ops, round-start tick & `Previous` rewind, journal logging & summary, `:timer` + `ParseTimerOp`, `A` prompt, timer banner & expiry alert, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (add relative & at-round timers, see banner, advance rounds until expiry alert + log line, rewind `p` restores timer, cancel with `rm`). |
+| 21. ✅ Round countdowns | RC1–RC4 | `Timer` model, `timers.go` ops, round-start tick & `Previous` rewind, journal logging & summary, `:timer` + `ParseTimerOp`, `A` prompt, timer banner & expiry alert, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (add relative & at-round timers, see banner, advance rounds until expiry alert + log line, rewind `p` restores timer, cancel with `rm`). |
 
 ## Open questions
 
@@ -791,7 +791,7 @@ Candidate features that fit the tracker's scope (keyboard-first 80×24 TUI, sing
 3. ✅ **Fuzzy jump (`/`).** Jump table selection by typing a name prefix or substring in large fights.
 4. ✅ **Rename (`R`, `:rename`).** Rename a combatant mid-fight (cloning skipped by choice).
 5. ✅ **Counters / pips ("Resources").** Generic per-combatant named counters (e.g. `LA 2/3`, `LR 1/3`, `Rxn 1/1`, death saves, ammo) with optional auto-reset at the start of that creature's turn.
-6. **Round / turn countdowns.** Standalone deferred reminders not tied to targets (e.g. reinforcements arriving in 3 rounds or a hazard on round 5) with a header/table countdown and an alert + log entry when due.
+6. ✅ **Round / turn countdowns.** Standalone deferred reminders not tied to targets (e.g. reinforcements arriving in 3 rounds or a hazard on round 5) with a header/table countdown and an alert + log entry when due.
 7. **End-of-turn duration option.** Optional end-of-turn duration anchor (e.g. `1e`, ticking when `n` leaves the anchor's turn) alongside the default start-of-turn countdown (D12).
 
 ### Backlog

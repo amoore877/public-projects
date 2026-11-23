@@ -727,7 +727,7 @@ func TestHelpAndTerminalSizes(t *testing.T) {
 	a.do(":cond band restrained 2"+enter, "Restrained (2)")
 
 	a.do("?", " Help", "n / space", "r          roll dice", "lines 1–22 of")
-	a.do("jjjjjj", "q          quit", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
+	a.do("jjjjjjj", "q          quit", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
 	a.do("G", ":next  :prev  :start  :endcombat", ":undo  :redo", ":roll [DICE]")
 	a.do("x", "Setup ─ press S to start combat") // any other key closes help without acting
 	a.see("Bandit Captain")
@@ -1298,4 +1298,30 @@ func TestResources(t *testing.T) {
 	a.resize(110, 24)
 	a.see("[Arrows 11]", "[Rxn 1/1↻]")
 	a.quit()
+}
+
+// Standalone round countdowns (`A` / `:timer`) show in a banner, tick at each
+// new round, alert and log on expiry, and restore on `p` rewind (RC1–RC4).
+func TestRoundCountdowns(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir, "--log", "recap.md")
+	a.do(":add Thorin 18 44 pc"+enter, "Thorin")
+	a.do(":add Goblin 12 7"+enter, "Goblin")
+	a.do("S", "Round 1 ─ Turn: Thorin")
+
+	a.do("A1 Bridge collapses"+enter, "⏱ Bridge collapses (1 rd)")
+	a.do(":timer r4 Reinforcements"+enter, "Reinforcements (3 rds)")
+	a.do("n", "Round 1 ─ Turn: Goblin")
+	a.do("n", "Round 2 ─ Turn: Thorin", "⏱ Bridge collapses", "Reinforcements (2 rds)")
+	a.do("p", "Round 1 ─ Turn: Goblin", "Bridge collapses (1 rd)", "Reinforcements (3 rds)")
+	a.do(":timer rm rein"+enter, "Bridge collapses (1 rd)")
+	a.gone("Reinforcements")
+	a.quit()
+
+	log := read(t, filepath.Join(dir, "recap.md"))
+	if !strings.Contains(log, "Timer set: Bridge collapses (1 round)") ||
+		!strings.Contains(log, "⏱ Bridge collapses") ||
+		!strings.Contains(log, "Timer cancelled: Reinforcements") {
+		t.Errorf("timer lines missing from log:\n%s", log)
+	}
 }

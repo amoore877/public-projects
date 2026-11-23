@@ -62,6 +62,9 @@ func TestSummary(t *testing.T) {
 		{[]combat.Event{combat.EffectTargetsChanged{EventMeta: m, Name: "Fog", Added: []string{"Wolf"}}}, "Fog now also on Wolf"},
 		{[]combat.Event{combat.EffectEnded{EventMeta: m, Name: "Fog", Reason: "dispelled"}}, "Effect ended early: Fog (dispelled)"},
 		{[]combat.Event{combat.NoteLogged{EventMeta: m, Text: "bridge out"}}, "📝 bridge out"},
+		{[]combat.Event{combat.TimerAdded{EventMeta: m, Name: "Reinforcements", Remaining: 3}}, "Timer set: Reinforcements (3 rounds)"},
+		{[]combat.Event{combat.TimerRemoved{EventMeta: m, Name: "Reinforcements"}}, "Timer cancelled: Reinforcements"},
+		{[]combat.Event{combat.TimerExpired{EventMeta: m, Name: "Reinforcements"}}, "⏱ Reinforcements"},
 		{[]combat.Event{combat.EffectTargetsChanged{EventMeta: m, Name: "Fog"}}, "combat.EffectTargetsChanged"}, // not emitted: no change
 	} {
 		if got := Summary(tc.evs); got != tc.want {

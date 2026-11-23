@@ -127,7 +127,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - ✅ Fuzzy jump: jump table selection by typing part of a row's name. See [Fuzzy jump](#fuzzy-jump).
 - ✅ Rename: rename a combatant or effect in place mid-fight. See [Rename](#rename).
 - ✅ Counters / pips (resources): attach lightweight named counters to combatants (Legendary Actions, Reactions, Legendary Resistances, ammo) with optional turn-start reset. See [Counters and resources](#counters-and-resources).
-- Round countdowns: standalone reminders that tick at the start of each new round and alert + log when due. See [Round countdowns](#round-countdowns).
+- ✅ Round countdowns: standalone reminders that tick at the start of each new round and alert + log when due. See [Round countdowns](#round-countdowns).
 
 ### Rulesets
 

@@ -334,6 +334,20 @@ func TestOtherCommands(t *testing.T) {
 	parseErr(t, e, ":res band Arrows 14 reset", "turn reset requires a max")
 	parseErr(t, e, ":res band LA rm reset", "rm doesn't take reset")
 	parseErr(t, e, ":res band LA 1/0", "valid CUR/MAX")
+
+	run(t, e, ":timer 3 Bridge collapses")
+	run(t, e, ":timer r5 Reinforcements arrive")
+	if len(e.Timers) != 2 || e.Timers[0].Remaining != 3 || e.Timers[1].Name != "Reinforcements arrive" {
+		t.Fatalf(":timer add: %+v", e.Timers)
+	}
+	run(t, e, ":timer rm bridge")
+	if len(e.Timers) != 1 || e.Timers[0].Name != "Reinforcements arrive" {
+		t.Fatalf(":timer rm: %+v", e.Timers)
+	}
+	parseErr(t, e, ":timer 3", "usage:")
+	parseErr(t, e, ":timer 0 Bad", "number of rounds")
+	parseErr(t, e, ":timer r0 Bad", "round number")
+	parseErr(t, e, ":timer rm ghost", "no timer matching")
 }
 
 func TestEveryVerbIsDocumented(t *testing.T) {

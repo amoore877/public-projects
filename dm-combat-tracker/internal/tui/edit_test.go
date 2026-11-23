@@ -592,6 +592,49 @@ func TestResourcesUI(t *testing.T) {
 	}
 }
 
+func TestTimersUI(t *testing.T) {
+	s := newSession(t,
+		add("Thorin", combat.PC, "18", 44),
+		add("Goblin", combat.NPC, "12", 7),
+		func(e *combat.Encounter) ([]combat.Event, error) { return e.Start() },
+	)
+	m := sized(New(s, ""), 80, 24)
+
+	// Hotkey A adds a 1-round timer; banner appears.
+	press(m, "A")
+	typeText(m, "1 Reinforcements")
+	press(m, "enter")
+	if !strings.Contains(screen(m), "⏱ Reinforcements (1 rd)") {
+		t.Fatalf("timer banner missing:\n%s", screen(m))
+	}
+	// Add a second timer via :timer, then tab-complete rm in A.
+	runCmd(m, "timer r4 Lava rises")
+	if !strings.Contains(screen(m), "Lava rises (3 rds)") {
+		t.Fatalf("second timer missing:\n%s", screen(m))
+	}
+	press(m, "A")
+	typeText(m, "rm l")
+	press(m, "tab")
+	if got := promptText(t, m); got != "rm Lava rises" {
+		t.Fatalf("timer rm completion = %q", got)
+	}
+	press(m, "enter")
+	if strings.Contains(screen(m), "Lava rises") {
+		t.Fatalf("cancelled timer still shown:\n%s", screen(m))
+	}
+
+	// Advance into Round 2: Reinforcements fires on status line and banner disappears.
+	press(m, "n", "n")
+	if !strings.Contains(m.msg, "⏱ Reinforcements") || len(s.Encounter().Timers) != 0 {
+		t.Errorf("expected expiry alert: msg=%q timers=%v", m.msg, s.Encounter().Timers)
+	}
+	// Rewind p restores the timer and banner.
+	press(m, "p")
+	if !strings.Contains(screen(m), "⏱ Reinforcements (1 rd)") {
+		t.Fatalf("rewind should restore banner:\n%s", screen(m))
+	}
+}
+
 func TestLineEditing(t *testing.T) {
 	s := newSession(t, add("Thorin", combat.PC, "18", 44))
 	m := New(s, "")

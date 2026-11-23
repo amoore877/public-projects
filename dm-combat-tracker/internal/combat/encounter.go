@@ -63,6 +63,7 @@ type Encounter struct {
 	Current       RowID        `json:"current"`
 	Combatants    []*Combatant `json:"combatants"`
 	Effects       []*Effect    `json:"effects"`
+	Timers        []*Timer     `json:"timers,omitempty"` // standalone round countdowns (RC1, D69)
 	History       []TurnRecord `json:"history"`
 	// Delayed holds rows that stepped aside during their turn this round
 	// (RS10, D36). Their turn comes again at their new count, but their
@@ -127,6 +128,14 @@ type Effect struct {
 	Targets    []RowID    `json:"targets"`
 	Note       string     `json:"note,omitempty"`
 	AddedSeq   int        `json:"addedSeq"`
+}
+
+// Timer is a standalone countdown reminder that ticks at the start of each
+// new round and fires when it reaches 0 (RC1–RC4, D69).
+type Timer struct {
+	ID        RowID  `json:"id"`
+	Name      string `json:"name"`
+	Remaining int    `json:"remaining"`
 }
 
 // Row is one entry of the turn order: exactly one of Combatant or Effect is set.

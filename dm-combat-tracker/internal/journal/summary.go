@@ -39,7 +39,7 @@ func Summary(evs []combat.Event) string {
 // turn itself.
 func turnSummary(evs []combat.Event) (string, bool) {
 	switch evs[0].(type) {
-	case combat.RoundStarted, combat.TurnStarted, combat.ConditionExpired, combat.EffectExpired:
+	case combat.RoundStarted, combat.TurnStarted, combat.ConditionExpired, combat.EffectExpired, combat.TimerExpired:
 	default:
 		return "", false
 	}
