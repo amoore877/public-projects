@@ -11,6 +11,14 @@ type TurnRecord struct {
 	Ticked            []RowID            `json:"ticked,omitempty"` // conditions/effects decremented but still present
 	ExpiredConditions []ExpiredCondition `json:"expiredConditions,omitempty"`
 	ExpiredEffects    []Effect           `json:"expiredEffects,omitempty"`
+	ResetResources    []ResetResource    `json:"resetResources,omitempty"`
+}
+
+// ResetResource records a turn-start resource reset so Previous can restore it (D67).
+type ResetResource struct {
+	OwnerID RowID  `json:"ownerId"`
+	Name    string `json:"name"`
+	Prev    int    `json:"prev"`
 }
 
 // ExpiredCondition is a condition removed by a countdown, kept for rewind.
@@ -130,7 +138,13 @@ func (e *Encounter) advance(order []Row, idx int, rec *TurnRecord) []Event {
 func (e *Encounter) tick(id RowID, rec *TurnRecord) []Event {
 	var evs []Event
 	fixed := e.Rules().FixedAnchor
-	if _, ok := e.Combatant(id); ok {
+	if cur, ok := e.Combatant(id); ok {
+		for _, res := range cur.Resources {
+			if res.ResetOnTurn && res.Max != nil && res.Current != *res.Max {
+				rec.ResetResources = append(rec.ResetResources, ResetResource{OwnerID: cur.ID, Name: res.Name, Prev: res.Current})
+				res.Current = *res.Max
+			}
+		}
 		for _, c := range e.Combatants {
 			evs = append(evs, e.tickConditions(c, id, rec)...)
 		}
@@ -249,6 +263,13 @@ func (e *Encounter) Previous() ([]Event, error) {
 		}
 		at := min(x.Index, len(c.Conditions))
 		c.Conditions = append(c.Conditions[:at], append([]*Condition{&cond}, c.Conditions[at:]...)...)
+	}
+	for _, x := range rec.ResetResources {
+		if c, ok := e.Combatant(x.OwnerID); ok {
+			if res := findResource(c, x.Name); res != nil {
+				res.Current = x.Prev
+			}
+		}
 	}
 
 	e.Current = rec.PrevCurrent

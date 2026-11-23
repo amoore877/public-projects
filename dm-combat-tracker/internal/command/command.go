@@ -75,6 +75,7 @@ var Specs = []Spec{
 	{":initall", "", "quick initiative pass over every combatant"},
 	{":note TARGET TEXT", ":note g1 fleeing", "set the side note (blank clears)"},
 	{":rename TARGET NEWNAME", ":rename g2 Goblin Boss", "rename a combatant or effect"},
+	{":res TARGET NAME VAL [reset]", ":res boss LA 3/3 reset", "set, adjust (+N/-N), or remove (rm) a counter/resource"},
 	{":log TEXT", ":log Thorin shoves the goblin", "write a log entry"},
 	{":ruleset NAME", ":ruleset 3.5e", "choose the game ruleset (5e, 3.5e or one from a file); only before combat starts"},
 	{":next  :prev  :start  :endcombat [clear]", "", "turn controls; :endcombat keeps PCs unless clear is given"},
@@ -83,7 +84,7 @@ var Specs = []Spec{
 }
 
 // Verbs lists the command names, for completion.
-var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "initall", "note", "rename", "log", "ruleset", "next", "prev", "start", "endcombat", "undo", "redo", "roll"}
+var Verbs = []string{"add", "rm", "dmg", "heal", "hp", "temp", "nl", "maxhp", "cond", "uncond", "fx", "fxadd", "fxrm", "end", "init", "initall", "note", "rename", "res", "log", "ruleset", "next", "prev", "start", "endcombat", "undo", "redo", "roll"}
 
 var aliases = map[string]string{
 	"remove": "rm", "damage": "dmg", "condition": "cond", "effect": "fx",
@@ -212,6 +213,22 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 		}
 		id, name := ids[0], strings.Join(restWords, " ")
 		return Command{Focus: id, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.Rename(id, name) }}, nil
+	case "res":
+		if len(words) < 3 {
+			return Command{}, errors.New("usage: :res TARGET NAME CUR/MAX|N|+N|-N|rm [reset]")
+		}
+		ids, restWords, err := splitTarget(enc, words, combatantRow, 2)
+		if err != nil {
+			return Command{}, err
+		}
+		if len(ids) != 1 {
+			return Command{}, errors.New(":res takes one target")
+		}
+		op, err := ParseResourceOp(ids[0], restWords)
+		if err != nil {
+			return Command{}, err
+		}
+		return Command{Focus: ids[0], Op: op}, nil
 	case "log":
 		if rest == "" {
 			return Command{}, errors.New("usage: :log TEXT")
@@ -240,6 +257,71 @@ func each(ids []combat.RowID, f func(e *combat.Encounter, id combat.RowID) ([]co
 		}
 		return out, nil
 	}
+}
+
+// ParseResourceOp parses a resource expression ("NAME CUR/MAX [reset]",
+// "NAME /MAX [reset]", "NAME N", "NAME +N|-N", or "NAME rm") into an Op on id.
+// Shared by `:res` and the TUI `P` prompt (RP3).
+func ParseResourceOp(id combat.RowID, words []string) (Op, error) {
+	if len(words) < 2 {
+		return nil, errors.New("enter NAME and CUR/MAX, N, +N/-N, or rm (e.g. LA 3/3 reset)")
+	}
+	reset := false
+	if last := words[len(words)-1]; strings.EqualFold(last, "reset") || strings.EqualFold(last, "r") {
+		if len(words) < 3 {
+			return nil, errors.New("enter NAME and CUR/MAX before reset (e.g. LA 3/3 reset)")
+		}
+		reset = true
+		words = words[:len(words)-1]
+	}
+	val := words[len(words)-1]
+	name := strings.TrimSpace(strings.Join(words[:len(words)-1], " "))
+	if name == "" {
+		return nil, errors.New("resource name is required")
+	}
+	if strings.EqualFold(val, "rm") {
+		if reset {
+			return nil, errors.New("rm doesn't take reset")
+		}
+		return func(e *combat.Encounter) ([]combat.Event, error) { return e.RemoveResource(id, name) }, nil
+	}
+	if strings.Contains(val, "/") {
+		curStr, maxStr, _ := strings.Cut(val, "/")
+		maxV, err := strconv.Atoi(maxStr)
+		if err != nil || maxV < 1 || strings.HasPrefix(maxStr, "+") {
+			return nil, fmt.Errorf("%q isn't a valid CUR/MAX (max must be 1 or more)", val)
+		}
+		curV := maxV
+		if curStr != "" {
+			curV, err = strconv.Atoi(curStr)
+			if err != nil || curV < 0 || strings.HasPrefix(curStr, "+") {
+				return nil, fmt.Errorf("%q isn't a valid CUR/MAX", val)
+			}
+		}
+		mv := maxV
+		return func(e *combat.Encounter) ([]combat.Event, error) {
+			return e.SetResource(id, name, curV, &mv, reset)
+		}, nil
+	}
+	if reset {
+		return nil, errors.New("turn reset requires a max (e.g. LA 3/3 reset)")
+	}
+	if strings.HasPrefix(val, "+") || strings.HasPrefix(val, "-") {
+		delta, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, fmt.Errorf("%q isn't a whole number adjustment", val)
+		}
+		return func(e *combat.Encounter) ([]combat.Event, error) {
+			return e.AdjustResource(id, name, delta)
+		}, nil
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil || n < 0 {
+		return nil, fmt.Errorf("%q isn't a valid counter value (use CUR/MAX, N, +N/-N, or rm)", val)
+	}
+	return func(e *combat.Encounter) ([]combat.Event, error) {
+		return e.SetResourceCurrent(id, name, n)
+	}, nil
 }
 
 func parseHP(enc *combat.Encounter, verb string, words []string) (Command, error) {

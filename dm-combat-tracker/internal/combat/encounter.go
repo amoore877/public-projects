@@ -86,8 +86,20 @@ type Combatant struct {
 	TempHP     int          `json:"tempHp"`
 	Nonlethal  int          `json:"nonlethal,omitempty"` // running total, in rulesets that track it (RS4)
 	Conditions []*Condition `json:"conditions"`          // own conditions only; effect-linked ones are derived
+	Resources  []*Resource  `json:"resources,omitempty"` // generic named counters / pips (RP1, D66)
 	Note       string       `json:"note,omitempty"`
 	AddedSeq   int          `json:"addedSeq"`
+}
+
+// Resource is a generic named counter on a combatant (Legendary Actions,
+// Reactions, Legendary Resistances, spell slots, ammo, etc.; RP1, D66).
+// Max is nil for unbounded counters. ResetOnTurn resets Current to *Max at
+// the start of this combatant's turn.
+type Resource struct {
+	Name        string `json:"name"`
+	Current     int    `json:"current"`
+	Max         *int   `json:"max,omitempty"`
+	ResetOnTurn bool   `json:"resetOnTurn,omitempty"`
 }
 
 // Bloodied reports whether HP is at or below half (display only).
@@ -213,6 +225,18 @@ func (e *Encounter) NextEncounter(keepPCs bool) *Encounter {
 				ID:   next.newID(),
 				Name: cond.Name,
 				Note: cond.Note,
+			})
+		}
+		for _, res := range c.Resources {
+			cur := res.Current
+			if res.ResetOnTurn && res.Max != nil {
+				cur = *res.Max
+			}
+			cp.Resources = append(cp.Resources, &Resource{
+				Name:        res.Name,
+				Current:     cur,
+				Max:         copyIntPtr(res.Max),
+				ResetOnTurn: res.ResetOnTurn,
 			})
 		}
 		next.Combatants = append(next.Combatants, cp)

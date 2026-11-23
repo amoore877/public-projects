@@ -546,6 +546,52 @@ func TestRename(t *testing.T) {
 	}
 }
 
+func TestResourcesUI(t *testing.T) {
+	s := newSession(t, fight()...)
+	m := sized(New(s, ""), 100, 24)
+	selectRow(t, m, "Thorin")
+
+	// Hotkey P creates a bounded turn-reset counter and an unbounded counter.
+	press(m, "P")
+	typeText(m, "LA 3/3 reset")
+	press(m, "enter")
+	if !strings.Contains(screen(m), "[LA 3/3↻]") {
+		t.Fatalf("screen missing [LA 3/3↻]:\n%s", screen(m))
+	}
+	// Tab completes existing resource name, then -1 adjusts it.
+	press(m, "P")
+	typeText(m, "l")
+	press(m, "tab")
+	if got := promptText(t, m); got != "LA " {
+		t.Fatalf("tab completion = %q, want %q", got, "LA ")
+	}
+	typeText(m, "-1")
+	press(m, "enter")
+	if !strings.Contains(screen(m), "[LA 2/3↻]") {
+		t.Fatalf("screen missing [LA 2/3↻]:\n%s", screen(m))
+	}
+	// Undo reverses the adjustment.
+	press(m, "u")
+	if !strings.Contains(m.msg, "Undid: Thorin LA 2/3") || !strings.Contains(screen(m), "[LA 3/3↻]") {
+		t.Errorf("undo resource: msg=%q\n%s", m.msg, screen(m))
+	}
+	// Command :res adds unbounded Arrows and removes LA.
+	runCmd(m, "res thorin Arrows 14")
+	if !strings.Contains(screen(m), "[Arrows 14]") {
+		t.Fatalf("missing Arrows:\n%s", screen(m))
+	}
+	runCmd(m, "res thorin LA rm")
+	if strings.Contains(screen(m), "[LA") {
+		t.Fatalf("LA should be removed:\n%s", screen(m))
+	}
+	// Pressing P on an effect row warns.
+	selectRow(t, m, "Spirit Guardians")
+	press(m, "P")
+	if m.overlay != nil || !strings.Contains(m.msg, "Select a combatant row") {
+		t.Errorf("P on effect row: overlay=%v msg=%q", m.overlay, m.msg)
+	}
+}
+
 func TestLineEditing(t *testing.T) {
 	s := newSession(t, add("Thorin", combat.PC, "18", 44))
 	m := New(s, "")

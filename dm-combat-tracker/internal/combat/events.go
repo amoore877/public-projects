@@ -201,4 +201,20 @@ type (
 		EventMeta
 		Text string
 	}
+
+	ResourceChanged struct {
+		EventMeta
+		ID          RowID
+		Target      string
+		Name        string
+		Current     int
+		Max         *int
+		ResetOnTurn bool
+	}
+	ResourceRemoved struct {
+		EventMeta
+		ID     RowID
+		Target string
+		Name   string
+	}
 )

@@ -727,7 +727,7 @@ func TestHelpAndTerminalSizes(t *testing.T) {
 	a.do(":cond band restrained 2"+enter, "Restrained (2)")
 
 	a.do("?", " Help", "n / space", "r          roll dice", "lines 1–22 of")
-	a.do("jjjjj", "q          quit", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
+	a.do("jjjjjj", "q          quit", ":add NAME [xN] INIT HP [pc|npc] [-- NOTE]")
 	a.do("G", ":next  :prev  :start  :endcombat", ":undo  :redo", ":roll [DICE]")
 	a.do("x", "Setup ─ press S to start combat") // any other key closes help without acting
 	a.see("Bandit Captain")
@@ -1271,4 +1271,31 @@ func TestRename(t *testing.T) {
 	if !strings.Contains(log, "Hooded Figure renamed to Strahd") || !strings.Contains(log, "Dark Mist renamed to Fog Cloud") {
 		t.Errorf("renames missing from log:\n%s", log)
 	}
+}
+
+// Generic counters / resources (`P` and `:res`) show inline in Conditions,
+// auto-reset on turn start, restore on `p` rewind, and carry over on PCs
+// (RP1–RP4, D66–D68).
+func TestResources(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir)
+	a.do(":add Thorin 18 44 pc"+enter, "Thorin")
+	a.do(":add Strahd 12 144"+enter, "Strahd")
+	a.do(":res strahd LA 3/3 reset"+enter, "[LA 3/3↻]")
+	a.do("gPArrows 14"+enter, "[Arrows 14]")
+	a.do(":res thorin Rxn /1 reset"+enter, "[Rxn 1/1↻]")
+	a.do("S", "Round 1 ─ Turn: Thorin")
+
+	// Spend resources, advance to Strahd (LA resets on turn start), rewind restores it.
+	a.do(":res strahd LA -2"+enter, "[LA 1/3↻]")
+	a.do(":res thorin Rxn -1"+enter, "[Rxn 0/1↻]")
+	a.do(":res thorin Arrows -3"+enter, "[Arrows 11]")
+	a.do("n", "Round 1 ─ Turn: Strahd", "[LA 3/3↻]")
+	a.do("p", "Round 1 ─ Turn: Thorin", "[LA 1/3↻]")
+
+	// End combat keeping PCs: Thorin keeps Arrows 11 and resets Rxn back to 1/1.
+	a.do("Ek", "Setup ─ press S to start combat", "1 PC carried over")
+	a.resize(110, 24)
+	a.see("[Arrows 11]", "[Rxn 1/1↻]")
+	a.quit()
 }

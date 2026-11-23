@@ -170,6 +170,8 @@ func (m *Model) handleKey(key string) tea.Cmd {
 		m.open(m.promptTargets())
 	case "d", "h", "t", "D", "M":
 		m.open(m.promptHP(key))
+	case "P":
+		m.open(m.promptResource())
 	case "c":
 		m.open(m.promptAddCondition())
 	case "C":

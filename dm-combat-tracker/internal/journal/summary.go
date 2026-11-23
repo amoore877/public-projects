@@ -102,6 +102,13 @@ func phrase(ev combat.Event) string {
 		return fmt.Sprintf("%s HP %d → %d", e.Name, e.From, e.To)
 	case combat.TempHPSet:
 		return fmt.Sprintf("%s temp HP %d → %d", e.Name, e.From, e.To)
+	case combat.ResourceChanged:
+		if e.Max != nil {
+			return fmt.Sprintf("%s %s %d/%d", e.Target, e.Name, e.Current, *e.Max)
+		}
+		return fmt.Sprintf("%s %s %d", e.Target, e.Name, e.Current)
+	case combat.ResourceRemoved:
+		return fmt.Sprintf("%s removed from %s", e.Name, e.Target)
 	}
 	if text, ok := logText(ev); ok {
 		return text

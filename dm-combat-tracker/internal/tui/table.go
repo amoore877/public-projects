@@ -98,7 +98,21 @@ func conditionsText(enc *combat.Encounter, c *combat.Combatant) string {
 	for _, fx := range enc.LinkedEffects(c.ID) {
 		parts = append(parts, "◆ "+fx.Name)
 	}
+	for _, res := range c.Resources {
+		parts = append(parts, formatResource(res))
+	}
 	return strings.Join(parts, ", ")
+}
+
+func formatResource(r *combat.Resource) string {
+	if r.Max != nil {
+		suffix := ""
+		if r.ResetOnTurn {
+			suffix = "↻"
+		}
+		return fmt.Sprintf("[%s %d/%d%s]", r.Name, r.Current, *r.Max, suffix)
+	}
+	return fmt.Sprintf("[%s %d]", r.Name, r.Current)
 }
 
 func effectSummary(fx *combat.Effect) string {

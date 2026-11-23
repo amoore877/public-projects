@@ -205,6 +205,7 @@ In `3.5e` an effect stays on the initiative count it began on, as the 3.5 rules 
 | `:initall` | | Quick initiative pass over every combatant |
 | `:note TARGET TEXT` | `:note g1 fleeing` | Set the side note (blank clears it) |
 | `:rename TARGET NEWNAME` | `:rename g2 Goblin Boss` | Rename a combatant or effect |
+| `:res TARGET NAME VAL [reset]` | `:res boss LA 3/3 reset` · `:res thorin Arrows -1` | Set, adjust (`+N`/`-N`), or remove (`rm`) a counter/resource |
 | `:log TEXT` | `:log Thorin shoves the goblin off the bridge` | Write a log entry |
 | `:ruleset NAME` | `:ruleset 3.5e` | Choose the ruleset (before combat starts) |
 | `:next` `:prev` `:start` `:endcombat [clear]` | `:endcombat clear` | Turn controls (`:endcombat` carries PCs over unless `clear` is given) |
@@ -230,6 +231,7 @@ Keys act on the selected row (highlighted), which can differ from the row whose 
 | `t` | Temp HP (`N` replaces, `+N` adds) |
 | `D` | Nonlethal damage (`3.5e`; `=N` sets the total) |
 | `M` | Edit max HP |
+| `P` | Edit counters / resources (`LA 3/3 reset`, `Arrows 14`, `LA -1`, `LA rm`) |
 | `c` / `C` | Add / remove a condition |
 | `e` | New effect |
 | `T` | Change an effect's targets |

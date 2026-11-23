@@ -106,6 +106,10 @@ func eventRow(ev combat.Event) combat.RowID {
 		return e.ID
 	case combat.EffectExpired:
 		return e.ID
+	case combat.ResourceChanged:
+		return e.ID
+	case combat.ResourceRemoved:
+		return e.ID
 	}
 	return 0
 }

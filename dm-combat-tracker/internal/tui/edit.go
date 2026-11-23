@@ -464,6 +464,46 @@ func (m *Model) promptRename() overlay {
 	return p
 }
 
+func (m *Model) promptResource() overlay {
+	c := m.selectedCombatant()
+	if c == nil {
+		return nil
+	}
+	id, name := c.ID, c.Name
+	existing := make([]string, len(c.Resources))
+	for i, r := range c.Resources {
+		existing[i] = r.Name
+	}
+	p := &inputPrompt{
+		label: "Resource on " + name + ":",
+		help:  "NAME CUR/MAX [reset] · NAME +N/-N · NAME rm",
+		suggest: func(text string) []string {
+			if strings.Contains(text, " ") {
+				return nil
+			}
+			var out []string
+			for _, n := range existing {
+				if strings.HasPrefix(strings.ToLower(n), strings.ToLower(text)) {
+					out = append(out, n+" ")
+				}
+			}
+			return out
+		},
+	}
+	p.submit = func(m *Model, text string) (overlay, error) {
+		words := strings.Fields(text)
+		op, err := command.ParseResourceOp(id, words)
+		if err != nil {
+			return p, err
+		}
+		if _, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return op(e) }); err != nil {
+			return p, err
+		}
+		return nil, nil
+	}
+	return p
+}
+
 func (m *Model) promptLog() overlay {
 	p := &inputPrompt{label: "Log:", help: "a line for the combat log"}
 	p.submit = func(m *Model, text string) (overlay, error) {

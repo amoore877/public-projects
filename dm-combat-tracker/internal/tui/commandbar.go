@@ -119,6 +119,7 @@ var keyHelp = [][2]string{
 	{"t", "temp HP (N replaces, +N adds)"},
 	{"D", "nonlethal damage (=N sets the total; rulesets that track it)"},
 	{"M", "edit max HP"},
+	{"P", "edit counters / resources (e.g. LA 3/3 reset)"},
 	{"c / C", "add / remove a condition"},
 	{"e", "new effect (source: the selected combatant)"},
 	{"T", "change an effect's targets"},

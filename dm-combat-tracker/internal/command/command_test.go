@@ -306,6 +306,34 @@ func TestOtherCommands(t *testing.T) {
 	}
 	parseErr(t, e, ":rename g1", "usage: :rename TARGET NEWNAME")
 	parseErr(t, e, ":rename g1,g3 Boss", ":rename takes one target")
+
+	run(t, e, ":res band LA /3 reset")
+	bandID := find(t, e, "Bandit Captain")
+	bc, _ := e.Combatant(bandID)
+	if len(bc.Resources) != 1 || bc.Resources[0].Current != 3 || *bc.Resources[0].Max != 3 || !bc.Resources[0].ResetOnTurn {
+		t.Fatalf(":res /3 reset: %+v", bc.Resources)
+	}
+	run(t, e, ":res band LA -1")
+	if bc.Resources[0].Current != 2 {
+		t.Errorf(":res -1: cur=%d", bc.Resources[0].Current)
+	}
+	run(t, e, ":res band Spell Slots 2/4")
+	if len(bc.Resources) != 2 || bc.Resources[1].Name != "Spell Slots" || bc.Resources[1].Current != 2 {
+		t.Fatalf(":res multi-word name: %+v", bc.Resources)
+	}
+	run(t, e, ":res band Arrows 14")
+	run(t, e, ":res band Arrows +2")
+	if bc.Resources[2].Current != 16 {
+		t.Errorf("Arrows = %d", bc.Resources[2].Current)
+	}
+	run(t, e, ":res band LA rm")
+	if len(bc.Resources) != 2 {
+		t.Errorf("after rm: %+v", bc.Resources)
+	}
+	parseErr(t, e, ":res band LA", "usage: :res")
+	parseErr(t, e, ":res band Arrows 14 reset", "turn reset requires a max")
+	parseErr(t, e, ":res band LA rm reset", "rm doesn't take reset")
+	parseErr(t, e, ":res band LA 1/0", "valid CUR/MAX")
 }
 
 func TestEveryVerbIsDocumented(t *testing.T) {

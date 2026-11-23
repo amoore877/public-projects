@@ -692,7 +692,7 @@ Built as milestone 19, for [Rename](REQUIREMENTS.md#rename) (RN1–RN3). The dec
 
 ## Counters and resources
 
-Planned as milestone 20, for [Counters and resources](REQUIREMENTS.md#counters-and-resources) (RP1–RP4). The decisions are D66–D68.
+Built as milestone 20, for [Counters and resources](REQUIREMENTS.md#counters-and-resources) (RP1–RP4). The decisions are D66–D68.
 
 ### How it works
 
@@ -717,7 +717,7 @@ Planned as milestone 20, for [Counters and resources](REQUIREMENTS.md#counters-a
 
 | Milestone | Covers | Notes |
 |---|---|---|
-| 20. Counters and resources | RP1–RP4 | `Resource` model, `resources.go` ops, `tick`/`Previous` turn-reset & rewind, PC carry-over, `journal.Summary`, `undo.go`, `:res`, `P` prompt, `table.go` inline display, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (bounded turn-reset LA, unbounded arrows, spend, turn-start reset, `p` rewind, carry-over on End). |
+| 20. ✅ Counters and resources | RP1–RP4 | `Resource` model, `resources.go` ops, `tick`/`Previous` turn-reset & rewind, PC carry-over, `journal.Summary`, `undo.go`, `:res`, `P` prompt, `table.go` inline display, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (bounded turn-reset LA, unbounded arrows, spend, turn-start reset, `p` rewind, carry-over on End). |
 
 ## Open questions
 
@@ -755,7 +755,7 @@ Candidate features that fit the tracker's scope (keyboard-first 80×24 TUI, sing
 2. ✅ **Quick initiative pass.** Step through every combatant row in sequence prompting only for initiative, avoiding repeated navigation between fights.
 3. ✅ **Fuzzy jump (`/`).** Jump table selection by typing a name prefix or substring in large fights.
 4. ✅ **Rename (`R`, `:rename`).** Rename a combatant mid-fight (cloning skipped by choice).
-5. **Counters / pips ("Resources").** Generic per-combatant named counters (e.g. `LA 2/3`, `LR 1/3`, `Rxn 1/1`, death saves, ammo) with optional auto-reset at the start of that creature's turn.
+5. ✅ **Counters / pips ("Resources").** Generic per-combatant named counters (e.g. `LA 2/3`, `LR 1/3`, `Rxn 1/1`, death saves, ammo) with optional auto-reset at the start of that creature's turn.
 6. **Round / turn countdowns.** Standalone deferred reminders not tied to targets (e.g. reinforcements arriving in 3 rounds or a hazard on round 5) with a header/table countdown and an alert + log entry when due.
 7. **End-of-turn duration option.** Optional end-of-turn duration anchor (e.g. `1e`, ticking when `n` leaves the anchor's turn) alongside the default start-of-turn countdown (D12).
 

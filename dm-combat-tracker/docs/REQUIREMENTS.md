@@ -126,7 +126,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - ✅ Quick initiative pass: step through every combatant entering initiatives back-to-back without repeated navigation. See [Quick initiative pass](#quick-initiative-pass).
 - ✅ Fuzzy jump: jump table selection by typing part of a row's name. See [Fuzzy jump](#fuzzy-jump).
 - ✅ Rename: rename a combatant or effect in place mid-fight. See [Rename](#rename).
-- Counters / pips (resources): attach lightweight named counters to combatants (Legendary Actions, Reactions, Legendary Resistances, ammo) with optional turn-start reset. See [Counters and resources](#counters-and-resources).
+- ✅ Counters / pips (resources): attach lightweight named counters to combatants (Legendary Actions, Reactions, Legendary Resistances, ammo) with optional turn-start reset. See [Counters and resources](#counters-and-resources).
 
 ### Rulesets
 
