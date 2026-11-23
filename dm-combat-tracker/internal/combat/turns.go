@@ -46,14 +46,20 @@ func (e *Encounter) Start() ([]Event, error) {
 	}, nil
 }
 
-// End finishes combat. Allowed from Setup or Active.
+// End finishes combat and starts the next fight empty. Allowed from Setup or Active.
 func (e *Encounter) End() ([]Event, error) {
+	return e.EndWith(false)
+}
+
+// EndWith finishes combat; when keepPCs is true, the session carries the PCs
+// into the next fight's Setup (CP1–CP4). Allowed from Setup or Active.
+func (e *Encounter) EndWith(keepPCs bool) ([]Event, error) {
 	if e.Status == Ended {
 		return nil, ErrEnded
 	}
 	m := e.meta()
 	e.Status = Ended
-	return []Event{CombatEnded{EventMeta: m, Rounds: e.Round}}, nil
+	return []Event{CombatEnded{EventMeta: m, Rounds: e.Round, KeepPCs: keepPCs}}, nil
 }
 
 // Next advances to the next row, wrapping into a new round, and counts down

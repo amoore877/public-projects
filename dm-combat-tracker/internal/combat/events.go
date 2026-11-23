@@ -33,7 +33,8 @@ type (
 	}
 	CombatEnded struct {
 		EventMeta
-		Rounds int
+		Rounds  int
+		KeepPCs bool
 	}
 	RoundStarted struct{ EventMeta }
 	// RulesetChanged only happens during Setup (RS1).

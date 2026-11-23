@@ -276,6 +276,13 @@ func TestOtherCommands(t *testing.T) {
 			t.Errorf("%s: %+v %v", line, cmd, err)
 		}
 	}
+	if cmd, err := Parse(e, ":endcombat"); err != nil || cmd.Kind != EndCombat || cmd.Clear {
+		t.Errorf(":endcombat: %+v %v", cmd, err)
+	}
+	if cmd, err := Parse(e, ":endcombat CLEAR"); err != nil || cmd.Kind != EndCombat || !cmd.Clear {
+		t.Errorf(":endcombat clear: %+v %v", cmd, err)
+	}
+	parseErr(t, e, ":endcombat foo", "usage: :endcombat [clear]")
 	parseErr(t, e, ":next 2", "takes no arguments")
 	parseErr(t, e, ":undo 3", ":undo takes no arguments")
 

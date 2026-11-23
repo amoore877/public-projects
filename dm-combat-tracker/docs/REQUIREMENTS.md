@@ -122,7 +122,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - ✅ Undo and redo of any change. See [Undo and redo](#undo-and-redo).
 - Dice roller: type an expression like `2d6+2+1d4` and see the total and each die. See [Dice roller](#dice-roller).
 - Dice in damage and healing: roll and apply in one step, with halving, doubling and immunity per damage type and per target. See [Dice in damage and healing](#dice-in-damage-and-healing).
-- Carry over PCs between fights: keep the party's state when ending combat instead of re-entering them every encounter. See [Carry over PCs between fights](#carry-over-pcs-between-fights).
+- ✅ Carry over PCs between fights: keep the party's state when ending combat instead of re-entering them every encounter. See [Carry over PCs between fights](#carry-over-pcs-between-fights).
 
 ### Rulesets
 

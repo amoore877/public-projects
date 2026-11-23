@@ -526,20 +526,37 @@ func (m *Model) promptEndCombat() overlay {
 	if enc.Status == combat.Active {
 		q = fmt.Sprintf("End combat after %s? The state file is archived.", plural(enc.Round, "round", "rounds"))
 	}
-	return confirm(q, func(m *Model) { m.endCombat() })
+	if enc.HasPCs() {
+		return &choicePrompt{
+			question: q,
+			choices: []choice{
+				{key: "k", label: "keep PCs", run: func(m *Model) overlay { m.endCombat(true); return nil }},
+				{key: "c", label: "clear all", run: func(m *Model) overlay { m.endCombat(false); return nil }},
+			},
+		}
+	}
+	return confirm(q, func(m *Model) { m.endCombat(false) })
 }
 
 // endCombat ends the fight; the session archives the state file and a new
-// combat begins in Setup (D13).
-func (m *Model) endCombat() {
-	out, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return e.End() })
+// combat begins in Setup (D13), optionally carrying PCs over (D55–D58).
+func (m *Model) endCombat(keepPCs bool) {
+	out, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return e.EndWith(keepPCs) })
 	if err != nil {
 		m.fail(err)
 		return
 	}
 	m.selected, m.selIdx, m.offset = 0, 0, 0
 	m.syncSelection()
-	if m.msg == "" && out.ArchivedTo != "" {
-		m.info("Combat ended · archived as " + out.ArchivedTo)
+	if m.msg == "" {
+		n := len(m.sess.Encounter().Combatants)
+		switch {
+		case n > 0 && out.ArchivedTo != "":
+			m.info(fmt.Sprintf("Combat ended · %s carried over · archived as %s", plural(n, "PC", "PCs"), out.ArchivedTo))
+		case n > 0:
+			m.info(fmt.Sprintf("Combat ended · %s carried over", plural(n, "PC", "PCs")))
+		case out.ArchivedTo != "":
+			m.info("Combat ended · archived as " + out.ArchivedTo)
+		}
 	}
 }

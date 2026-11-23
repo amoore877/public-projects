@@ -318,3 +318,36 @@ func TestRulesetCarriesToNextFight(t *testing.T) {
 		t.Fatalf("after a leftover ended file: resumed %v, ruleset %q", resumed, s.Encounter().Ruleset)
 	}
 }
+
+func TestCarryOverPCsPersistsAndClearsUndo(t *testing.T) {
+	_, cfg := setup(t)
+	s, _ := open(t, cfg)
+	apply(t, s, func(e *combat.Encounter) ([]combat.Event, error) {
+		v, _ := combat.ParseInitiative("18")
+		_, evs, err := e.Add(combat.CombatantSpec{Name: "Thorin", Kind: combat.PC, Initiative: v, MaxHP: 44})
+		return evs, err
+	})
+	apply(t, s, addOp("Goblin", 12, 7))
+	apply(t, s, start)
+	apply(t, s, func(e *combat.Encounter) ([]combat.Event, error) {
+		return e.Damage(e.Combatants[0].ID, 13)
+	})
+	out := apply(t, s, func(e *combat.Encounter) ([]combat.Event, error) { return e.EndWith(true) })
+	if out.ArchivedTo == "" || out.SaveErr != nil {
+		t.Fatalf("end with carry-over: archive=%q saveErr=%v", out.ArchivedTo, out.SaveErr)
+	}
+	if u, r := s.UndoDepth(); u != 0 || r != 0 {
+		t.Errorf("undo stack should reset at End: %d/%d", u, r)
+	}
+	if e := s.Encounter(); e.Status != combat.Setup || len(e.Combatants) != 1 || e.Combatants[0].Name != "Thorin" || e.Combatants[0].HP != 31 || e.Combatants[0].Initiative != 0 {
+		t.Fatalf("carried-over encounter: %+v", e)
+	}
+	s.Close()
+
+	// Reopening immediately should resume the carried-over Setup (D58).
+	s2, resumed := open(t, cfg)
+	if !resumed || s2.Encounter().Status != combat.Setup || len(s2.Encounter().Combatants) != 1 || s2.Encounter().Combatants[0].HP != 31 {
+		t.Fatalf("resumed=%v encounter=%+v", resumed, s2.Encounter())
+	}
+	s2.Close()
+}

@@ -72,7 +72,7 @@ If the state file can't be read (it's corrupt, or from a newer version of `dmct`
 2. **Start** with `S`. The log gets a "Combat started" line listing the turn order.
 3. **Play.** `n` (or `space`) passes the turn; the selection follows the turn holder. Select another row with `↑↓` / `jk` to act on it: `d` damage, `h` heal, `c` add a condition, `e` start an effect, and so on.
 4. **Note things down** with `l` as they happen. Notes are marked 📝 in the log so they stand out when you write the recap.
-5. **End** with `E`. The state file is archived and a new fight begins in Setup.
+5. **End** with `E`. The state file is archived and a new fight begins in Setup. If there are PCs in the fight, `E` lets you choose `k` to carry them over (keeping their HP, temp HP, nonlethal damage, notes, and indefinite conditions with initiative reset to 0, while dropping NPCs, timed conditions, and effects) or `c` to start empty.
 
 You can quit with `q` at any point; everything is already saved.
 
@@ -205,7 +205,7 @@ In `3.5e` an effect stays on the initiative count it began on, as the 3.5 rules 
 | `:note TARGET TEXT` | `:note g1 fleeing` | Set the side note (blank clears it) |
 | `:log TEXT` | `:log Thorin shoves the goblin off the bridge` | Write a log entry |
 | `:ruleset NAME` | `:ruleset 3.5e` | Choose the ruleset (before combat starts) |
-| `:next` `:prev` `:start` `:endcombat` | | Turn controls |
+| `:next` `:prev` `:start` `:endcombat [clear]` | `:endcombat clear` | Turn controls (`:endcombat` carries PCs over unless `clear` is given) |
 | `:undo` `:redo` | | Take back the last change / make it again |
 | `:roll [DICE]` | `:roll 2d6+2+1d4` | Roll dice; alone, roll the last again. See [Dice](#dice) |
 

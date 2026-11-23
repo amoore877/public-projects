@@ -424,8 +424,8 @@ func TestFullFight(t *testing.T) {
 	}
 
 	// End the fight: the state is archived and a new Setup begins.
-	a.do("E", "End combat after 2 rounds?")
-	a.do("y", "Setup ─ press S to start combat", "Combat ended · archived as dmct-state-")
+	a.do("E", "End combat after 2 rounds?", "k keep PCs", "c clear all")
+	a.do("c", "Setup ─ press S to start combat", "Combat ended · archived as dmct-state-")
 	a.quit()
 
 	if _, err := os.Stat(filepath.Join(dir, "dmct-state.json")); !errors.Is(err, os.ErrNotExist) {
@@ -1176,4 +1176,32 @@ func TestDiceRoller(t *testing.T) {
 	if log := read(t, filepath.Join(dir, "recap.md")); strings.Contains(log, "d6") || strings.Contains(log, "d20") {
 		t.Errorf("rolls shouldn't be logged:\n%s", log)
 	}
+}
+
+// Ending combat with PCs offers to carry them over into the next Setup
+// (preserving HP, temp HP, indefinite conditions and notes, resetting
+// initiative to 0), persists the carried-over Setup across a restart, and
+// `:endcombat clear` starts blank (CP1–CP4, D55–D58).
+func TestCarryOverPCs(t *testing.T) {
+	dir := t.TempDir()
+	a := launch(t, dir)
+	a.do(":add Thorin 18 31/44+5 pc -- cursed"+enter, "31/44 +5")
+	a.do(":add Mira 9 20/27 pc"+enter, "20/27")
+	a.do(":add Goblin 12 7"+enter, "Goblin")
+	a.do(":cond thorin exhaustion -- level 1"+enter, "Exhaustion")
+	a.do(":cond thorin prone 2"+enter, "Prone (2)")
+	a.do(":fx Spirit Guardians 10 from mira on goblin"+enter, "Spirit Guardians")
+	a.do("S", "Round 1 ─ Turn: Thorin")
+
+	a.do("E", "End combat after 1 round?", "k keep PCs", "c clear all")
+	a.do("k", "Setup ─ press S to start combat", "2 PCs carried over", "0 !", "Thorin", "Mira", "Exhaustion")
+	a.gone("Goblin", "Prone", "Spirit Guardians")
+	a.quit()
+
+	// Relaunching picks up the carried-over Setup immediately (D58).
+	a = launch(t, dir)
+	a.see("Setup ─ press S to start combat", "Thorin", "31/44 +5", "Exhaustion", "cursed", "Mira", "20/27", "0 !")
+	a.do(":endcombat clear"+enter, "Setup ─ press S to start combat", "Combat ended · archived as dmct-state-")
+	a.gone("Thorin", "Mira")
+	a.quit()
 }

@@ -89,8 +89,12 @@ func TestCommandBarRemoveAndEnd(t *testing.T) {
 		}
 	}
 	runCmd(m, "endcombat")
-	if s.Encounter().Status != combat.Setup || !strings.Contains(m.msg, "archived as") {
-		t.Errorf(":endcombat: status %v msg %q", s.Encounter().Status, m.msg)
+	if s.Encounter().Status != combat.Setup || len(s.Encounter().Combatants) != 1 || s.Encounter().Combatants[0].Name != "Thorin" || !strings.Contains(m.msg, "1 PC carried over") || !strings.Contains(m.msg, "archived as") {
+		t.Errorf(":endcombat: status %v combatants %d msg %q", s.Encounter().Status, len(s.Encounter().Combatants), m.msg)
+	}
+	runCmd(m, "endcombat clear")
+	if s.Encounter().Status != combat.Setup || len(s.Encounter().Combatants) != 0 {
+		t.Errorf(":endcombat clear: status %v combatants %d", s.Encounter().Status, len(s.Encounter().Combatants))
 	}
 }
 

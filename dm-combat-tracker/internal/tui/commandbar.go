@@ -67,7 +67,7 @@ func (m *Model) runCommand(cmd command.Command, p *inputPrompt) (overlay, error)
 		m.remove(cmd.Target, name, combat.AskAboutEffects)
 		return nil, nil
 	case command.EndCombat:
-		m.endCombat()
+		m.endCombat(!cmd.Clear)
 		return nil, nil
 	case command.Undo, command.Redo:
 		m.undo(cmd.Kind == command.Redo)

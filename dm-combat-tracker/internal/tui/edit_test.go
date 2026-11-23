@@ -388,12 +388,13 @@ func TestEndCombat(t *testing.T) {
 	s := newSession(t, fight()...)
 	m := New(s, "")
 	press(m, "E")
-	if !strings.Contains(screen(m), "End combat after 1 round?") {
-		t.Fatalf("expected confirmation:\n%s", screen(m))
+	sc := screen(m)
+	if !strings.Contains(sc, "End combat after 1 round?") || !strings.Contains(sc, "k keep PCs") || !strings.Contains(sc, "c clear all") {
+		t.Fatalf("expected keep/clear prompt:\n%s", sc)
 	}
-	press(m, "y")
+	press(m, "c")
 	if s.Encounter().Status != combat.Setup || len(s.Encounter().Combatants) != 0 {
-		t.Errorf("a new combat should begin: %+v", s.Encounter())
+		t.Errorf("a new empty combat should begin: %+v", s.Encounter())
 	}
 	if !strings.Contains(m.msg, "archived as dmct-state-20261114-194200.json") {
 		t.Errorf("msg %q", m.msg)
@@ -403,6 +404,34 @@ func TestEndCombat(t *testing.T) {
 	}
 	if m.Selected() != 0 {
 		t.Error("selection should be empty")
+	}
+}
+
+func TestEndCombatKeepPCsAndNoPCs(t *testing.T) {
+	// With PCs: pressing k carries PCs over and selects the first PC.
+	s := newSession(t, fight()...)
+	m := New(s, "")
+	press(m, "E", "k")
+	if s.Encounter().Status != combat.Setup || len(s.Encounter().Combatants) != 2 {
+		t.Fatalf("expected 2 carried PCs in Setup: %+v", s.Encounter())
+	}
+	if !strings.Contains(m.msg, "2 PCs carried over") || !strings.Contains(m.msg, "archived as") {
+		t.Errorf("msg %q", m.msg)
+	}
+	if m.Selected() != s.Encounter().Combatants[0].ID {
+		t.Errorf("selection = %d, want first carried PC %d", m.Selected(), s.Encounter().Combatants[0].ID)
+	}
+
+	// Without PCs: E falls back to plain y/n confirmation.
+	s2 := newSession(t, add("Goblin", combat.NPC, "12", 7), func(e *combat.Encounter) ([]combat.Event, error) { return e.Start() })
+	m2 := New(s2, "")
+	press(m2, "E")
+	if sc := screen(m2); !strings.Contains(sc, "y yes") || strings.Contains(sc, "keep PCs") {
+		t.Fatalf("expected y/n prompt when no PCs:\n%s", sc)
+	}
+	press(m2, "y")
+	if s2.Encounter().Status != combat.Setup || len(s2.Encounter().Combatants) != 0 {
+		t.Errorf("expected empty Setup: %+v", s2.Encounter())
 	}
 }
 

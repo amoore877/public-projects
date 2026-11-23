@@ -268,9 +268,13 @@ func TestChoicePromptKeys(t *testing.T) {
 	selectRow(t, m, "Goblin 1")
 	press(m, "x")
 	special(m, "ctrl+c")
-	press(m, "E", "n")
+	press(m, "x", "n")
 	if m.overlay != nil || m.sess.Encounter().Status != combat.Active {
 		t.Error("ctrl+c and n should both back out")
+	}
+	press(m, "E", "esc")
+	if m.overlay != nil || m.sess.Encounter().Status != combat.Active {
+		t.Error("esc should back out of end combat")
 	}
 }
 

@@ -203,3 +203,83 @@ func TestSetNote(t *testing.T) {
 	_, err := e.SetNote(99, "x")
 	wantErr(t, err, ErrNotFound)
 }
+
+func TestNextEncounterCarryOverPCs(t *testing.T) {
+	e := newEnc()
+	must(t)(e.SetRuleset("3.5e"))
+	if e.HasPCs() {
+		t.Fatal("empty encounter shouldn't have PCs")
+	}
+	thorin, _, err := e.Add(CombatantSpec{Name: "Thorin", Kind: PC, Initiative: ini(t, "18"), MaxHP: 44, HP: intPtr(31), TempHP: 5, Note: "cursed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gob := add(t, e, "Goblin", "12", 7)
+	mira, _, err := e.Add(CombatantSpec{Name: "Mira", Kind: PC, Initiative: ini(t, "9"), MaxHP: 27, HP: intPtr(-4), Note: "shield"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	must(t)(e.NonlethalDamage(thorin, 6))
+	// Indefinite condition with a source (source should be cleared) + timed condition (dropped).
+	if _, _, err := e.AddConditionFrom(thorin, "Exhausted", nil, gob, "level 1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := e.AddCondition(thorin, "Prone", intPtr(2), ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := e.AddCondition(mira, "Stable", nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := e.AddEffect(EffectSpec{Name: "Fog Cloud", SourceID: mira, Rounds: intPtr(5), Targets: []RowID{gob, thorin}}); err != nil {
+		t.Fatal(err)
+	}
+	if !e.HasPCs() {
+		t.Fatal("HasPCs should be true")
+	}
+	must(t)(e.Start())
+	evs := must(t)(e.EndWith(true))
+	if !evs[0].(CombatEnded).KeepPCs {
+		t.Error("CombatEnded.KeepPCs should be true")
+	}
+
+	// Empty next encounter drops everything except the ruleset.
+	empty := e.NextEncounter(false)
+	if empty.Status != Setup || empty.Ruleset != "3.5e" || len(empty.Combatants) != 0 {
+		t.Fatalf("empty next: %+v", empty)
+	}
+
+	// Carried-over next encounter keeps only PCs in AddedSeq order, initiative 0.
+	next := e.NextEncounter(true)
+	if next.Status != Setup || next.Ruleset != "3.5e" || len(next.Effects) != 0 {
+		t.Fatalf("carried next: status=%s ruleset=%q effects=%d", next.Status, next.Ruleset, len(next.Effects))
+	}
+	if len(next.Combatants) != 2 {
+		t.Fatalf("expected 2 PCs, got %d", len(next.Combatants))
+	}
+	c0, c1 := next.Combatants[0], next.Combatants[1]
+	if c0.Name != "Thorin" || c0.Kind != PC || c0.Initiative != 0 || c0.HP != 31 || c0.MaxHP != 44 || c0.TempHP != 5 || c0.Nonlethal != 6 || c0.Note != "cursed" {
+		t.Errorf("carried Thorin: %+v", c0)
+	}
+	if len(c0.Conditions) != 1 || c0.Conditions[0].Name != "Exhausted" || c0.Conditions[0].Note != "level 1" || c0.Conditions[0].Remaining != nil || c0.Conditions[0].SourceID != 0 {
+		t.Errorf("carried Thorin conditions: %+v", c0.Conditions)
+	}
+	if c1.Name != "Mira" || c1.Kind != PC || c1.Initiative != 0 || c1.HP != -4 || c1.MaxHP != 27 || c1.Note != "shield" {
+		t.Errorf("carried Mira: %+v", c1)
+	}
+	if len(c1.Conditions) != 1 || c1.Conditions[0].Name != "Stable" {
+		t.Errorf("carried Mira conditions: %+v", c1.Conditions)
+	}
+	if c0.AddedSeq >= c1.AddedSeq {
+		t.Errorf("AddedSeq order lost: %d >= %d", c0.AddedSeq, c1.AddedSeq)
+	}
+	// Ties should flag both carried-over PCs at 0.
+	if ties := next.Ties(); !ties[c0.ID] || !ties[c1.ID] {
+		t.Errorf("expected tie at initiative 0: %v", ties)
+	}
+	// Mutating next must not mutate the archived encounter.
+	must(t)(next.Heal(c0.ID, 10))
+	orig, _ := e.Combatant(thorin)
+	if orig.HP != 31 {
+		t.Errorf("mutating next changed old encounter HP to %d", orig.HP)
+	}
+}

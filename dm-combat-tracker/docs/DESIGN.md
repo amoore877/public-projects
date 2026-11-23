@@ -592,7 +592,7 @@ Later: the target picker with saved / resistant / vulnerable / immune keys.
 
 ## Carry over PCs between fights
 
-Planned as milestone 16, for [Carry over PCs between fights](REQUIREMENTS.md#carry-over-pcs-between-fights) (CP1–CP4). The decisions are D55–D58.
+Built as milestone 16, for [Carry over PCs between fights](REQUIREMENTS.md#carry-over-pcs-between-fights) (CP1–CP4). The decisions are D55–D58.
 
 ### How it works
 
@@ -614,7 +614,7 @@ Planned as milestone 16, for [Carry over PCs between fights](REQUIREMENTS.md#car
 
 | Milestone | Covers | Notes |
 |---|---|---|
-| 16. Carry over PCs | CP1–CP4 | `Encounter.NextEncounter`, `EndKeepPCs` / `CombatEnded.KeepPCs`, `session.Apply` immediate save after archive, `:endcombat [clear]`, `E` choice prompt, help/README, unit tests across `combat`/`session`/`command`/`tui`, and E2E story (end combat keeping PCs, verify state persists across restart, and `:endcombat clear`). |
+| 16. ✅ Carry over PCs | CP1–CP4 | `Encounter.NextEncounter`, `EndWith` / `CombatEnded.KeepPCs`, `session.Apply` immediate save after archive, `:endcombat [clear]`, `E` choice prompt, help/README, unit tests across `combat`/`session`/`command`/`tui`, and E2E story (end combat keeping PCs, verify state persists across restart, and `:endcombat clear`). |
 
 ## Open questions
 
@@ -640,7 +640,7 @@ Candidate features that fit the tracker's scope (keyboard-first 80×24 TUI, sing
 
 ### Planned next (in order)
 
-1. **Carry over PCs between fights.** On ending combat, optionally carry the PCs into the next fight's Setup (preserving HP, temp HP, and any chosen ongoing state, while clearing initiative for the new fight).
+1. ✅ **Carry over PCs between fights.** On ending combat, optionally carry the PCs into the next fight's Setup (preserving HP, temp HP, and any chosen ongoing state, while clearing initiative for the new fight).
 2. **Quick initiative pass.** Step through every combatant row in sequence prompting only for initiative, avoiding repeated navigation between fights.
 3. **Fuzzy jump (`/`).** Jump table selection by typing a name prefix or substring in large fights.
 4. **Clone and rename (`:clone`, `:rename`).** Duplicate a combatant (for summons or splitting creatures) and rename a combatant mid-fight.

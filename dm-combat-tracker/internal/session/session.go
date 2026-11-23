@@ -125,12 +125,14 @@ func (s *Session) Apply(op Op) (Outcome, error) {
 	}
 
 	ended := false
+	keepPCs := false
 	for _, ev := range evs {
-		switch ev.(type) {
+		switch e := ev.(type) {
 		case combat.CombatStarted, combat.NoteLogged:
 			s.bindLog()
 		case combat.CombatEnded:
 			ended = true
+			keepPCs = e.KeepPCs
 		}
 	}
 
@@ -150,10 +152,11 @@ func (s *Session) Apply(op Op) (Outcome, error) {
 		if out.SaveErr == nil {
 			out.ArchivedTo, out.SaveErr = store.Archive(s.cfg.StatePath, s.cfg.Clock())
 		}
-		// The next fight keeps this one's ruleset.
-		next := combat.New(s.cfg.Clock)
-		_, _ = next.SetRuleset(s.enc.Ruleset)
-		s.enc = next
+		// The next fight keeps this one's ruleset, and optionally its PCs (D55–D58).
+		s.enc = s.enc.NextEncounter(keepPCs)
+		if len(s.enc.Combatants) > 0 && out.SaveErr == nil {
+			out.SaveErr = store.Save(s.cfg.StatePath, s.enc)
+		}
 	}
 	return out, nil
 }

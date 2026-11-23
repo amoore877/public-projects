@@ -42,6 +42,9 @@ type Command struct {
 	Created *combat.RowID
 	// Dice is the expression to roll, for Kind Roll; nil rolls the last one again.
 	Dice *dice.Expr
+	// Clear is true for `:endcombat clear`, which starts an empty Setup instead
+	// of carrying PCs over (D57).
+	Clear bool
 }
 
 // Spec documents one command, for the help overlay.
@@ -71,7 +74,7 @@ var Specs = []Spec{
 	{":note TARGET TEXT", ":note g1 fleeing", "set the side note (blank clears)"},
 	{":log TEXT", ":log Thorin shoves the goblin", "write a log entry"},
 	{":ruleset NAME", ":ruleset 3.5e", "choose the game ruleset (5e, 3.5e or one from a file); only before combat starts"},
-	{":next  :prev  :start  :endcombat", "", "turn controls"},
+	{":next  :prev  :start  :endcombat [clear]", "", "turn controls; :endcombat keeps PCs unless clear is given"},
 	{":undo  :redo", "", "take back the last change / make it again"},
 	{":roll [DICE]", ":roll 2d6+2+1d4", "roll dice (d20 is 1d20); no dice rolls the last again. Changes nothing"},
 }
@@ -100,7 +103,7 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 	switch verb {
 	case "":
 		return Command{}, errors.New("type a command, e.g. :dmg g1 7")
-	case "next", "prev", "start", "endcombat", "undo", "redo":
+	case "next", "prev", "start", "undo", "redo":
 		if rest != "" {
 			return Command{}, fmt.Errorf(":%s takes no arguments", verb)
 		}
@@ -113,11 +116,20 @@ func Parse(enc *combat.Encounter, line string) (Command, error) {
 			return Command{Kind: Turn, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.Next() }}, nil
 		case "prev":
 			return Command{Kind: Turn, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.Previous() }}, nil
-		case "start":
-			return Command{Kind: Turn, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.Start() }}, nil
 		default:
-			return Command{Kind: EndCombat, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.End() }}, nil
+			return Command{Kind: Turn, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.Start() }}, nil
 		}
+	case "endcombat":
+		clear := false
+		if rest != "" {
+			if strings.EqualFold(rest, "clear") {
+				clear = true
+			} else {
+				return Command{}, errors.New("usage: :endcombat [clear]")
+			}
+		}
+		keepPCs := !clear
+		return Command{Kind: EndCombat, Clear: clear, Op: func(e *combat.Encounter) ([]combat.Event, error) { return e.EndWith(keepPCs) }}, nil
 	case "roll":
 		if rest == "" {
 			return Command{Kind: Roll}, nil

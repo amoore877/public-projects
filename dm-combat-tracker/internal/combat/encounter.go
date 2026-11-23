@@ -161,6 +161,65 @@ func New(clock Clock) *Encounter {
 	return e
 }
 
+// HasPCs reports whether the encounter contains at least one PC.
+func (e *Encounter) HasPCs() bool {
+	for _, c := range e.Combatants {
+		if c.Kind == PC {
+			return true
+		}
+	}
+	return false
+}
+
+// NextEncounter builds the fresh Setup encounter that follows e, keeping its
+// ruleset. When keepPCs is true, every PC carries over in AddedSeq order with
+// initiative 0, preserving HP, max HP, temp HP, nonlethal damage, notes, and
+// indefinite conditions (with SourceID cleared); timed conditions, effects,
+// and NPCs are dropped (CP1, CP2, D55, D56).
+func (e *Encounter) NextEncounter(keepPCs bool) *Encounter {
+	next := New(e.clock)
+	if e.Ruleset != "" {
+		next.Ruleset = e.Ruleset
+	}
+	if !keepPCs {
+		return next
+	}
+	var pcs []*Combatant
+	for _, c := range e.Combatants {
+		if c.Kind == PC {
+			pcs = append(pcs, c)
+		}
+	}
+	sort.SliceStable(pcs, func(i, j int) bool {
+		return pcs[i].AddedSeq < pcs[j].AddedSeq
+	})
+	for _, c := range pcs {
+		cp := &Combatant{
+			ID:        next.newID(),
+			Name:      c.Name,
+			Kind:      PC,
+			HP:        c.HP,
+			MaxHP:     c.MaxHP,
+			TempHP:    c.TempHP,
+			Nonlethal: c.Nonlethal,
+			Note:      c.Note,
+			AddedSeq:  next.newSeq(),
+		}
+		for _, cond := range c.Conditions {
+			if cond.Remaining != nil {
+				continue
+			}
+			cp.Conditions = append(cp.Conditions, &Condition{
+				ID:   next.newID(),
+				Name: cond.Name,
+				Note: cond.Note,
+			})
+		}
+		next.Combatants = append(next.Combatants, cp)
+	}
+	return next
+}
+
 // SetClock sets the clock (needed after deserializing). Nil means time.Now.
 func (e *Encounter) SetClock(clock Clock) {
 	if clock == nil {
