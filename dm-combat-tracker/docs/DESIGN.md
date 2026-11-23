@@ -79,6 +79,9 @@ Each entry is a decision made during planning, with what it rules out.
 | D69 | **Standalone countdowns (`Encounter.Timers`) tick at round start rather than living as initiative rows** (RC1, RC2). | Keeps reinforcements, hazards, and ritual clocks out of the turn order while still firing reliably at the top of the target round. Rewind (`p`) restores ticked and expired timers via `TurnRecord`. |
 | D70 | **Active countdowns render in a single banner line under the title, taking 0 rows when none exist** (RC3). | Reuses `Model.bannerLines()`, preserving the 80×24 table layout and leaving existing screens untouched when no timers are active. |
 | D71 | **Firing timers alert on the status line and log as `⏱ <Name>`** (RC2, RC4). | Hard to miss during play and easy to spot when writing the session recap. |
+| D72 | **Optional `EndOfTurn` flag on `Condition` and `Effect`, entered with a trailing `e` (`1e`, `2e`)** (ET1, ET4). | Revises D12's start-of-turn-only rule without changing plain numbers (`1`, `2`). One suffix handles both prompts (`c`, `e`) and commands (`:cond`, `:fx`) with no extra prompt step. |
+| D73 | **End-of-turn durations tick in `Next()` when leaving `Current`, before advancing** (ET2). | Expiry events naturally carry the leaving turn holder's `[R·Name]` stamp in the log; `1e` on the active row means "end of this turn" and `2e` means "end of next turn". Delay doesn't call `tickEnd`, so a delayer's end-of-turn items wait until their delayed turn actually finishes. |
+| D74 | **End-of-turn ticks share `TurnRecord.Ticked`, `ExpiredConditions`, and `ExpiredEffects`** (ET3). | Because start-of-turn and end-of-turn items are disjoint sets, `Previous()` restores both with zero new rewind state. |
 
 ## Layout
 
@@ -353,7 +356,7 @@ go test -cover ./...          # target: 90% or more in every package
 6. ✅ **Command bar + help overlay.**
 7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
-Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights); 17 is [Quick initiative pass](#quick-initiative-pass); 18 is [Fuzzy jump](#fuzzy-jump); 19 is [Rename](#rename); 20 is [Counters and resources](#counters-and-resources); 21 is [Round countdowns](#round-countdowns).
+Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights); 17 is [Quick initiative pass](#quick-initiative-pass); 18 is [Fuzzy jump](#fuzzy-jump); 19 is [Rename](#rename); 20 is [Counters and resources](#counters-and-resources); 21 is [Round countdowns](#round-countdowns); 22 is [End-of-turn durations](#end-of-turn-durations).
 
 ## Rulesets
 
@@ -752,6 +755,33 @@ Built as milestone 21, for [Round countdowns](REQUIREMENTS.md#round-countdowns) 
 |---|---|---|
 | 21. ✅ Round countdowns | RC1–RC4 | `Timer` model, `timers.go` ops, round-start tick & `Previous` rewind, journal logging & summary, `:timer` + `ParseTimerOp`, `A` prompt, timer banner & expiry alert, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (add relative & at-round timers, see banner, advance rounds until expiry alert + log line, rewind `p` restores timer, cancel with `rm`). |
 
+## End-of-turn durations
+
+Planned as milestone 22, for [End-of-turn durations](REQUIREMENTS.md#end-of-turn-durations) (ET1–ET4). The decisions are D72–D74.
+
+### How it works
+
+- **Domain (`internal/combat`).**
+  - Add `EndOfTurn bool `json:"endOfTurn,omitempty"`` to `Condition`, `Effect`, `EffectSpec`, `ConditionApplied`, and `EffectStarted` (backward-compatible with schema v2).
+  - Add `ParseDuration(s string) (rounds int, endOfTurn bool, err error)` accepting `N` or `Ne`/`NE` (`N >= 1`).
+  - Add `AddConditionSpec` (or `AddConditionEnd` / `ConditionSpec`) alongside existing `AddCondition` and `AddConditionFrom` (keeping existing callers unchanged). `AddEffect` reads `spec.EndOfTurn` (only when `spec.Rounds != nil`).
+  - In `turns.go`:
+    - Factor `tickAnchored(id RowID, endOfTurn bool, rec *TurnRecord) []Event`: `tick` calls `tickAnchored(id, false, rec)` (plus resource resets), and `tickEnd` calls `tickAnchored(id, true, rec)`.
+    - In `Next()`: before calling `advance`, run `tickEnd(e.Current, &rec)`. If `e.Current` itself expired (an unsourced end-of-turn effect), compute the next surviving row in `order` after `idx` (mirroring `passTurn`'s index adjustment) so `advance` lands on the exact next row or wraps cleanly into the next round.
+    - `Previous()` needs no new fields (D74): `rec.Ticked`, `rec.ExpiredConditions`, and `rec.ExpiredEffects` already restore `EndOfTurn` items faithfully.
+- **Journal (`internal/journal`).** `logText` appends `, end of turn` inside the duration parens for `ConditionApplied` and `EffectStarted` when `e.EndOfTurn` is true.
+- **Command bar (`internal/command`).** `parseCond` and `parseFX` use `combat.ParseDuration` (handling `1e`, `2e`, and plain integers), passing `endOfTurn` to `AddConditionEnd` and `EffectSpec.EndOfTurn`.
+- **TUI (`internal/tui`).**
+  - `table.go`: `conditionsText` formats `1e` / `1e by Mira`; `effectSummary` formats `1e rd` / `2e rds` when `fx.EndOfTurn` is true.
+  - `edit.go` (`promptAddCondition`) and `fx.go` (`promptNewEffect`): use `combat.ParseDuration` on the duration prompt, updating the hint to mention `e.g. 2 or 1e for end of turn`.
+  - Help (`command.Specs`) and README updated.
+
+### Build order
+
+| Milestone | Covers | Notes |
+|---|---|---|
+| 22. End-of-turn durations | ET1–ET4 | `EndOfTurn` on `Condition`/`Effect`/`EffectSpec`/events, `ParseDuration`, `tickEnd` in `Next` (including unsourced effect self-expiry & Delay non-ticking), `Previous` rewind, journal wording, `:cond`/`:fx`, `c`/`e` prompts, `table.go` rendering, README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (end-of-turn condition & effect, expiry on leaving turn, log stamp, `p` rewind). |
+
 ## Open questions
 
 The end-combat, duration, and condition-list questions were settled as D13, D12, and D14. Open for the ruleset work:
@@ -779,6 +809,8 @@ For rename, settled 2026-11-22: skip cloning and ship rename only (`R` / `:renam
 For counters and resources, settled 2026-11-22: display inline in the Conditions column (`[LA 2/3↻]`), support both bounded (with optional turn-start reset) and unbounded counters, and carry PC counters over on End resetting turn-reset ones to max (D66–D68).
 
 For round countdowns, settled 2026-11-22: tick at start of each new round (`N TEXT` or `rN TEXT`), show in a compact banner line when active, alert on the status line and log on expiry, restored by `p` rewind and `u` undo (`A` / `:timer`, D69–D71).
+
+For end-of-turn durations, settled 2026-11-22: applies to both conditions and area effects via trailing `e` (`1e`, `2e`), ticks when `n` leaves the anchor's turn, displays as `(1e)` / `1e rd`, and rewinds cleanly with `p` (D72–D74).
 
 ## Future features
 

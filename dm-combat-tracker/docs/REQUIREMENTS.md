@@ -128,6 +128,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - ✅ Rename: rename a combatant or effect in place mid-fight. See [Rename](#rename).
 - ✅ Counters / pips (resources): attach lightweight named counters to combatants (Legendary Actions, Reactions, Legendary Resistances, ammo) with optional turn-start reset. See [Counters and resources](#counters-and-resources).
 - ✅ Round countdowns: standalone reminders that tick at the start of each new round and alert + log when due. See [Round countdowns](#round-countdowns).
+- End-of-turn durations: allow timed conditions and area effects to count down at the end of their anchor's turn (`1e`) alongside start-of-turn defaults. See [End-of-turn durations](#end-of-turn-durations).
 
 ### Rulesets
 
@@ -496,6 +497,38 @@ Fights often have timed events that aren't tied to any creature or targets — r
 
 - Active countdowns autosave in the state file and do not carry over into the next fight.
 - Setting, cancelling, and firing a countdown are logged during Active combat (`Timer set: …`, `Timer cancelled: …`, `⏱ …`), and all changes are undoable/redoable (`u`/`U`).
+
+### End-of-turn durations
+
+D12 counts durations down at the start of their anchor's turn, which covers "until the start of your next turn" cleanly, but many 5e abilities last "until the end of your turn" or "until the end of your next turn" (Dodge, Shield, Stunning Strike, Guiding Bolt, Mind Sliver). Adding an optional end-of-turn flag (`e`) lets the DM track both without removing conditions by hand. The design is in [DESIGN.md](DESIGN.md#end-of-turn-durations).
+
+#### ET1. Syntax and scope
+
+- Applies to both **timed conditions** and **timed area effects**.
+- Anywhere a round count is typed — the `c` and `e` duration prompts, `:cond TARGETS NAME ROUNDS[e] ...`, and `:fx NAME ROUNDS[e] ...` — a trailing `e` (case-insensitive, e.g. `1e`, `2e`) marks the duration as **end-of-turn**. Plain numbers (`1`, `2`) keep start-of-turn behavior unchanged.
+- Indefinite conditions and effects ignore end-of-turn.
+
+#### ET2. Ticking and anchor rules
+
+- An end-of-turn duration counts down when `Next` (`n` / `:next`) **leaves** its anchor's turn (before moving to the next row).
+  - So `1e` anchored to the current turn holder expires at the end of **this** turn; `2e` ticks `2e → 1e` at the end of this turn and expires at the end of its **next** turn.
+  - `1e` anchored to another creature expires at the end of that creature's upcoming turn.
+- Anchoring follows the same rules as start-of-turn (D12, D32, D34):
+  - Conditions anchor to their `SourceID` when set, otherwise their bearer. If the source leaves combat, the condition keeps `EndOfTurn` and anchors to its bearer.
+  - Under `5e` (`!FixedAnchor`), sourced effects anchor to their source; unsourced effects anchor to their own row. Under `3.5e` (`FixedAnchor`), all effects anchor to their own row.
+- Stepping aside on **Delay** (RS10) does not end the creature's turn, so its end-of-turn durations wait until its delayed turn ends.
+- If an unsourced end-of-turn effect expires as `Next` leaves its own row, the turn still moves cleanly to the row that followed it (or wraps into the next round).
+
+#### ET3. Rewind and undo
+
+- `Previous` (`p`) restores end-of-turn decrements and expirations from the rewound turn, just as it does for start-of-turn ticks.
+- Full snapshot undo/redo (`u`/`U`) works automatically.
+
+#### ET4. Display and log
+
+- The table marks end-of-turn durations with `e`: `Stunned (1e)`, `Dazed (1e by Mira)`, and on effect rows `1e rd · 2 targets` / `2e rds · 2 targets`.
+- The combat log notes end-of-turn when applied/started (`Stunned applied to Goblin 1 (1 round, end of turn)`), and expirations are stamped with the leaving turn holder's round and name.
+
 
 
 
