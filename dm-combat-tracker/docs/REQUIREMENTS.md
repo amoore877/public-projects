@@ -127,6 +127,7 @@ Area effects show up as **their own row in the table and as linked conditions on
 - ✅ Fuzzy jump: jump table selection by typing part of a row's name. See [Fuzzy jump](#fuzzy-jump).
 - ✅ Rename: rename a combatant or effect in place mid-fight. See [Rename](#rename).
 - ✅ Counters / pips (resources): attach lightweight named counters to combatants (Legendary Actions, Reactions, Legendary Resistances, ammo) with optional turn-start reset. See [Counters and resources](#counters-and-resources).
+- Round countdowns: standalone reminders that tick at the start of each new round and alert + log when due. See [Round countdowns](#round-countdowns).
 
 ### Rulesets
 
@@ -468,6 +469,34 @@ Bosses and PCs often have per-turn or limited-use resources — Legendary Action
 
 - When PCs carry over between fights (`E` → `k` or `:endcombat`), their counters carry over too: normal counters keep their current value, and turn-reset counters reset to their max.
 - Counter edits are quiet like HP arithmetic (not written to the Markdown log), but fully undoable/redoable (`u`/`U`) with clear status summaries.
+
+### Round countdowns
+
+Fights often have timed events that aren't tied to any creature or targets — reinforcements arriving in 3 rounds, a ritual completing on round 5, a bridge collapsing in 2 rounds. Using an unsourced area effect for these adds noise to the turn order. Standalone round countdowns keep them visible without adding fake initiative rows. The design is in [DESIGN.md](DESIGN.md#round-countdowns).
+
+#### RC1. Creating and cancelling countdowns
+
+- A countdown (`Timer`) has a non-empty name and a remaining round count (`≥ 1`).
+- Can be set either as **relative** (`in N rounds`, e.g. `3 Bridge collapses`) or by **target round** (`rN` / `@N`, e.g. `r5 Reinforcements arrive`, requiring a future round — `≥ 2` in Setup, `> Round` in Active).
+- Can be cancelled early (`rm NAME`, matched case-insensitively by prefix or exact name).
+
+#### RC2. Ticking and firing
+
+- Countdowns tick once at the **start of each new round** (when advancing past the bottom of the turn order into Round `R+1`, never on the opening `Start`, matching D15).
+- When a countdown reaches `0`, it is removed, emits an expiry event, shows a prominent alert on the status line (`⏱ Reinforcements arrive`), and writes an entry to the combat log (`⏱ Reinforcements arrive`).
+- Rewinding across a round boundary with `p` restores ticked and expired countdowns, just as it does for conditions and effects.
+
+#### RC3. Display and controls
+
+- While any countdown is active, a compact banner line under the title shows every active countdown (`⏱ Reinforcements arrive (2 rds) · Bridge collapses (1 rd)`). When none are active, it takes zero lines.
+- Hotkey `A` (alarm/timer) opens a `Timer:` prompt (`N TEXT`, `rN TEXT`, or `rm NAME`, with tab completion after `rm `).
+- Command bar `:timer N TEXT`, `:timer rN TEXT`, and `:timer rm NAME` do the same.
+
+#### RC4. Persistence, log, and undo
+
+- Active countdowns autosave in the state file and do not carry over into the next fight.
+- Setting, cancelling, and firing a countdown are logged during Active combat (`Timer set: …`, `Timer cancelled: …`, `⏱ …`), and all changes are undoable/redoable (`u`/`U`).
+
 
 
 

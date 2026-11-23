@@ -76,6 +76,9 @@ Each entry is a decision made during planning, with what it rules out.
 | D66 | **Counters (`Combatant.Resources`) are generic named values — bounded (`cur/max`, optional `resetOnTurn`) or unbounded (`cur`) — rendered inline in the Conditions column as `[LA 2/3↻]` / `[Arrows 14]`** (RP1, RP2). | Covers Legendary Actions, Reactions, Legendary Resistances, death saves, slots, and ammo with zero system-specific rules (R8). Rendering inline avoids adding another column to 80×24 and reuses existing status-line truncation overflow. |
 | D67 | **Turn-start resets hook into `tick` and `TurnRecord`** (RP1). | Rewinding a turn with `p` restores pre-reset values, Delay won't reset twice in one round, and opening-turn `Start` doesn't reset (matching D15). |
 | D68 | **Carried-over PCs keep their counters, resetting `resetOnTurn` counters to max** (RP4). | Spell slots, arrows, and charges naturally persist across fights while per-turn resources (Reaction, etc.) start fresh in the next Setup. Counter changes stay out of the combat log like HP arithmetic. |
+| D69 | **Standalone countdowns (`Encounter.Timers`) tick at round start rather than living as initiative rows** (RC1, RC2). | Keeps reinforcements, hazards, and ritual clocks out of the turn order while still firing reliably at the top of the target round. Rewind (`p`) restores ticked and expired timers via `TurnRecord`. |
+| D70 | **Active countdowns render in a single banner line under the title, taking 0 rows when none exist** (RC3). | Reuses `Model.bannerLines()`, preserving the 80×24 table layout and leaving existing screens untouched when no timers are active. |
+| D71 | **Firing timers alert on the status line and log as `⏱ <Name>`** (RC2, RC4). | Hard to miss during play and easy to spot when writing the session recap. |
 
 ## Layout
 
@@ -350,7 +353,7 @@ go test -cover ./...          # target: 90% or more in every package
 6. ✅ **Command bar + help overlay.**
 7. ✅ **Polish:** narrow-terminal layout, error banners, README usage docs.
 
-Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights); 17 is [Quick initiative pass](#quick-initiative-pass); 18 is [Fuzzy jump](#fuzzy-jump); 19 is [Rename](#rename); 20 is [Counters and resources](#counters-and-resources).
+Milestones 8–12 are the [Rulesets](#rulesets) work; 13a–13b are [Undo and redo](#undo-and-redo); 14a–14b are the [Dice roller](#dice-roller); 15a–15c are [Dice in damage and healing](#dice-in-damage-and-healing); 16 is [Carry over PCs between fights](#carry-over-pcs-between-fights); 17 is [Quick initiative pass](#quick-initiative-pass); 18 is [Fuzzy jump](#fuzzy-jump); 19 is [Rename](#rename); 20 is [Counters and resources](#counters-and-resources); 21 is [Round countdowns](#round-countdowns).
 
 ## Rulesets
 
@@ -719,6 +722,36 @@ Built as milestone 20, for [Counters and resources](REQUIREMENTS.md#counters-and
 |---|---|---|
 | 20. ✅ Counters and resources | RP1–RP4 | `Resource` model, `resources.go` ops, `tick`/`Previous` turn-reset & rewind, PC carry-over, `journal.Summary`, `undo.go`, `:res`, `P` prompt, `table.go` inline display, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (bounded turn-reset LA, unbounded arrows, spend, turn-start reset, `p` rewind, carry-over on End). |
 
+## Round countdowns
+
+Planned as milestone 21, for [Round countdowns](REQUIREMENTS.md#round-countdowns) (RC1–RC4). The decisions are D69–D71.
+
+### How it works
+
+- **Domain (`internal/combat`).**
+  - `Timer{ID RowID, Name string, Remaining int}` stored on `Encounter.Timers []*Timer` (`json:"timers,omitempty"` — backward-compatible with schema v2).
+  - Events: `TimerAdded{EventMeta, ID, Name, Remaining}`, `TimerRemoved{EventMeta, ID, Name}`, `TimerExpired{EventMeta, ID, Name}`.
+  - Methods in `internal/combat/timers.go`:
+    - `AddTimer(name string, rounds int)`: validates editable, non-empty name, `rounds >= 1`.
+    - `AddTimerAtRound(name string, round int)`: in Setup (`Round == 0`), requires `round >= 2` and sets `Remaining = round - 1`; in Active, requires `round > Round` and sets `Remaining = round - Round`.
+    - `RemoveTimer(id RowID)`: removes timer by ID and emits `TimerRemoved`.
+  - Ticking in `turns.go`:
+    - In `advance`, right after `e.Round++` and `RoundStarted`, decrements every timer in `e.Timers`. Timers at `<= 1` are saved into `rec.ExpiredTimers` (`ExpiredTimer{Index, Timer}`), dropped, and emit `TimerExpired`; others decrement and record their ID in `rec.TickedTimers`.
+    - `Previous` increments `rec.TickedTimers` and re-inserts `rec.ExpiredTimers` at their original indices.
+- **Journal (`internal/journal`).** `logText` formats `TimerAdded` (`"Timer set: <Name> (<N> rounds)"`), `TimerRemoved` (`"Timer cancelled: <Name>"`), and `TimerExpired` (`"⏱ <Name>"`). `Summary` reuses `logText`.
+- **Shared parser (`internal/command`).** `ParseTimerOp(enc, words)` handles `N TEXT`, `rN TEXT` / `@N TEXT`, and `rm NAME` (exact or unique prefix match on `enc.Timers`), shared by `:timer` and the TUI `A` prompt.
+- **TUI (`internal/tui`).**
+  - `bannerLines()` includes `+1` when `len(enc.Timers) > 0`; `render()` draws a styled timer banner (` ⏱ Name (2 rds) · Other (1 rd)`) right below the title (and below any error banner).
+  - `turnOp` (and `:next`) checks `out.Events` for `TimerExpired` and displays `⏱ <Name>` on the status line (D71).
+  - Hotkey `A` opens `promptTimer()` with tab completion of active timer names after `rm `.
+  - Help overlay, `command.Specs`, and README updated.
+
+### Build order
+
+| Milestone | Covers | Notes |
+|---|---|---|
+| 21. Round countdowns | RC1–RC4 | `Timer` model, `timers.go` ops, round-start tick & `Previous` rewind, journal logging & summary, `:timer` + `ParseTimerOp`, `A` prompt, timer banner & expiry alert, help/README, unit tests across `combat`/`journal`/`command`/`tui`, and E2E story (add relative & at-round timers, see banner, advance rounds until expiry alert + log line, rewind `p` restores timer, cancel with `rm`). |
+
 ## Open questions
 
 The end-combat, duration, and condition-list questions were settled as D13, D12, and D14. Open for the ruleset work:
@@ -744,6 +777,8 @@ For fuzzy jump, settled 2026-11-22: live jump as you type across all rows includ
 For rename, settled 2026-11-22: skip cloning and ship rename only (`R` / `:rename`) across combatants and effects, logged in Active combat (D64–D65).
 
 For counters and resources, settled 2026-11-22: display inline in the Conditions column (`[LA 2/3↻]`), support both bounded (with optional turn-start reset) and unbounded counters, and carry PC counters over on End resetting turn-reset ones to max (D66–D68).
+
+For round countdowns, settled 2026-11-22: tick at start of each new round (`N TEXT` or `rN TEXT`), show in a compact banner line when active, alert on the status line and log on expiry, restored by `p` rewind and `u` undo (`A` / `:timer`, D69–D71).
 
 ## Future features
 
