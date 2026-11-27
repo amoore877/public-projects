@@ -450,6 +450,14 @@ func TestLogFailureBanner(t *testing.T) {
 	if err := os.Mkdir("logs", 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// A quiet change (plain HP damage) writes nothing to the log, so the
+	// failure banner stays up until an actual log entry succeeds.
+	press(m, "d")
+	typeText(m, "2")
+	press(m, "enter")
+	if !strings.Contains(m.banner(), "✖ Log failing") {
+		t.Fatalf("quiet damage shouldn't clear the log banner before a write succeeds: %q", m.banner())
+	}
 	press(m, "n")
 	if m.banner() != "" || !strings.Contains(m.msg, "2 changes before this weren't logged") {
 		t.Errorf("after recovery: banner %q, msg %q", m.banner(), m.msg)

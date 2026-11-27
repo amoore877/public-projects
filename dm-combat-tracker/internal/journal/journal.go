@@ -47,10 +47,10 @@ func Open(path string, at Resume) (*Writer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open log: %w", err)
 	}
-	w := &Writer{f: f, header: at.Header, round: at.Round, trailing: 2}
+	w := &Writer{f: f, trailing: 2}
 	if st, err := f.Stat(); err == nil && st.Size() > 0 {
 		// We don't read the file back, so assume it ends in a single newline.
-		w.trailing = 1
+		w.header, w.round, w.trailing = at.Header, at.Round, 1
 	}
 	return w, nil
 }
@@ -166,6 +166,9 @@ func (r *renderer) roundHeading(n int) {
 
 func (r *renderer) entry(m combat.EventMeta, text string) {
 	r.ensureHeader(m)
+	if r.round == 0 && m.Round > 0 {
+		r.roundHeading(m.Round)
+	}
 	stamp := "Setup"
 	if m.Round > 0 {
 		stamp = "R" + strconv.Itoa(m.Round)

@@ -225,16 +225,25 @@ func TestLogFailureDoesNotBlockState(t *testing.T) {
 		t.Error("Logged should be false when the write failed")
 	}
 
-	// Once the directory exists, the next change opens the log and writes.
+	// Once the directory exists, a quiet op opens the file without claiming
+	// entries were logged, and the next logged change writes the missing
+	// combat and round headings along with its entry.
 	if err := os.Mkdir("no-such-dir", 0o755); err != nil {
 		t.Fatal(err)
+	}
+	quietOut, err := s.Apply(damage("Thorin", 4))
+	if err != nil || quietOut.LogErr != nil || quietOut.Logged {
+		t.Fatalf("quiet op after recovery: err %v, log err %v, logged %v (want false)", err, quietOut.LogErr, quietOut.Logged)
 	}
 	out, err = s.Apply(func(e *combat.Encounter) ([]combat.Event, error) { return e.LogNote("back") })
 	if err != nil || out.LogErr != nil || !out.Logged {
 		t.Fatalf("after recovery: err %v, log err %v, logged %v", err, out.LogErr, out.Logged)
 	}
-	if !strings.Contains(readFile(t, cfg.LogPath), "back") {
-		t.Error("note missing from the log after recovery")
+	recovered := readFile(t, cfg.LogPath)
+	for _, want := range []string{"# Combat — ", "## Round 1", "back"} {
+		if !strings.Contains(recovered, want) {
+			t.Errorf("log after recovery missing %q:\n%s", want, recovered)
+		}
 	}
 }
 

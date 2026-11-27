@@ -199,7 +199,11 @@ func (s *Session) writeLog(evs []combat.Event, at journal.Resume) (bool, error) 
 		}
 		s.log = w
 	}
+	if len(journal.Texts(evs)) == 0 {
+		return false, nil
+	}
 	if err := s.log.Write(evs); err != nil {
+		s.closeLog()
 		return false, err
 	}
 	return true, nil

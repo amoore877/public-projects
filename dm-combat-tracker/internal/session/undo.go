@@ -137,6 +137,7 @@ func (s *Session) logWith(write func(*journal.Writer) error) (bool, error) {
 		s.log = w
 	}
 	if err := write(s.log); err != nil {
+		s.closeLog()
 		return false, err
 	}
 	return true, nil
