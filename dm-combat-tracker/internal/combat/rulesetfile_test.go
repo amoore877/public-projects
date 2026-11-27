@@ -175,6 +175,23 @@ func TestUseRulesets(t *testing.T) {
 	if _, ok := LookupRuleset("pf1"); ok || len(RulesetNames()) != 2 {
 		t.Error("UseRulesets(nil) should leave only the built-ins")
 	}
+
+	// A custom ruleset named "e" must not match an empty LookupRuleset("")
+	// or hijack an encounter's default ruleset.
+	rE, err := ParseRuleset([]byte(`{"name":"e"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	useRulesets(t, rE)
+	if _, ok := LookupRuleset(""); ok {
+		t.Fatal(`LookupRuleset("") matched custom ruleset "e"`)
+	}
+	if (&Encounter{}).Rules().Name != DefaultRuleset {
+		t.Fatalf("empty Encounter.Ruleset resolved to %q, want %q", (&Encounter{}).Rules().Name, DefaultRuleset)
+	}
+	if r, ok := LookupRuleset("E"); !ok || r.Name != "e" {
+		t.Fatalf(`LookupRuleset("E") = %+v, %v`, r, ok)
+	}
 }
 
 func must0(t *testing.T, err error) {

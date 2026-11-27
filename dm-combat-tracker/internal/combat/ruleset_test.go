@@ -53,6 +53,21 @@ func TestSetRuleset(t *testing.T) {
 	}
 }
 
+func TestSetRulesetClampsHPFloorAndClearsUnsupportedNonlethal(t *testing.T) {
+	e := newEnc35(t)
+	id, _, err := e.Add(CombatantSpec{Name: "Orc", MaxHP: 20, HP: ptr(-5)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	must(t)(e.NonlethalDamage(id, 6))
+
+	must(t)(e.SetRuleset("5e"))
+	c, _ := e.Combatant(id)
+	if c.HP != 0 || c.Nonlethal != 0 {
+		t.Fatalf("after switching to 5e in Setup: HP=%d Nonlethal=%d, want 0 and 0", c.HP, c.Nonlethal)
+	}
+}
+
 func TestRulesetConditions(t *testing.T) {
 	five, _ := LookupRuleset("5e")
 	three, _ := LookupRuleset("3.5e")

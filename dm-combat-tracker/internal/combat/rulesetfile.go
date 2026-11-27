@@ -135,10 +135,14 @@ func overlap(a, b *HealthState) bool {
 	return lo == nil || hi == nil || *lo <= *hi
 }
 
-// rulesetKey is the form names are matched in: case doesn't matter and the
-// trailing "e" is optional ("3.5", "5E").
+// rulesetKey is the form names are matched in: case doesn't matter and a
+// trailing "e" after a longer stem is optional ("3.5", "5E").
 func rulesetKey(name string) string {
-	return strings.TrimSuffix(strings.ToLower(strings.TrimSpace(name)), "e")
+	s := strings.ToLower(strings.TrimSpace(name))
+	if len(s) > 1 {
+		s = strings.TrimSuffix(s, "e")
+	}
+	return s
 }
 
 // UseRulesets replaces the rulesets loaded from files. A name that matches
@@ -176,6 +180,9 @@ func RulesetNames() []string {
 // trailing "e" is optional ("3.5", "5E").
 func LookupRuleset(name string) (Ruleset, bool) {
 	key := rulesetKey(name)
+	if key == "" {
+		return Ruleset{}, false
+	}
 	for _, r := range allRulesets() {
 		if rulesetKey(r.Name) == key {
 			return r, true

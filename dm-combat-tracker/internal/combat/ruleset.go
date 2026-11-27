@@ -142,6 +142,14 @@ func (e *Encounter) SetRuleset(name string) ([]Event, error) {
 		return nil, fmt.Errorf("%w; the ruleset can't change mid-fight", ErrNotSetup)
 	}
 	e.Ruleset = r.Name
+	for _, c := range e.Combatants {
+		if c.HP < r.HPFloor {
+			c.HP = r.HPFloor
+		}
+		if !r.Nonlethal {
+			c.Nonlethal = 0
+		}
+	}
 	return []Event{RulesetChanged{EventMeta: e.meta(), From: from, To: r.Name}}, nil
 }
 
