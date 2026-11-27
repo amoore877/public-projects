@@ -462,7 +462,7 @@ func parseCond(enc *combat.Encounter, rest string) (Command, error) {
 	if len(words) < 2 {
 		return Command{}, errors.New("usage: :cond TARGETS NAME [ROUNDS] [by SOURCE] [-- NOTE]")
 	}
-	ids, nameWords, err := splitTarget(enc, words, combatantRow, 1)
+	ids, nameWords, err := splitTargetList(enc, words, combatantRow, 1)
 	if err != nil {
 		return Command{}, err
 	}
@@ -627,8 +627,16 @@ func parseAdd(enc *combat.Encounter, rest string) (Command, error) {
 		return Command{}, usage
 	}
 	hpText := strings.TrimSuffix(strings.ToLower(words[len(words)-1]), "hp")
-	initText := words[len(words)-2]
-	nameWords := words[:len(words)-2]
+	beforeHP := words[:len(words)-1]
+	initStart := len(beforeHP) - 1
+	for initStart > 0 && (strings.HasPrefix(beforeHP[initStart], ",") || strings.HasSuffix(beforeHP[initStart-1], ",")) {
+		initStart--
+	}
+	if initStart == 0 {
+		return Command{}, usage
+	}
+	initText := strings.Join(beforeHP[initStart:], "")
+	nameWords := beforeHP[:initStart]
 
 	count := 0
 	if g := groupToken.FindStringSubmatch(nameWords[len(nameWords)-1]); g != nil && len(nameWords) > 1 {

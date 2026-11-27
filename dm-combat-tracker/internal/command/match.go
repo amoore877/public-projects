@@ -104,11 +104,11 @@ func resolve(enc *combat.Encounter, query string, kind rowKind) (combat.RowID, e
 
 // resolveList resolves a comma-separated list of names.
 func resolveList(enc *combat.Encounter, text string, kind rowKind) ([]combat.RowID, error) {
+	if strings.TrimSpace(text) == "" {
+		return nil, fmt.Errorf("missing %s name", kind.noun())
+	}
 	var out []combat.RowID
 	for _, part := range strings.Split(text, ",") {
-		if strings.TrimSpace(part) == "" {
-			continue
-		}
 		id, err := resolve(enc, part, kind)
 		if err != nil {
 			return nil, err
@@ -121,20 +121,38 @@ func resolveList(enc *combat.Encounter, text string, kind rowKind) ([]combat.Row
 			out = append(out, id)
 		}
 	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("missing %s name", kind.noun())
-	}
 	return out, nil
 }
 
-// splitTarget finds where a target list ends and the rest of the arguments
-// begin, for commands like ":cond goblin 2 prone 3" where both parts can
-// contain spaces. It takes the longest run of leading words that resolves,
-// leaving at least minRest words. If nothing resolves, the error is the one
-// for the first word, which is usually the most telling.
+// splitTarget finds where a single target ends and the rest of the arguments
+// begin, for commands like ":note goblin 1 tired, hungry" where both parts can
+// contain spaces.
 func splitTarget(enc *combat.Encounter, words []string, kind rowKind, minRest int) ([]combat.RowID, []string, error) {
-	var ambErr, firstErr error
-	for k := len(words) - minRest; k >= 1; k-- {
+	return splitTargets(enc, words, kind, minRest, false)
+}
+
+// splitTargetList is splitTarget for commands whose target argument is a
+// comma-separated list and whose trailing arguments never contain commas
+// (such as :cond after stripping "-- NOTE"), so every comma belongs to the
+// target list.
+func splitTargetList(enc *combat.Encounter, words []string, kind rowKind, minRest int) ([]combat.RowID, []string, error) {
+	return splitTargets(enc, words, kind, minRest, true)
+}
+
+func splitTargets(enc *combat.Encounter, words []string, kind rowKind, minRest int, allCommasInTargets bool) ([]combat.RowID, []string, error) {
+	minK := 1
+	if allCommasInTargets {
+		for i, w := range words {
+			if strings.Contains(w, ",") {
+				minK = i + 1
+				if strings.HasSuffix(w, ",") {
+					minK = i + 2
+				}
+			}
+		}
+	}
+	var ambErr, firstErr, fallbackErr error
+	for k := len(words) - minRest; k >= minK; k-- {
 		ids, err := resolveList(enc, strings.Join(words[:k], " "), kind)
 		if err == nil {
 			return ids, words[k:], nil
@@ -142,15 +160,18 @@ func splitTarget(enc *combat.Encounter, words []string, kind rowKind, minRest in
 		if _, ok := err.(*AmbiguousError); ok && ambErr == nil {
 			ambErr = err
 		}
-		if k == 1 {
+		if !strings.HasSuffix(words[k-1], ",") {
 			firstErr = err
 		}
+		fallbackErr = err
 	}
 	switch {
 	case ambErr != nil:
 		return nil, nil, ambErr
 	case firstErr != nil:
 		return nil, nil, firstErr
+	case fallbackErr != nil:
+		return nil, nil, fallbackErr
 	}
 	return nil, nil, fmt.Errorf("missing %s name", kind.noun())
 }

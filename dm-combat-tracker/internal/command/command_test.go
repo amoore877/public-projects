@@ -138,6 +138,7 @@ func TestHPCommands(t *testing.T) {
 	parseErr(t, e, ":dmg g1", "usage: :dmg")
 	parseErr(t, e, ":dmg goblin 4", "matches Goblin 1, Goblin 2, Goblin 3, Goblin 10")
 	parseErr(t, e, ":dmg g1,zed 4", `no combatant matches "zed"`)
+	parseErr(t, e, ":dmg g1, 4", "missing combatant name")
 	parseErr(t, e, ":hp g1,g2 4", "one target")
 }
 
@@ -180,6 +181,9 @@ func TestConditionCommands(t *testing.T) {
 		t.Errorf("frightened: %+v", c)
 	}
 	parseErr(t, e, ":cond g3 dazed 1 by zed", `source: no combatant matches "zed"`)
+	parseErr(t, e, ":cond g1, zed prone", `no combatant matches "zed"`)
+	parseErr(t, e, ":cond bandit captain, zed prone", `no combatant matches "zed"`)
+	parseErr(t, e, ":cond g1, prone", "missing combatant name")
 }
 
 func TestEffectCommands(t *testing.T) {
@@ -228,10 +232,16 @@ func TestAddCommand(t *testing.T) {
 	}
 	run(t, e, ":add Wolf x3 15 11")
 	run(t, e, ":add Elf Scout ×2 16,14 16 pc")
+	run(t, e, ":add Bandit x4 14, 9, 11, 12 11")
 	w2, _ := e.Combatant(find(t, e, "Wolf 2"))
 	s2, _ := e.Combatant(find(t, e, "Elf Scout 2"))
-	if w2.Initiative.String() != "15.2" || s2.Initiative.String() != "14" || s2.Kind != combat.PC {
-		t.Errorf("groups: wolf 2 %s, scout 2 %s %s", w2.Initiative, s2.Initiative, s2.Kind)
+	b3, _ := e.Combatant(find(t, e, "Bandit 3"))
+	if w2.Initiative.String() != "15.2" || s2.Initiative.String() != "14" || s2.Kind != combat.PC || b3.Initiative.String() != "11" {
+		t.Errorf("groups: wolf 2 %s, scout 2 %s %s, bandit 3 %s", w2.Initiative, s2.Initiative, s2.Kind, b3.Initiative)
+	}
+	cmd = run(t, e, ":add Goblin, Destroyer 12 7")
+	if c, _ := e.Combatant(*cmd.Created); c.Name != "Goblin, Destroyer" || c.Initiative.String() != "12" {
+		t.Errorf("comma in name: %+v", c)
 	}
 	cmd = run(t, e, ":add Goblin x2 12 7")
 	if c, _ := e.Combatant(*cmd.Created); c.Name != "Goblin 11" {
@@ -253,6 +263,10 @@ func TestOtherCommands(t *testing.T) {
 	run(t, e, ":note goblin 1 fleeing to the bridge")
 	if g1, _ := e.Combatant(find(t, e, "Goblin 1")); g1.Note != "fleeing to the bridge" {
 		t.Errorf("note %q", g1.Note)
+	}
+	run(t, e, ":note goblin 1 fleeing, wounded")
+	if g1, _ := e.Combatant(find(t, e, "Goblin 1")); g1.Note != "fleeing, wounded" {
+		t.Errorf("note with comma %q", g1.Note)
 	}
 	run(t, e, ":note goblin 1")
 	if g1, _ := e.Combatant(find(t, e, "Goblin 1")); g1.Note != "" {
@@ -306,6 +320,7 @@ func TestOtherCommands(t *testing.T) {
 	}
 	parseErr(t, e, ":rename g1", "usage: :rename TARGET NEWNAME")
 	parseErr(t, e, ":rename g1,g3 Boss", ":rename takes one target")
+	parseErr(t, e, ":rename g1, zed Boss", `no row matches "zed"`)
 
 	run(t, e, ":res band LA /3 reset")
 	bandID := find(t, e, "Bandit Captain")
