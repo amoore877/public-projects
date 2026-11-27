@@ -86,6 +86,9 @@ func (e *Encounter) Next() ([]Event, error) {
 		return nil, ErrNotActive
 	}
 	order := e.Order()
+	if len(order) == 0 {
+		return nil, nil
+	}
 	idx := indexOf(order, e.Current)
 	rec := e.newRecord()
 	var evs []Event
@@ -107,7 +110,9 @@ func (e *Encounter) Next() ([]Event, error) {
 		}
 		evs = append(evs, e.advance(newOrder, startIdx, &rec)...)
 	}
-	e.pushHistory(rec)
+	if rec.PrevCurrent != 0 {
+		e.pushHistory(rec)
+	}
 	return evs, nil
 }
 
@@ -205,7 +210,7 @@ func (e *Encounter) tickAnchored(id RowID, endOfTurn bool, rec *TurnRecord) []Ev
 func (e *Encounter) tickConditions(c *Combatant, anchor RowID, endOfTurn bool, rec *TurnRecord) []Event {
 	var evs []Event
 	kept := c.Conditions[:0:0]
-	for i, cond := range c.Conditions {
+	for _, cond := range c.Conditions {
 		owner := cond.SourceID
 		if owner == 0 {
 			owner = c.ID
@@ -217,7 +222,7 @@ func (e *Encounter) tickConditions(c *Combatant, anchor RowID, endOfTurn bool, r
 		if *cond.Remaining <= 1 {
 			saved := *cond
 			saved.Remaining = copyIntPtr(cond.Remaining)
-			rec.ExpiredConditions = append(rec.ExpiredConditions, ExpiredCondition{OwnerID: c.ID, Index: i, Condition: saved})
+			rec.ExpiredConditions = append(rec.ExpiredConditions, ExpiredCondition{OwnerID: c.ID, Index: len(kept), Condition: saved})
 			evs = append(evs, ConditionExpired{EventMeta: e.meta(), TargetID: c.ID, Target: c.Name, Condition: cond.Name})
 			continue
 		}
@@ -298,8 +303,9 @@ func (e *Encounter) Previous() ([]Event, error) {
 		}
 		e.Effects = append(e.Effects, &fx)
 	}
-	// Indices are the original positions, so reinsert in ascending order.
-	for _, x := range rec.ExpiredConditions {
+	// Indices record each item's slot when removed, so reinsert in reverse order.
+	for i := len(rec.ExpiredConditions) - 1; i >= 0; i-- {
+		x := rec.ExpiredConditions[i]
 		c, ok := e.Combatant(x.OwnerID)
 		if !ok {
 			continue
@@ -326,7 +332,8 @@ func (e *Encounter) Previous() ([]Event, error) {
 			t.Remaining++
 		}
 	}
-	for _, x := range rec.ExpiredTimers {
+	for i := len(rec.ExpiredTimers) - 1; i >= 0; i-- {
+		x := rec.ExpiredTimers[i]
 		tm := x.Timer
 		at := min(x.Index, len(e.Timers))
 		e.Timers = append(e.Timers[:at], append([]*Timer{&tm}, e.Timers[at:]...)...)

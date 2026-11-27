@@ -132,10 +132,19 @@ func TestRemoveLastRowThenCarryOn(t *testing.T) {
 		t.Fatalf("current = %d, order = %s", e.Current, orderNames(e))
 	}
 	must(t)(e.Next()) // nothing to advance to, and no panic
+	if len(e.History) != 0 {
+		t.Fatalf("no-op Next on empty order shouldn't push history: %+v", e.History)
+	}
 	gob := add(t, e, "Goblin", "12", 7)
 	must(t)(e.Next())
 	if e.Current != gob {
 		t.Errorf("current = %d, want Goblin", e.Current)
+	}
+	if len(e.History) != 0 {
+		t.Fatalf("advancing from Current == 0 shouldn't record a phantom PrevCurrent=0: %+v", e.History)
+	}
+	if _, err := e.Previous(); !errors.Is(err, ErrNothingToUndo) || strings.Contains(err.Error(), "removed") {
+		t.Errorf("Previous() = %v, want plain ErrNothingToUndo", err)
 	}
 }
 

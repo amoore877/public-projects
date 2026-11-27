@@ -139,3 +139,39 @@ func TestUnsourcedEndOfTurnEffectSelfExpiry(t *testing.T) {
 		t.Fatalf("after Previous: round=%d cur=%d effects=%d", e.Round, e.Current, len(e.Effects))
 	}
 }
+
+func TestPreviousPreservesConditionOrderAcrossEndAndStartTicks(t *testing.T) {
+	e := newEnc()
+	mira := add(t, e, "Mira", "18", 27)
+	gob := add(t, e, "Goblin", "12", 7)
+	must(t)(e.Start()) // Mira's turn
+
+	// Goblin holds an end-of-turn condition anchored to Mira, an indefinite
+	// condition, and a start-of-turn condition anchored to Goblin.
+	must3 := func(_ RowID, _ []Event, err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must3(e.AddConditionEnd(gob, "Guiding Bolt", rounds(1), true, mira, ""))
+	must3(e.AddCondition(gob, "Prone", nil, ""))
+	must3(e.AddCondition(gob, "Stunned", rounds(1), ""))
+
+	// Advancing from Mira to Goblin expires Guiding Bolt in tickEnd and Stunned in tick.
+	evs := must(t)(e.Next())
+	wantKinds(t, evs, "ConditionExpired", "ConditionExpired", "TurnStarted")
+	g, _ := e.Combatant(gob)
+	if len(g.Conditions) != 1 || g.Conditions[0].Name != "Prone" {
+		t.Fatalf("after Next, conditions = %+v", g.Conditions)
+	}
+
+	// Previous must restore all three in their exact original order.
+	must(t)(e.Previous())
+	if len(g.Conditions) != 3 ||
+		g.Conditions[0].Name != "Guiding Bolt" ||
+		g.Conditions[1].Name != "Prone" ||
+		g.Conditions[2].Name != "Stunned" {
+		t.Fatalf("after Previous, condition order = [%s, %s, %s], want [Guiding Bolt, Prone, Stunned]",
+			g.Conditions[0].Name, g.Conditions[1].Name, g.Conditions[2].Name)
+	}
+}

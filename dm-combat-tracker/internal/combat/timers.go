@@ -74,9 +74,9 @@ func (e *Encounter) tickTimers(rec *TurnRecord) []Event {
 	}
 	var evs []Event
 	kept := e.Timers[:0:0]
-	for i, t := range e.Timers {
+	for _, t := range e.Timers {
 		if t.Remaining <= 1 {
-			rec.ExpiredTimers = append(rec.ExpiredTimers, ExpiredTimer{Index: i, Timer: *t})
+			rec.ExpiredTimers = append(rec.ExpiredTimers, ExpiredTimer{Index: len(kept), Timer: *t})
 			evs = append(evs, TimerExpired{EventMeta: e.meta(), ID: t.ID, Name: t.Name})
 			continue
 		}
