@@ -196,3 +196,61 @@ func TestMoveEffectsErrorMessage(t *testing.T) {
 		t.Error(err.Error())
 	}
 }
+
+func TestMoveEffectsOnTurnHolderDoesNotSkipCreaturesOrDoubleTick(t *testing.T) {
+	// Case 1: An owned effect right after the turn holder moves along with it;
+	// creatures between the old and new counts must still get their turn.
+	e := newEnc35(t)
+	mira := add(t, e, "Mira", "15", 27)
+	at14 := ini(t, "14")
+	wall, _, err := e.AddEffect(EffectSpec{Name: "Wall", SourceID: mira, Initiative: &at14, Rounds: rounds(3)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gob := add(t, e, "Goblin", "12", 7)
+	must(t)(e.Start()) // Mira (15), followed by Wall (14), Goblin (12)
+
+	evs := must(t)(e.SetInitiative(mira, ini(t, "8"), MoveEffects))
+	wantKinds(t, evs, "InitiativeChanged", "InitiativeChanged", "TurnStarted")
+	if e.Current != gob {
+		t.Fatalf("after moving Mira+Wall to 8/7, current = %s, want Goblin", currentName(e))
+	}
+	must(t)(e.Next()) // Mira at 8
+	if e.Current != mira || e.Round != 1 {
+		t.Fatalf("turn = %s round %d, want Mira round 1", currentName(e), e.Round)
+	}
+	must(t)(e.Next()) // Wall at 7 (hadn't acted yet in R1, so ticks 3 -> 2)
+	if e.Current != wall || remainingFX(t, e, wall) != 2 {
+		t.Fatalf("turn = %s remaining = %d, want Wall at 2", currentName(e), remainingFX(t, e, wall))
+	}
+
+	// Case 2: A pinned effect sorting ahead of the turn holder that already
+	// ticked this round must not tick a second time when shifted later.
+	e2 := newEnc35(t)
+	add(t, e2, "Thorin", "18", 40)
+	mira2 := add(t, e2, "Mira", "15", 27)
+	gob2 := add(t, e2, "Goblin", "12", 7)
+	bless := addFX(t, e2, "Bless", mira2, 3)
+	must(t)(e2.Start()) // R1 Thorin
+	must(t)(e2.Next())  // R1 Bless (3 -> 2)
+	must(t)(e2.Next())  // R1 Mira (Bless already ticked to 2 this round)
+	if remainingFX(t, e2, bless) != 2 {
+		t.Fatalf("Bless before move = %d, want 2", remainingFX(t, e2, bless))
+	}
+
+	must(t)(e2.SetInitiative(mira2, ini(t, "8"), MoveEffects))
+	if e2.Current != gob2 {
+		t.Fatalf("current = %s, want Goblin", currentName(e2))
+	}
+	must(t)(e2.Next()) // Bless at 8: must NOT tick a second time in Round 1
+	if e2.Current != bless || remainingFX(t, e2, bless) != 2 {
+		t.Fatalf("Bless on shifted count = %d (current %s), want 2", remainingFX(t, e2, bless), currentName(e2))
+	}
+	must(t)(e2.Next()) // Mira at 8
+	must(t)(e2.Next()) // R2 Thorin
+	must(t)(e2.Next()) // R2 Goblin
+	must(t)(e2.Next()) // R2 Bless: ticks normally (2 -> 1)
+	if e2.Round != 2 || e2.Current != bless || remainingFX(t, e2, bless) != 1 {
+		t.Fatalf("R2 Bless: round %d cur %s rem %d", e2.Round, currentName(e2), remainingFX(t, e2, bless))
+	}
+}

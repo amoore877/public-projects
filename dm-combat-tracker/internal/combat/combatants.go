@@ -321,21 +321,39 @@ func (e *Encounter) SetInitiative(id RowID, v Initiative, move SourceMove) ([]Ev
 	} else {
 		r.Effect.Initiative = v
 	}
+	movedIDs := map[RowID]bool{id: true}
 	if move == MoveEffects {
 		for _, fx := range owned {
 			old := fx.Initiative
 			fx.Initiative += v - from
+			movedIDs[fx.ID] = true
 			evs = append(evs, InitiativeChanged{EventMeta: e.meta(), ID: fx.ID, Name: fx.Name, From: old, To: fx.Initiative})
 		}
 	}
-	if e.Status == Active && id == e.Current && oldIdx+1 < len(oldOrder) {
-		order := e.Order()
-		next := indexOf(order, oldOrder[oldIdx+1].ID())
-		if indexOf(order, id) > next {
-			rec := e.newRecord()
-			e.Delayed = append(e.Delayed, id)
-			evs = append(evs, e.advance(order, next-1, &rec)...)
-			e.pushHistory(rec)
+	if e.Status == Active && id == e.Current {
+		var nextUnmoved RowID
+		for j := oldIdx + 1; j < len(oldOrder); j++ {
+			if !movedIDs[oldOrder[j].ID()] {
+				nextUnmoved = oldOrder[j].ID()
+				break
+			}
+		}
+		if nextUnmoved != 0 {
+			order := e.Order()
+			next := indexOf(order, nextUnmoved)
+			if indexOf(order, id) > next {
+				rec := e.newRecord()
+				e.Delayed = append(e.Delayed, id)
+				if move == MoveEffects {
+					for _, fx := range owned {
+						if indexOf(oldOrder, fx.ID) < oldIdx && indexOf(order, fx.ID) > next {
+							e.Delayed = append(e.Delayed, fx.ID)
+						}
+					}
+				}
+				evs = append(evs, e.advance(order, next-1, &rec)...)
+				e.pushHistory(rec)
+			}
 		}
 	}
 	return evs, nil
