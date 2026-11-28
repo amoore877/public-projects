@@ -480,12 +480,10 @@ func (m *Model) promptResource() overlay {
 		label: "Resource on " + name + ":",
 		help:  "NAME CUR/MAX [reset] · NAME +N/-N · NAME rm",
 		suggest: func(text string) []string {
-			if strings.Contains(text, " ") {
-				return nil
-			}
+			prefix := strings.ToLower(strings.TrimLeft(text, " "))
 			var out []string
 			for _, n := range existing {
-				if strings.HasPrefix(strings.ToLower(n), strings.ToLower(text)) {
+				if strings.HasPrefix(strings.ToLower(n), prefix) {
 					out = append(out, n+" ")
 				}
 			}
@@ -654,10 +652,19 @@ func (m *Model) promptRemove() overlay {
 	return confirm("Remove "+name+" from combat?", func(m *Model) { m.remove(id, name, combat.AskAboutEffects) })
 }
 
+func hasTurnStarted(evs []combat.Event) bool {
+	for _, ev := range evs {
+		if _, ok := ev.(combat.TurnStarted); ok {
+			return true
+		}
+	}
+	return false
+}
+
 // remove takes a combatant out; if it is the source of effects, it asks
 // whether to keep or end them (R5) before changing anything.
 func (m *Model) remove(id combat.RowID, name string, sourced combat.SourcedEffects) {
-	_, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return e.Remove(id, sourced) })
+	out, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return e.Remove(id, sourced) })
 	var nd *combat.NeedsDecisionError
 	switch {
 	case errors.As(err, &nd):
@@ -676,6 +683,9 @@ func (m *Model) remove(id combat.RowID, name string, sourced combat.SourcedEffec
 		}
 	case err != nil:
 		m.fail(err)
+	case hasTurnStarted(out.Events):
+		m.selected = m.sess.Encounter().Current
+		m.turnReminder()
 	}
 	m.syncSelection()
 }

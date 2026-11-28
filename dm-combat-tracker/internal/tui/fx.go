@@ -265,9 +265,12 @@ func (m *Model) promptEndEffect(fx *combat.Effect) overlay {
 	id, name := fx.ID, fx.Name
 	p := &inputPrompt{label: "End " + name + " early · reason:", help: "optional, e.g. concentration broken"}
 	p.submit = func(m *Model, text string) (overlay, error) {
-		wasTurn := m.sess.Encounter().Current == id
-		if m.apply(func(e *combat.Encounter) ([]combat.Event, error) { return e.EndEffect(id, text) }) && wasTurn {
+		out, err := m.run(func(e *combat.Encounter) ([]combat.Event, error) { return e.EndEffect(id, text) })
+		if err != nil {
+			m.fail(err)
+		} else if hasTurnStarted(out.Events) {
 			m.selected = m.sess.Encounter().Current // the turn passed on (D22)
+			m.turnReminder()
 		}
 		m.syncSelection()
 		return nil, nil

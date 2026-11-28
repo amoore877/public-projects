@@ -304,8 +304,27 @@ func TestRemoveCombatant(t *testing.T) {
 
 	selectRow(t, m, "Thorin") // the turn holder
 	press(m, "x", "y")
-	if s.Encounter().Current != idOf(t, s, "Goblin 1") {
-		t.Errorf("removing the turn holder should pass the turn on")
+	if s.Encounter().Current != idOf(t, s, "Goblin 1") || m.Selected() != s.Encounter().Current {
+		t.Errorf("removing the turn holder should pass the turn on and select it")
+	}
+
+	// Removing the last row in order when it holds the turn wraps selection
+	// to the top turn holder, and reminds if that creature is dying (3.5e).
+	s35 := newSession(t, fight35()...)
+	m35 := New(s35, "")
+	for s35.Encounter().Current != idOf(t, s35, "Mialee") {
+		press(m35, "n")
+	}
+	// Remove Tordek and Orc 1 first so dying Orc 2 is at the top of Round 2.
+	runCmd(m35, "rm tordek")
+	runCmd(m35, "rm o1")
+	selectRow(t, m35, "Mialee") // holds the turn at the bottom of the order
+	press(m35, "x", "y")
+	if s35.Encounter().Current != idOf(t, s35, "Orc 2") || m35.Selected() != s35.Encounter().Current {
+		t.Fatalf("wrap on remove: cur=%d sel=%d want Orc 2 (%d)", s35.Encounter().Current, m35.Selected(), idOf(t, s35, "Orc 2"))
+	}
+	if !strings.Contains(m35.msg, "Orc 2 is dying (-4 HP)") {
+		t.Errorf("expected dying reminder after removal passed turn, got %q", m35.msg)
 	}
 }
 
@@ -584,6 +603,17 @@ func TestResourcesUI(t *testing.T) {
 	if strings.Contains(screen(m), "[LA") {
 		t.Fatalf("LA should be removed:\n%s", screen(m))
 	}
+	// Multi-word resource names tab-complete even after typing the first word + space.
+	selectRow(t, m, "Thorin")
+	runCmd(m, "res thorin Spell Slots 2/4")
+	press(m, "P")
+	typeText(m, "spell ")
+	press(m, "tab")
+	if got := promptText(t, m); got != "Spell Slots " {
+		t.Fatalf("multi-word resource tab completion = %q, want %q", got, "Spell Slots ")
+	}
+	press(m, "esc")
+
 	// Pressing P on an effect row warns.
 	selectRow(t, m, "Spirit Guardians")
 	press(m, "P")

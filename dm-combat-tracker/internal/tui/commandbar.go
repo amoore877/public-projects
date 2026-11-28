@@ -93,7 +93,7 @@ func (m *Model) runCommand(cmd command.Command, p *inputPrompt) (overlay, error)
 	}
 	switch {
 	case m.notePassedTurn(out.Events):
-	case cmd.Kind == command.Turn:
+	case cmd.Kind == command.Turn || hasTurnStarted(out.Events):
 		m.selected = m.sess.Encounter().Current
 		m.turnReminder()
 	case cmd.Created != nil && *cmd.Created != 0:

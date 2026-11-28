@@ -88,6 +88,15 @@ func TestCommandBarRemoveAndEnd(t *testing.T) {
 			t.Errorf("%s should be gone", r.Name())
 		}
 	}
+	// :end on the effect holding the turn at the bottom of the order passes
+	// the turn to the top and moves selection there, matching x.
+	for s.Encounter().Current != idOf(t, s, "Spirit Guardians") {
+		press(m, "n")
+	}
+	runCmd(m, "end spirit")
+	if s.Encounter().Current != idOf(t, s, "Thorin") || m.Selected() != s.Encounter().Current {
+		t.Errorf(":end on current effect: cur=%d sel=%d, want Thorin (%d)", s.Encounter().Current, m.Selected(), idOf(t, s, "Thorin"))
+	}
 	runCmd(m, "endcombat")
 	if s.Encounter().Status != combat.Setup || len(s.Encounter().Combatants) != 1 || s.Encounter().Combatants[0].Name != "Thorin" || !strings.Contains(m.msg, "1 PC carried over") || !strings.Contains(m.msg, "archived as") {
 		t.Errorf(":endcombat: status %v combatants %d msg %q", s.Encounter().Status, len(s.Encounter().Combatants), m.msg)
@@ -154,11 +163,13 @@ func TestHelp(t *testing.T) {
 		t.Error("a key that closes help shouldn't also run")
 	}
 	// Every hotkey handled by the model is in the help.
-	for _, k := range []string{"a", "x", "d", "h", "t", "D", "M", "c", "C", "e", "T", "i", "N", "l", ":", "S", "E", "?", "q"} {
+	for _, k := range []string{"n", "space", "p", "j", "k", "g", "G", "/", "a", "x", "d", "h", "t", "D", "M", "P", "c", "C", "e", "T", "i", "I", "N", "R", "l", "A", "u", "U", "r", ":", "S", "E", "?", "q"} {
 		found := false
 		for _, h := range keyHelp {
-			for _, part := range strings.Split(h[0], " / ") {
-				found = found || part == k
+			for _, grp := range strings.Split(h[0], " / ") {
+				for _, part := range strings.Fields(grp) {
+					found = found || part == k
+				}
 			}
 		}
 		if !found {
