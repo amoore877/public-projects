@@ -277,10 +277,13 @@ func (l layout) cut(c column, text string) bool {
 
 // fit pads or truncates s to exactly w cells.
 func fit(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
 	if ansi.StringWidth(s) > w {
 		s = ansi.Truncate(s, w, "…")
 	}
-	return s + strings.Repeat(" ", w-ansi.StringWidth(s))
+	return s + strings.Repeat(" ", max(0, w-ansi.StringWidth(s)))
 }
 
 // trailingNumber matches a group member's number, as in "Goblin 12".

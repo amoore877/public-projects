@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -344,13 +346,18 @@ func (m *Model) bannerLines() int {
 	return n
 }
 
+func (m *Model) minHeight() int { return max(minHeight, chrome+m.bannerLines()+1) }
+
 // tooSmall reports whether the terminal can't fit the table.
-func (m *Model) tooSmall() bool { return m.width < minWidth || m.height < minHeight }
+func (m *Model) tooSmall() bool { return m.width < minWidth || m.height < m.minHeight() }
 
 func (m *Model) renderTooSmall() string {
+	if m.height <= 0 || m.width <= 0 {
+		return ""
+	}
 	lines := []string{
 		" Terminal too small",
-		fmt.Sprintf(" Need %d×%d, have %d×%d.", minWidth, minHeight, m.width, m.height),
+		fmt.Sprintf(" Need %d×%d, have %d×%d.", minWidth, m.minHeight(), m.width, m.height),
 		" Make the window bigger; q quits (state is saved).",
 	}
 	if m.saveErr != nil {
@@ -387,7 +394,8 @@ func errText(err error) string {
 		text = strings.TrimPrefix(text, combat.ErrInvalid.Error()+": ")
 	}
 	if text != "" {
-		text = strings.ToUpper(text[:1]) + text[1:]
+		r, size := utf8.DecodeRuneInString(text)
+		text = string(unicode.ToUpper(r)) + text[size:]
 	}
 	return text
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/amoore877/public-projects/dm-combat-tracker/internal/combat"
 )
@@ -94,6 +95,17 @@ func TestLongInputScrolls(t *testing.T) {
 	press(m, "enter")
 	if !strings.Contains(m.msg, "Logged to dmct-log-2026-11-14.md") {
 		t.Errorf("msg = %q", m.msg)
+	}
+
+	// Narrow widths with wide 2-cell characters at or before the cursor must
+	// terminate cleanly and fit within width.
+	for _, w := range []int{1, 2, 3, 4} {
+		ed := newLineEdit("abc龍def")
+		ed.pos = 3 // cursor on the 2-cell rune '龍'
+		got := ansi.Strip(ed.render(w))
+		if sw := ansi.StringWidth(got); sw > w {
+			t.Errorf("render(%d) width = %d (%q), want <= %d", w, sw, got, w)
+		}
 	}
 }
 
@@ -366,6 +378,8 @@ func TestErrText(t *testing.T) {
 		combat.ErrNotSetup:      "Combat has already started",
 		combat.ErrNothingToUndo: "No earlier turn to go back to",
 		errors.New(""):          "",
+		errors.New(`éowyn has no condition "prone"`): `Éowyn has no condition "prone"`,
+		errors.New("“goblin” is ambiguous"):          "“goblin” is ambiguous",
 	} {
 		if got := errText(err); got != want {
 			t.Errorf("errText(%v) = %q, want %q", err, got, want)

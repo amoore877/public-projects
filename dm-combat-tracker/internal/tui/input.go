@@ -93,14 +93,24 @@ func (l *lineEdit) render(width int) string {
 	if l.pos < len(l.text) {
 		at, after = string(l.text[l.pos]), string(l.text[l.pos+1:])
 	}
-	for width > 1 && ansi.StringWidth(before)+ansi.StringWidth(at) > width {
+	if width <= 1 {
+		before = ""
+	}
+	for width > 1 && before != "" && ansi.StringWidth(before)+ansi.StringWidth(at) > width {
 		r := []rune(before)
-		before = "…" + string(r[min(2, len(r)):])
+		if len(r) <= 1 {
+			before = ""
+			break
+		}
+		before = "…" + string(r[2:])
 	}
-	rest := width - ansi.StringWidth(before) - ansi.StringWidth(at)
-	if rest < 0 {
-		rest = 0
+	if ansi.StringWidth(at) > width {
+		at = ansi.Truncate(at, max(0, width), "")
+		if at == "" && width > 0 {
+			at = " "
+		}
 	}
+	rest := max(0, width-ansi.StringWidth(before)-ansi.StringWidth(at))
 	if ansi.StringWidth(after) > rest {
 		after = ansi.Truncate(after, rest, "…")
 	}

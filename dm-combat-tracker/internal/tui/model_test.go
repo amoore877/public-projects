@@ -489,6 +489,31 @@ func TestTooSmall(t *testing.T) {
 			t.Errorf("%v: q should still quit", size)
 		}
 	}
+
+	// With both the error banner and the timer banner active, 9 lines can't
+	// fit chrome (7) + 2 banners + 1 row, so 9 shows "too small" (asking for
+	// 10) instead of overflowing to 10 lines, and 10 fits cleanly.
+	s := newSession(t, append(fight(), func(e *combat.Encounter) ([]combat.Event, error) {
+		_, evs, err := e.AddTimer("Reinforcements", 2)
+		return evs, err
+	})...)
+	m := New(s, "")
+	m.saveErr = os.ErrPermission
+	sized(m, 80, 9)
+	got9 := screen(m)
+	if lines := strings.Split(got9, "\n"); len(lines) != 9 || !strings.Contains(got9, "Need 43×10, have 80×9.") {
+		t.Errorf("80×9 with two banners: %d lines:\n%s", len(lines), got9)
+	}
+	sized(m, 80, 10)
+	got10 := screen(m)
+	if lines := strings.Split(got10, "\n"); len(lines) != 10 || strings.Contains(got10, "Terminal too small") {
+		t.Errorf("80×10 with two banners: %d lines:\n%s", len(lines), got10)
+	}
+	// A 0×0 initial resize must not panic.
+	sized(m, 0, 0)
+	if got0 := screen(m); got0 != "" {
+		t.Errorf("0×0 render = %q, want empty", got0)
+	}
 }
 
 func TestNarrowestLayout(t *testing.T) {
